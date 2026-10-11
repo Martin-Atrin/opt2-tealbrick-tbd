@@ -104,9 +104,6 @@ struct MainView: View {
 
   var body: some View {
     mainLayout
-      .onReceive(NotificationCenter.default.publisher(for: .navigateToSupport)) { _ in
-        selectedIcon = .bug
-      }
       .onReceive(NotificationCenter.default.publisher(for: .navigateToDaily)) { notification in
         let wasAlreadyOnDaily = selectedIcon == .daily
         if let dayString = notification.userInfo?["day"] as? String,
@@ -119,11 +116,6 @@ struct MainView: View {
         }
         withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
           selectedIcon = .daily
-        }
-      }
-      .onReceive(NotificationCenter.default.publisher(for: .navigateToFlow)) { _ in
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
-          selectedIcon = .flow
         }
       }
   }

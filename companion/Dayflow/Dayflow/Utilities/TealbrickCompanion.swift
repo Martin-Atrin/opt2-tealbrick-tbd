@@ -10,37 +10,11 @@ enum TealbrickPalette: String, CaseIterable, Identifiable {
   static let key = "tealbrickPalette"
   static var current: Self { Self(rawValue: UserDefaults.standard.string(forKey: key) ?? "teal") ?? .teal }
 }
-enum TealbrickCharacter: String, CaseIterable, Identifiable {
-  case impy, brickie, ottie
-  var id: String { rawValue }
-  var title: String { rawValue.capitalized }
-  var isInstalled: Bool {
-    TealbrickPalette.allCases.allSatisfy { palette in
-      FlowCreatureClip.allCases.allSatisfy { clip in
-        Bundle.main.url(
-          forResource: "tb_\(rawValue)_\(palette.rawValue)_\(clip.rawValue)",
-          withExtension: "mov") != nil
-      }
-    }
-  }
-  static let key = "tealbrickCharacter"
-  static var current: Self { Self(rawValue: UserDefaults.standard.string(forKey: key) ?? "brickie") ?? .brickie }
-}
-
 struct TealbrickCompanionSettings: View {
   @AppStorage(TealbrickPalette.key) private var palette: TealbrickPalette = .teal
-  @AppStorage(TealbrickCharacter.key) private var character: TealbrickCharacter = .brickie
   var body: some View {
-    SettingsSection(title: "Companion", subtitle: "Character and app colors") {
+    SettingsSection(title: "Appearance", subtitle: "App colors") {
       VStack(spacing: 0) {
-        SettingsRow(label: "Character") {
-          Picker("Character", selection: $character) {
-            ForEach(TealbrickCharacter.allCases) { item in
-              Text(item.isInstalled ? item.title : "\(item.title) · not installed")
-                .tag(item).disabled(!item.isInstalled)
-            }
-          }.labelsHidden().frame(width: 210)
-        }
         SettingsRow(label: "Palette") {
           Picker("Palette", selection: $palette) {
             ForEach(TealbrickPalette.allCases) { Text($0.title).tag($0) }
@@ -48,8 +22,6 @@ struct TealbrickCompanionSettings: View {
         }
       }
     }
-    .onChange(of: character) { FlowCreaturePlayer.shared.refreshAppearance() }
-    .onChange(of: palette) { FlowCreaturePlayer.shared.refreshAppearance() }
   }
 }
 

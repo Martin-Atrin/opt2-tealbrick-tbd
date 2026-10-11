@@ -62,10 +62,6 @@ extension MainView {
       case .settings:
         SettingsView()
           .padding(15)
-      case .chat:
-        ChatPanelView()
-      case .flow:
-        FlowView()
       case .review:
         ReviewCardsView()
       case .agents:
@@ -74,9 +70,6 @@ extension MainView {
         DailyView(selectedDate: $selectedDate)
       case .weekly:
         WeeklyView()
-      case .bug:
-        BugReportView()
-          .padding(15)
       case .timeline:
         GeometryReader { geo in
           timelinePanel(geo: geo)

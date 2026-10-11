@@ -137,9 +137,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Start daily recap generation scheduler (checks every 5 minutes)
     DailyRecapScheduler.shared.start()
 
-    // Flow desktop overlay (creature toasts/nudges) tracks the session mirror
-    FlowOverlayController.shared.start()
-    _ = CompanionPlanner.shared
 
     powerObserver = NSWorkspace.shared.notificationCenter.addObserver(
       forName: NSWorkspace.willPowerOffNotification,

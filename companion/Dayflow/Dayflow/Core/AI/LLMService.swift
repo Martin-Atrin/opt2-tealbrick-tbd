@@ -88,11 +88,6 @@ protocol LLMServicing {
     completion: @escaping (Result<ProcessedBatchResult, Error>) -> Void)
   func generateText(prompt: String) async throws -> String
   func generateTextStreaming(prompt: String) -> AsyncThrowingStream<String, Error>
-  /// Rich chat streaming with thinking, tool calls, and text events.
-  /// - Parameter sessionId: Optional session ID to resume a previous conversation
-  func generateChatStreaming(request: DashboardChatRequest) -> AsyncThrowingStream<
-    ChatStreamEvent, Error
-  >
   var batchingConfig: BatchingConfig { get }
 }
 
@@ -1156,41 +1151,4 @@ final class LLMService: LLMServicing {
     }
   }
 
-  // MARK: - Rich Chat Streaming
-
-  func generateChatStreaming(request: DashboardChatRequest) -> AsyncThrowingStream<
-    ChatStreamEvent, Error
-  > {
-    switch request.provider {
-    case .gemini:
-      guard let gemini = makeGeminiProvider() else {
-        return AsyncThrowingStream { continuation in
-          continuation.yield(
-            .error("Gemini is not configured. Add your Gemini API key in Settings > Providers."))
-          continuation.finish(
-            throwing: NSError(
-              domain: "LLMService",
-              code: 1101,
-              userInfo: [
-                NSLocalizedDescriptionKey:
-                  "Gemini is not configured. Add your Gemini API key in Settings > Providers."
-              ]))
-        }
-      }
-      return gemini.generateDashboardChatStreaming(
-        systemInstruction: request.systemInstruction ?? "",
-        history: request.history
-      )
-    case .codex:
-      return CodexProvider().generateChatStreaming(
-        prompt: request.prompt,
-        sessionId: request.sessionId
-      )
-    case .claude:
-      return ClaudeProvider().generateChatStreaming(
-        prompt: request.prompt,
-        sessionId: request.sessionId
-      )
-    }
-  }
 }
