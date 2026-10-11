@@ -1,6 +1,5 @@
 import { createConnection } from "node:net";
-import { startRelay } from "@opt2-tealbrick/bridge";
-import { signJwsWithSigner, thumbprint, ulid } from "@opt2-tealbrick/manifest";
+import { startRelay, manifestApi } from "@opt2-tealbrick/bridge";
 
 /**
  * The local relay (C5) as the default agent's `tealbrick` MCP server (stdio).
@@ -34,10 +33,10 @@ function call(socketPath: string, req: Record<string, unknown>): Promise<Record<
 const socket = env("TB_SIGNER_SOCKET");
 const jwkReply = await call(socket, { op: "jwk" });
 if (!jwkReply.jwk) { process.stderr.write(`relay: signer unavailable (${String(jwkReply.error)})\n`); process.exit(3); }
-const jwk = jwkReply.jwk as Parameters<typeof thumbprint>[0];
+const jwk = jwkReply.jwk as never;
 
 const relay = startRelay({
-  api: { thumbprint, ulid, signJwsWithSigner } as never,
+  api: manifestApi(),
   bridgeUrl: env("TB_BRIDGE_URL"),
   connection: { con: env("TB_CONNECTION_ID") as never, agt: env("TB_AGENT_ID") as never, bridgeId: env("TB_BRIDGE_ID") as `brg_${string}` },
   signer: {

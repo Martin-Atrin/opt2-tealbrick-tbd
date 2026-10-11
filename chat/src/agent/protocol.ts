@@ -52,8 +52,6 @@ export type AgentToHelper =
   | { type: "done"; id: string; sessionId: string; reply: string }
   | { type: "error"; id?: string; message: string };
 
-/** Tools a turn may use without asking: reads, harness-local reads, Teal Brick (the bridge decides). */
-export const AUTO_ALLOWED_TOOLS = ["Read", "Glob", "Grep", "mcp__companion", "mcp__listening", "mcp__tealbrick"];
 /** Built-in tools the default agent has at all; anything that changes this Mac asks the person first. */
 export const AGENT_TOOLS = ["Read", "Glob", "Grep", "Edit", "Write", "Bash", "WebFetch", "WebSearch"];
 

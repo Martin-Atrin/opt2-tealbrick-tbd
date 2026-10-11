@@ -2,7 +2,8 @@ import { createInterface } from "node:readline";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { query, type Options, type McpServerConfig, type PermissionResult, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import { AGENT_TOOLS, AUTO_ALLOWED_TOOLS, describeToolCall, needsPermission, type AgentConfig, type AgentToHelper, type HelperToAgent } from "./protocol";
+import { buildOptions, BRIDGE_SERVER_NAME, BRIDGE_TOOL_PATTERN } from "@opt2-tealbrick/harness-claude";
+import { AGENT_TOOLS, describeToolCall, needsPermission, type AgentConfig, type AgentToHelper, type HelperToAgent } from "./protocol";
 import { listeningServer } from "./listeningTools";
 
 /**
@@ -24,40 +25,52 @@ const turns = new Map<string, AbortController>();
 const permissions = new Map<string, (r: { allow: boolean; message?: string }) => void>();
 let nextReq = 0;
 
-function mcpServers(c: AgentConfig): Record<string, McpServerConfig> {
+/** Harness-local tool servers (C5); the bridge relay is added by harness-claude. */
+function localServers(c: AgentConfig): Record<string, McpServerConfig> {
   const servers: Record<string, McpServerConfig> = {};
   if (c.companionCli) servers.companion = { type: "stdio", command: c.companionCli, args: ["mcp"], env: { HOME: process.env.HOME ?? "" } };
   if (c.listeningCli) servers.listening = listeningServer(c.listeningCli);
-  if (c.relay) servers.tealbrick = { type: "stdio", command: c.relay.command, args: c.relay.args, env: c.relay.env };
   return servers;
 }
 
 function options(c: AgentConfig, id: string, abort: AbortController, sessionId?: string): Options {
-  return {
-    abortController: abort,
-    model: c.model.model,
+  // harness-claude: isolation (no user/project settings, strict MCP, never bypass), allow-listed env,
+  // the bridge reached only through the relay MCP server "tealbrick", held-call guidance.
+  const base = buildOptions({
+    bridge: { agentId: "tbd-default", command: c.relay?.command ?? "false", args: c.relay?.args ?? [] },
     cwd: c.cwd,
-    resume: sessionId,
-    includePartialMessages: true,
-    settingSources: [],
-    strictMcpConfig: true,
-    tools: AGENT_TOOLS,
-    allowedTools: AUTO_ALLOWED_TOOLS,
-    permissionMode: "default",
-    mcpServers: mcpServers(c),
-    pathToClaudeCodeExecutable: c.claudeExecutable,
-    systemPrompt: { type: "preset", preset: "claude_code", append: [
+    env: process.env,
+    modelKeyEnv: "ANTHROPIC_API_KEY",
+    model: c.model.model,
+    builtinTools: ["Read", "Glob", "Grep"],
+    extraMcpServers: localServers(c),
+    appendSystemPrompt: [
       "You are TBD, the person's default Teal Brick agent, running on their Mac.",
       "You can read their screen-activity timeline (companion tools) and their transcripts and meetings (listening tools).",
       "Teal Brick apps (memory, connected accounts) are available through the tealbrick tools when connected; the workspace bridge decides what you may do there.",
       c.systemAppend ?? "",
-    ].join("\n") },
+    ].join("\n"),
+    onHeld: (held) => out({ type: "event", id, event: { kind: "activity", label: `Waiting for owner approval (${held.tool.replace(BRIDGE_TOOL_PATTERN, "")})` } }),
+  }) as Options & { mcpServers: Record<string, McpServerConfig>; allowedTools: string[]; env: Record<string, string> };
+  if (c.relay) {
+    base.mcpServers[BRIDGE_SERVER_NAME] = { type: "stdio", command: c.relay.command, args: c.relay.args, env: c.relay.env };
+  } else {
+    // Not connected to a workspace yet: no Teal Brick tools at all.
+    delete base.mcpServers[BRIDGE_SERVER_NAME];
+    base.allowedTools = base.allowedTools.filter((t) => !t.startsWith(BRIDGE_TOOL_PATTERN));
+  }
+  return {
+    ...base,
+    abortController: abort,
+    resume: sessionId,
+    includePartialMessages: true,
+    // Available built-ins; only Read/Glob/Grep are auto-allowed (harness), the rest ask the person.
+    tools: AGENT_TOOLS,
+    pathToClaudeCodeExecutable: c.claudeExecutable,
     env: {
+      ...base.env,
       // The harness's own state, isolated from the person's Claude setup.
       CLAUDE_CONFIG_DIR: join(c.stateDir, "claude"),
-      HOME: process.env.HOME,
-      PATH: "/usr/bin:/bin:/usr/sbin:/sbin",
-      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
       ...(c.model.baseUrl ? { ANTHROPIC_BASE_URL: c.model.baseUrl } : {}),
     },
     canUseTool: async (tool, input, { signal }): Promise<PermissionResult> => {
