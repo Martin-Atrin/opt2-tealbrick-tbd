@@ -54,6 +54,13 @@ public struct TBDListeningPreferences: @unchecked Sendable {
         static let diarize = "tbd.listening.diarize"
     }
 
+    /// In-memory override of the engine for this process only (argument domain; nothing is written).
+    public func overridingEngine(_ engine: TBDEngineChoice) {
+        var arguments = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
+        arguments[Key.engine] = engine.rawValue
+        defaults.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain)
+    }
+
     private func bool(_ key: String, default value: Bool) -> Bool {
         defaults.object(forKey: key) == nil ? value : defaults.bool(forKey: key)
     }

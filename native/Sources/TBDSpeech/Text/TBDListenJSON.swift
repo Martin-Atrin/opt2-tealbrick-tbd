@@ -6,14 +6,44 @@ public enum TBDListenJSON {
     public static let schemaVersion = 1
 
     public struct Segment: Codable, Equatable {
+        enum CodingKeys: String, CodingKey { case start, end, speaker, text }
+        public func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(start, forKey: .start)
+            try c.encode(end, forKey: .end)
+            try c.encode(speaker, forKey: .speaker)
+            try c.encode(text, forKey: .text)
+        }
         public let start: Int, end: Int, speaker: String?, text: String
     }
 
     public struct Word: Codable, Equatable {
+        enum CodingKeys: String, CodingKey { case start, end, speaker, text, confidence }
+        public func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(start, forKey: .start)
+            try c.encode(end, forKey: .end)
+            try c.encode(speaker, forKey: .speaker)
+            try c.encode(text, forKey: .text)
+            try c.encode(confidence, forKey: .confidence)
+        }
         public let start: Int, end: Int, speaker: String?, text: String, confidence: Double
     }
 
     public struct Item: Codable, Equatable {
+        enum CodingKeys: String, CodingKey { case id, title, kind, status, createdAt, durationMs, language, engine, preview }
+        public func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(id, forKey: .id)
+            try c.encode(title, forKey: .title)
+            try c.encode(kind, forKey: .kind)
+            try c.encode(status, forKey: .status)
+            try c.encode(createdAt, forKey: .createdAt)
+            try c.encode(durationMs, forKey: .durationMs)
+            try c.encode(language, forKey: .language)
+            try c.encode(engine, forKey: .engine)
+            try c.encode(preview, forKey: .preview)
+        }
         public let id: String
         public let title: String
         public let kind: String
@@ -36,6 +66,30 @@ public enum TBDListenJSON {
     }
 
     public struct Detail: Codable, Equatable {
+        enum CodingKeys: String, CodingKey { case schemaVersion, id, title, kind, status, createdAt, durationMs, language, engine, sourcePath, sourceURL, text, rawText, cleanText, speakers, segments, words, audioPaths, summaries, error }
+        public func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(schemaVersion, forKey: .schemaVersion)
+            try c.encode(id, forKey: .id)
+            try c.encode(title, forKey: .title)
+            try c.encode(kind, forKey: .kind)
+            try c.encode(status, forKey: .status)
+            try c.encode(createdAt, forKey: .createdAt)
+            try c.encode(durationMs, forKey: .durationMs)
+            try c.encode(language, forKey: .language)
+            try c.encode(engine, forKey: .engine)
+            try c.encode(sourcePath, forKey: .sourcePath)
+            try c.encode(sourceURL, forKey: .sourceURL)
+            try c.encode(text, forKey: .text)
+            try c.encode(rawText, forKey: .rawText)
+            try c.encode(cleanText, forKey: .cleanText)
+            try c.encode(speakers, forKey: .speakers)
+            try c.encode(segments, forKey: .segments)
+            try c.encode(words, forKey: .words)
+            try c.encode(audioPaths, forKey: .audioPaths)
+            try c.encode(summaries, forKey: .summaries)
+            try c.encode(error, forKey: .error)
+        }
         public let schemaVersion: Int
         public let id: String
         public let title: String
@@ -71,6 +125,17 @@ public enum TBDListenJSON {
     }
 
     public struct Dictation: Codable, Equatable {
+        enum CodingKeys: String, CodingKey { case id, createdAt, durationMs, text, rawText, targetApp, wordCount }
+        public func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(id, forKey: .id)
+            try c.encode(createdAt, forKey: .createdAt)
+            try c.encode(durationMs, forKey: .durationMs)
+            try c.encode(text, forKey: .text)
+            try c.encode(rawText, forKey: .rawText)
+            try c.encode(targetApp, forKey: .targetApp)
+            try c.encode(wordCount, forKey: .wordCount)
+        }
         public let id: String
         public let createdAt: Date
         public let durationMs: Int
@@ -87,6 +152,20 @@ public enum TBDListenJSON {
 
     /// Result of `tbd-listen transcribe --json`.
     public struct TranscribeResult: Codable, Equatable {
+        enum CodingKeys: String, CodingKey { case schemaVersion, id, file, text, durationMs, language, engine, speakers, segments, words }
+        public func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(schemaVersion, forKey: .schemaVersion)
+            try c.encode(id, forKey: .id)
+            try c.encode(file, forKey: .file)
+            try c.encode(text, forKey: .text)
+            try c.encode(durationMs, forKey: .durationMs)
+            try c.encode(language, forKey: .language)
+            try c.encode(engine, forKey: .engine)
+            try c.encode(speakers, forKey: .speakers)
+            try c.encode(segments, forKey: .segments)
+            try c.encode(words, forKey: .words)
+        }
         public let schemaVersion: Int
         public let id: String?
         public let file: String
@@ -98,9 +177,10 @@ public enum TBDListenJSON {
         public let segments: [Segment]
         public let words: [Word]
 
-        public init(file: String, transcription: TBDTranscription) {
+        /// `id` is null when the result was not saved to the library.
+        public init(file: String, transcription: TBDTranscription, saved: Bool = true) {
             schemaVersion = TBDListenJSON.schemaVersion
-            id = transcription.id; self.file = file; text = transcription.text; durationMs = transcription.durationMs
+            id = saved ? transcription.id : nil; self.file = file; text = transcription.text; durationMs = transcription.durationMs
             language = transcription.language; engine = transcription.engine ?? ""; speakers = transcription.speakers
             segments = TBDExport.displaySegments(transcription).map { Segment(start: $0.start, end: $0.end, speaker: $0.speaker, text: $0.text) }
             words = transcription.words.map { Word(start: $0.start, end: $0.end, speaker: $0.speaker, text: $0.text, confidence: $0.confidence) }
