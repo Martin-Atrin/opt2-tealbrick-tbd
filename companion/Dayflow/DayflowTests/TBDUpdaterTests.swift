@@ -1,112 +1,59 @@
-import CryptoKit
 import XCTest
 
 @testable import TBD
 
 final class TBDUpdaterTests: XCTestCase {
-  private func pem(for key: Curve25519.Signing.PublicKey) -> String {
-    let der = TBDUpdateVerifier.spkiPrefix + key.rawRepresentation
-    return "-----BEGIN PUBLIC KEY-----\n\(der.base64EncodedString())\n-----END PUBLIC KEY-----\n"
-  }
-
-  private func release(
-    _ version: String, product: String = "tbd", kind: String = "desktop",
-    channel: String = "stable", minOS: String? = nil, url: String = "https://example.com/TBD.zip",
-    sha: String = String(repeating: "a", count: 64)
-  ) -> TBDRelease {
-    TBDRelease(
-      product: product, kind: kind, version: version, channel: channel,
-      artifact: .init(url: url, sha256: sha), minimumOS: minOS)
-  }
-
   private let os14 = OperatingSystemVersion(majorVersion: 14, minorVersion: 2, patchVersion: 0)
 
-  // MARK: signature
+  // MARK: helper answer
 
-  func testSignatureAcceptsValid() throws {
-    let priv = Curve25519.Signing.PrivateKey()
-    let body = Data(#"{"releases":[]}"#.utf8)
-    let sig = Data(try priv.signature(for: body).base64EncodedString().utf8) + Data("\n".utf8)
-    XCTAssertNoThrow(
-      try TBDUpdateVerifier.verifyIndex(
-        body: body, signature: sig, publicKeyPEM: pem(for: priv.publicKey)))
+  private func answer(
+    version: String = "0.3.0", url: String = "https://example.com/TBD.zip",
+    sha: String = String(repeating: "a", count: 64), minOs: String? = nil
+  ) -> [String: Any] {
+    var d: [String: Any] = ["version": version, "url": url, "sha256": sha, "notarized": true]
+    if let minOs { d["minOs"] = minOs }
+    return d
   }
 
-  func testSignatureRejectsTamperedBody() throws {
-    let priv = Curve25519.Signing.PrivateKey()
-    let body = Data(#"{"releases":[]}"#.utf8)
-    let sig = Data(try priv.signature(for: body).base64EncodedString().utf8)
-    XCTAssertThrowsError(
-      try TBDUpdateVerifier.verifyIndex(
-        body: Data(#"{"releases":[1]}"#.utf8), signature: sig, publicKeyPEM: pem(for: priv.publicKey))
-    ) { XCTAssertEqual($0 as? TBDUpdateError, .invalidSignature) }
+  func testNullMeansUpToDate() throws {
+    XCTAssertNil(try TBDUpdateOffer.parse(NSNull(), currentVersion: "0.1.0", os: os14))
   }
 
-  func testSignatureRejectsWrongKeyAndGarbage() throws {
-    let priv = Curve25519.Signing.PrivateKey()
-    let other = Curve25519.Signing.PrivateKey()
-    let body = Data("abc".utf8)
-    let sig = Data(try priv.signature(for: body).base64EncodedString().utf8)
-    XCTAssertThrowsError(
-      try TBDUpdateVerifier.verifyIndex(body: body, signature: sig, publicKeyPEM: pem(for: other.publicKey)))
-    XCTAssertThrowsError(
-      try TBDUpdateVerifier.verifyIndex(
-        body: body, signature: Data("not base64!".utf8), publicKeyPEM: pem(for: priv.publicKey)))
-    XCTAssertThrowsError(
-      try TBDUpdateVerifier.verifyIndex(body: body, signature: Data(), publicKeyPEM: pem(for: priv.publicKey)))
+  func testValidAnswerBecomesOffer() throws {
+    let offer = try XCTUnwrap(
+      try TBDUpdateOffer.parse(answer(minOs: "14.0"), currentVersion: "0.1.0", os: os14))
+    XCTAssertEqual(offer.version, "0.3.0")
+    XCTAssertEqual(offer.notarized, true)
   }
 
-  func testPinnedKeyParses() throws {
-    XCTAssertNoThrow(try TBDUpdateVerifier.publicKey(fromPEM: TBDUpdater.publicKeyPEM))
-    XCTAssertThrowsError(try TBDUpdateVerifier.publicKey(fromPEM: "-----BEGIN PUBLIC KEY-----\nAAAA\n-----END PUBLIC KEY-----"))
+  func testAnswerIgnoredWhenNotNewerOrOSTooOld() throws {
+    XCTAssertNil(try TBDUpdateOffer.parse(answer(version: "0.3.0"), currentVersion: "0.3.0", os: os14))
+    XCTAssertNil(try TBDUpdateOffer.parse(answer(version: "0.2.0"), currentVersion: "0.3.0", os: os14))
+    XCTAssertNil(try TBDUpdateOffer.parse(answer(minOs: "15.0"), currentVersion: "0.1.0", os: os14))
   }
 
-  // MARK: selection
-
-  func testSelectionPicksHighestMatching() {
-    let list = [
-      release("0.2.0"), release("0.3.0"), release("0.9.0", kind: "app"),
-      release("0.8.0", product: "knowledge"), release("0.7.0", channel: "dev"),
-      release("0.6.0", channel: "beta"), release("0.5.0", minOS: "15.0"),
+  func testAnswerRefusedWhenUnsafeOrMalformed() {
+    let bad: [Any] = [
+      answer(url: "http://example.com/TBD.zip"),
+      answer(sha: "xyz"),
+      answer(version: "garbage"),
+      answer(minOs: "fourteen"),
+      ["version": "1.0.0"],
+      "text",
     ]
-    XCTAssertEqual(
-      TBDUpdateVerifier.selectUpdate(from: list, currentVersion: "0.1.0", os: os14)?.version, "0.3.0")
-    XCTAssertEqual(
-      TBDUpdateVerifier.selectUpdate(
-        from: list, currentVersion: "0.1.0", channels: ["stable", "beta"], os: os14)?.version, "0.6.0")
-    XCTAssertEqual(
-      TBDUpdateVerifier.selectUpdate(
-        from: list, currentVersion: "0.1.0", os: OperatingSystemVersion(majorVersion: 15, minorVersion: 0, patchVersion: 0))?.version,
-      "0.5.0")
+    for value in bad {
+      XCTAssertThrowsError(try TBDUpdateOffer.parse(value, currentVersion: "0.1.0", os: os14)) {
+        XCTAssertEqual($0 as? TBDUpdateError, .malformedAnswer)
+      }
+    }
   }
 
-  func testSelectionIgnoresOlderEqualAndInsecure() {
-    XCTAssertNil(TBDUpdateVerifier.selectUpdate(from: [release("0.3.0")], currentVersion: "0.3.0", os: os14))
-    XCTAssertNil(TBDUpdateVerifier.selectUpdate(from: [release("0.2.0")], currentVersion: "0.3.0", os: os14))
-    XCTAssertNil(
-      TBDUpdateVerifier.selectUpdate(
-        from: [release("0.4.0", url: "http://example.com/TBD.zip")], currentVersion: "0.3.0", os: os14))
-    XCTAssertNil(
-      TBDUpdateVerifier.selectUpdate(from: [release("0.4.0", sha: "xyz")], currentVersion: "0.3.0", os: os14))
-    XCTAssertNil(TBDUpdateVerifier.selectUpdate(from: [release("0.4.0")], currentVersion: "garbage", os: os14))
-  }
-
-  func testRecordDecodingAcceptsBothSpellings() throws {
-    let json = Data(
-      #"""
-      {"releases":[
-        {"product":"tbd","kind":"desktop","version":"1.0.0","channel":"stable","minOs":"14.0","artifact":{"url":"https://x.test/a.zip","sha256":"sha256:\#(String(repeating: "b", count: 64))"}},
-        {"product":"tbd","productKind":"desktop","version":"1.1.0","channel":"stable","minimumOS":"14.0","build":7,"artifact":{"url":"https://x.test/b.zip","sha256":"\#(String(repeating: "c", count: 64))"}},
-        {"product":"knowledge","kind":"app","version":"0.1.0","channel":"stable","artifact":null}
-      ]}
-      """#.utf8)
-    let index = try JSONDecoder().decode(TBDReleaseIndex.self, from: json)
-    XCTAssertEqual(index.releases.count, 3)
-    XCTAssertEqual(index.releases[0].minimumOS, "14.0")
-    XCTAssertEqual(index.releases[1].kind, "desktop")
-    XCTAssertEqual(index.releases[1].build, "7")
-    XCTAssertEqual(
-      TBDUpdateVerifier.selectUpdate(from: index.releases, currentVersion: "1.0.0", os: os14)?.version, "1.1.0")
+  func testShaPrefixIsNormalised() throws {
+    let hex = String(repeating: "B", count: 64)
+    let offer = try XCTUnwrap(
+      try TBDUpdateOffer.parse(answer(sha: "sha256:" + hex), currentVersion: "0.1.0", os: os14))
+    XCTAssertEqual(offer.sha256, hex.lowercased())
   }
 
   // MARK: semver

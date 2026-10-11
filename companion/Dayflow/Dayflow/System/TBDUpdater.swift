@@ -57,72 +57,47 @@ struct TBDSemver: Comparable, Equatable {
   }
 }
 
-/// One release record from the signed index. Field names accept both the Platform
-/// registry spelling (`kind`, `minOs`) and the longer aliases (`productKind`, `minimumOS`).
-struct TBDRelease: Decodable, Equatable {
-  struct Artifact: Decodable, Equatable {
-    let url: String
-    let sha256: String
-  }
-
-  let product: String
-  let kind: String
+/// The newest desktop release as reported by the Chat helper (`checkUpdate`), which verifies
+/// the signed Platform release index. This type only re-checks the fields the installer relies on.
+struct TBDUpdateOffer: Equatable {
   let version: String
-  let channel: String
-  let artifact: Artifact?
-  let minimumOS: String?
-  let build: String?
+  let url: String
+  let sha256: String
+  let minOs: String?
+  let notarized: Bool?
+  let publishedAt: String?
 
-  init(
-    product: String, kind: String, version: String, channel: String,
-    artifact: Artifact?, minimumOS: String? = nil, build: String? = nil
-  ) {
-    self.product = product
-    self.kind = kind
-    self.version = version
-    self.channel = channel
-    self.artifact = artifact
-    self.minimumOS = minimumOS
-    self.build = build
-  }
-
-  private enum Keys: String, CodingKey {
-    case product, kind, productKind, version, channel, artifact, minOs, minimumOS, build
-  }
-
-  init(from decoder: Decoder) throws {
-    let c = try decoder.container(keyedBy: Keys.self)
-    product = try c.decode(String.self, forKey: .product)
-    kind =
-      try c.decodeIfPresent(String.self, forKey: .productKind)
-      ?? c.decode(String.self, forKey: .kind)
-    version = try c.decode(String.self, forKey: .version)
-    channel = try c.decode(String.self, forKey: .channel)
-    artifact = try? c.decodeIfPresent(Artifact.self, forKey: .artifact)
-    minimumOS =
-      (try? c.decodeIfPresent(String.self, forKey: .minimumOS))
-      ?? (try? c.decodeIfPresent(String.self, forKey: .minOs))
-    if let text = try? c.decodeIfPresent(String.self, forKey: .build) {
-      build = text
-    } else if let number = try? c.decodeIfPresent(Int.self, forKey: .build) {
-      build = String(number)
-    } else {
-      build = nil
+  /// nil for NSNull / nothing newer. Throws when the answer is malformed or unsafe.
+  static func parse(
+    _ value: Any, currentVersion: String,
+    os: OperatingSystemVersion = ProcessInfo.processInfo.operatingSystemVersion
+  ) throws -> TBDUpdateOffer? {
+    if value is NSNull { return nil }
+    guard
+      let dict = value as? [String: Any],
+      let version = dict["version"] as? String, let new = TBDSemver(version),
+      let url = dict["url"] as? String, TBDUpdateVerifier.isSecureURL(URL(string: url)),
+      let sha = dict["sha256"] as? String, TBDUpdateVerifier.isWellFormedDigest(sha)
+    else { throw TBDUpdateError.malformedAnswer }
+    let minOs = dict["minOs"] as? String
+    if let minOs {
+      guard let need = TBDUpdateVerifier.osVersion(minOs) else { throw TBDUpdateError.malformedAnswer }
+      if !TBDUpdateVerifier.osAtLeast(os, need) { return nil }
     }
+    guard let current = TBDSemver(currentVersion), new > current else { return nil }
+    var hex = sha.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    if hex.hasPrefix("sha256:") { hex.removeFirst(7) }
+    return TBDUpdateOffer(
+      version: version, url: url, sha256: hex, minOs: minOs,
+      notarized: dict["notarized"] as? Bool, publishedAt: dict["publishedAt"] as? String)
   }
-}
-
-struct TBDReleaseIndex: Decodable {
-  let releases: [TBDRelease]
 }
 
 enum TBDUpdateError: LocalizedError, Equatable {
   case insecureURL
   case badStatus(Int)
   case tooLarge
-  case invalidPublicKey
-  case invalidSignature
-  case malformedIndex
+  case malformedAnswer
   case digestMismatch
   case unzipFailed
   case unexpectedBundleContents
@@ -137,9 +112,7 @@ enum TBDUpdateError: LocalizedError, Equatable {
     case .insecureURL: return "The update address is not a secure https address."
     case .badStatus(let code): return "The update server answered with status \(code)."
     case .tooLarge: return "The update download is larger than allowed."
-    case .invalidPublicKey: return "The built-in update key is not valid."
-    case .invalidSignature: return "The update list has no valid signature. It was ignored."
-    case .malformedIndex: return "The update list could not be read."
+    case .malformedAnswer: return "The update check returned an answer TBD cannot use."
     case .digestMismatch: return "The downloaded file does not match its published checksum."
     case .unzipFailed: return "The downloaded file could not be unpacked."
     case .unexpectedBundleContents: return "The download does not contain exactly one TBD.app."
@@ -155,36 +128,6 @@ enum TBDUpdateError: LocalizedError, Equatable {
 }
 
 enum TBDUpdateVerifier {
-  /// DER prefix of an Ed25519 SubjectPublicKeyInfo; 32 raw key bytes follow.
-  static let spkiPrefix = Data([0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00])
-
-  /// Raw 32-byte key from an SPKI PEM or base64 DER (44 bytes, prefix checked).
-  static func publicKey(fromPEM pem: String) throws -> Curve25519.Signing.PublicKey {
-    let b64 =
-      pem
-      .split(whereSeparator: \.isNewline)
-      .filter { !$0.hasPrefix("-----") }
-      .joined()
-    guard let der = Data(base64Encoded: b64), der.count == 44, der.prefix(12) == spkiPrefix else {
-      throw TBDUpdateError.invalidPublicKey
-    }
-    do { return try Curve25519.Signing.PublicKey(rawRepresentation: der.suffix(32)) } catch {
-      throw TBDUpdateError.invalidPublicKey
-    }
-  }
-
-  /// `signature` is the text of the `.sig` file: base64 of the 64-byte Ed25519 signature.
-  static func verifyIndex(body: Data, signature: Data, publicKeyPEM: String) throws {
-    let key = try publicKey(fromPEM: publicKeyPEM)
-    guard
-      let text = String(data: signature, encoding: .utf8),
-      let raw = Data(
-        base64Encoded: text.trimmingCharacters(in: .whitespacesAndNewlines)),
-      raw.count == 64,
-      key.isValidSignature(raw, for: body)
-    else { throw TBDUpdateError.invalidSignature }
-  }
-
   static func sha256Hex(_ data: Data) -> String {
     SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
   }
@@ -232,32 +175,6 @@ enum TBDUpdateVerifier {
     return true
   }
 
-  /// Highest valid release newer than `currentVersion`, or nil.
-  static func selectUpdate(
-    from releases: [TBDRelease],
-    currentVersion: String,
-    channels: Set<String> = ["stable"],
-    os: OperatingSystemVersion = ProcessInfo.processInfo.operatingSystemVersion
-  ) -> TBDRelease? {
-    guard let current = TBDSemver(currentVersion) else { return nil }
-    var best: (TBDRelease, TBDSemver)?
-    for release in releases {
-      guard
-        release.product == "tbd", release.kind == "desktop",
-        channels.contains(release.channel),
-        let artifact = release.artifact,
-        isSecureURL(URL(string: artifact.url)),
-        isWellFormedDigest(artifact.sha256),
-        let version = TBDSemver(release.version), version > current
-      else { continue }
-      if let minimum = release.minimumOS {
-        guard let need = osVersion(minimum), osAtLeast(os, need) else { continue }
-      }
-      if best == nil || version > best!.1 { best = (release, version) }
-    }
-    return best?.0
-  }
-
   static func osAtLeast(_ have: OperatingSystemVersion, _ need: OperatingSystemVersion) -> Bool {
     (have.majorVersion, have.minorVersion, have.patchVersion)
       >= (need.majorVersion, need.minorVersion, need.patchVersion)
@@ -273,17 +190,6 @@ enum TBDUpdateVerifier {
 }
 
 // MARK: - Network helpers
-
-/// Refuses redirects that leave https.
-private final class TBDHTTPSRedirectGuard: NSObject, URLSessionTaskDelegate {
-  func urlSession(
-    _ session: URLSession, task: URLSessionTask,
-    willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest,
-    completionHandler: @escaping (URLRequest?) -> Void
-  ) {
-    completionHandler(TBDUpdateVerifier.isSecureURL(request.url) ? request : nil)
-  }
-}
 
 /// One file download with progress. https only, also across redirects.
 private final class TBDFileDownloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
@@ -379,25 +285,13 @@ final class TBDUpdater: ObservableObject {
     case failed(String)
   }
 
-  nonisolated static let indexURL = URL(
-    string:
-      "https://raw.githubusercontent.com/Martin-Atrin/opt2-tealbrick-platform/main/registry/index.json"
-  )!
   nonisolated static let channelKey = "tbd.updates.channel"
   nonisolated static let lastCheckKey = "tbd.updates.lastCheck"
   nonisolated static let checkInterval: TimeInterval = 24 * 60 * 60
-  nonisolated static let maxIndexBytes = 5 * 1024 * 1024
   nonisolated static let maxArtifactBytes: Int64 = 2 * 1024 * 1024 * 1024
 
-  /// Release signing key (public). kid ccd73c250bdf847b.
-  nonisolated static let publicKeyPEM = """
-    -----BEGIN PUBLIC KEY-----
-    MCowBQYDK2VwAyEAH7nxFrNugQLVOqEXVIB4aOg83Jn19UCosd27fqnoPPI=
-    -----END PUBLIC KEY-----
-    """
-
   @Published private(set) var state: State = .idle
-  @Published private(set) var latest: TBDRelease?
+  @Published private(set) var latest: TBDUpdateOffer?
 
   private let logger = Logger(subsystem: "com.tealbrick.tbd", category: "updater")
   private let defaults = UserDefaults.standard
@@ -411,8 +305,9 @@ final class TBDUpdater: ObservableObject {
     Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
   }
 
-  private var channels: Set<String> {
-    defaults.string(forKey: Self.channelKey) == "beta" ? ["stable", "beta"] : ["stable"]
+  /// Channel name the helper expects: "stable", or "dev" when the person opted into beta.
+  private var channel: String {
+    defaults.string(forKey: Self.channelKey) == "beta" ? "dev" : "stable"
   }
 
   /// Starts the automatic check (at most once per 24 hours). Never installs by itself.
@@ -431,7 +326,7 @@ final class TBDUpdater: ObservableObject {
     Task { await check(automatic: true) }
   }
 
-  /// Fetches and verifies the signed index, then publishes the result in `state`.
+  /// Asks the Chat helper for the newest verified desktop release and publishes the result in `state`.
   func check(automatic: Bool = false) async {
     guard !busy else { return }
     busy = true
@@ -439,12 +334,16 @@ final class TBDUpdater: ObservableObject {
     state = .checking
     defaults.set(Date().timeIntervalSince1970, forKey: Self.lastCheckKey)
     do {
-      let index = try await Self.fetchVerifiedIndex()
-      if let release = TBDUpdateVerifier.selectUpdate(
-        from: index.releases, currentVersion: currentVersion, channels: channels)
-      {
-        latest = release
-        state = .available(version: release.version)
+      let os = ProcessInfo.processInfo.operatingSystemVersion
+      let query: [String: Any] = [
+        "version": currentVersion,
+        "os": "\(os.majorVersion).\(os.minorVersion)",
+        "channel": channel,
+      ]
+      let answer = try await TBDChatRuntime.shared.accountCall("checkUpdate", args: [query])
+      if let offer = try TBDUpdateOffer.parse(answer, currentVersion: currentVersion) {
+        latest = offer
+        state = .available(version: offer.version)
       } else {
         latest = nil
         state = .upToDate
@@ -455,47 +354,18 @@ final class TBDUpdater: ObservableObject {
     }
   }
 
-  private nonisolated static func fetchVerifiedIndex() async throws -> TBDReleaseIndex {
-    async let body = fetch(indexURL)
-    async let signature = fetch(indexURL.appendingPathExtension("sig"))
-    let (bodyData, sigData) = try await (body, signature)
-    try TBDUpdateVerifier.verifyIndex(body: bodyData, signature: sigData, publicKeyPEM: publicKeyPEM)
-    guard let index = try? JSONDecoder().decode(TBDReleaseIndex.self, from: bodyData) else {
-      throw TBDUpdateError.malformedIndex
-    }
-    return index
-  }
-
-  private nonisolated static func fetch(_ url: URL) async throws -> Data {
-    guard TBDUpdateVerifier.isSecureURL(url) else { throw TBDUpdateError.insecureURL }
-    let config = URLSessionConfiguration.ephemeral
-    config.timeoutIntervalForRequest = 30
-    config.timeoutIntervalForResource = 30
-    config.httpCookieStorage = nil
-    config.urlCache = nil
-    let session = URLSession(configuration: config)
-    defer { session.finishTasksAndInvalidate() }
-    var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30)
-    request.setValue("application/octet-stream", forHTTPHeaderField: "Accept")
-    let (data, response) = try await session.data(for: request, delegate: TBDHTTPSRedirectGuard())
-    let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-    guard status == 200 else { throw TBDUpdateError.badStatus(status) }
-    guard data.count <= maxIndexBytes else { throw TBDUpdateError.tooLarge }
-    return data
-  }
-
   // MARK: Install
 
   /// Downloads, verifies, replaces the running app and relaunches. Requires a user click.
   func downloadAndInstall() async {
-    guard !busy, let release = latest, let artifact = release.artifact else { return }
+    guard !busy, let offer = latest else { return }
     busy = true
     defer { busy = false }
     var work: URL?
     do {
       let appURL = Bundle.main.bundleURL
       let teamID = try Self.autoInstallPreconditions(appURL: appURL)
-      guard let url = URL(string: artifact.url), TBDUpdateVerifier.isSecureURL(url) else {
+      guard let url = URL(string: offer.url), TBDUpdateVerifier.isSecureURL(url) else {
         throw TBDUpdateError.insecureURL
       }
       state = .downloading(progress: 0)
@@ -513,7 +383,7 @@ final class TBDUpdater: ObservableObject {
       }
       try await downloader.run(url)
 
-      let expected = artifact.sha256
+      let expected = offer.sha256
       let newApp = try await Task.detached(priority: .userInitiated) {
         let actual = try TBDUpdateVerifier.sha256Hex(ofFile: zip)
         guard TBDUpdateVerifier.digestMatches(actualHex: actual, expected: expected) else {
