@@ -11,6 +11,7 @@ import { publicPersonSession } from "./portal";
 import { DEFAULT_AGENT_ID } from "./defaultAgent";
 import { buildMessage } from "../shared/message";
 import type { DeviceStart } from "@opt2-tealbrick/spec/routes";
+import { checkForUpdate } from "./updates";
 
 /**
  * The renderer's bridge into the helper. TBD Chat talks to exactly one agent:
@@ -141,6 +142,10 @@ export function registerIpc(): void {
   ipcMain.handle("studio:pendingHolds", async () => {
     try { return await getServices().portal.pendingHolds(selectedPortalWorkspace()); } catch { return []; }
   });
+
+  // Update feed for the native updater: verified release index → newest TBD desktop release, or null.
+  ipcMain.handle("studio:checkUpdate", (_e, input: { version: string; os: string; channel?: "stable" | "dev" }) =>
+    checkForUpdate({ version: String(input?.version ?? "0"), os: String(input?.os ?? "14.0"), channel: input?.channel === "dev" ? "dev" : "stable" }));
 
   ipcMain.handle("studio:localAnswer", (_e, input: { id: string; allow: boolean; remember: boolean }) => {
     answerAsk(input.id, input.allow, input.remember);

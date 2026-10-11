@@ -68,8 +68,8 @@ final class TBDChatRuntime: NSObject, ObservableObject, WKScriptMessageHandler, 
   // Native settings use the same IPC handlers and credential store as Chat.
   func accountCall(_ channel: String, args: [Any] = []) async throws -> Any {
     let allowed: Set<String> = ["session", "controlPlanes", "portalWorkspaces", "selectPortalWorkspace", "signIn", "awaitSignIn", "cancelSignIn", "signOut", "activateControlPlane", "addControlPlane", "removeControlPlane",
-      // Read-only: remote agent directory and session index for the Companion Agent wall.
-      "listAgents"]
+      // Read-only: agent directory (TBD agent) and the verified update feed for the native updater.
+      "listAgents", "checkUpdate"]
     guard allowed.contains(channel) else { throw failure("Unsupported account operation") }
     start()
     guard ready || process?.isRunning == true else { throw failure(status) }
