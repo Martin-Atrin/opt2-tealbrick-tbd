@@ -55,6 +55,9 @@ struct TBDLibraryView: View {
             try? await Task.sleep(for: .milliseconds(150))
             guard !Task.isCancelled else { return }
             items = (try? env.database?.transcriptions(kind: kind ?? filter, matching: query)) ?? []
+            if env.selectedTranscriptionID == nil || !items.contains(where: { $0.id == env.selectedTranscriptionID }) && kind != nil {
+                env.selectedTranscriptionID = items.first?.id
+            }
         }
     }
 }

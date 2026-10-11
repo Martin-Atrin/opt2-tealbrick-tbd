@@ -32,6 +32,9 @@ struct TBDMeetingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: TBDTokens.Space.lg) {
             if meetings.phase != .idle { livePanel } else if !meetings.upcoming.isEmpty { upcomingPanel }
+            if let stage = meetings.finalizingStage {
+                HStack(spacing: TBDTokens.Space.sm) { ProgressView().controlSize(.small); Text(stage).foregroundStyle(TBDTokens.muted) }
+            }
             if let warning = meetings.warning {
                 Text(warning).font(TBDTokens.Typography.body).foregroundStyle(TBDTokens.alert)
             }

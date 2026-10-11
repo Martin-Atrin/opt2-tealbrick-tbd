@@ -14,6 +14,8 @@ final class TBDMeetingController: ObservableObject {
     @Published private(set) var micLevel: Float = 0
     @Published private(set) var systemLevel: Float = 0
     @Published private(set) var upcoming: [TBDCalendarMonitor.Meeting] = []
+    /// Stage of a final transcription running in the background (a new meeting can start meanwhile).
+    @Published private(set) var finalizingStage: String?
     var onMessage: ((String) -> Void)?
 
     private let env: TBDListeningEnvironment
@@ -42,7 +44,7 @@ final class TBDMeetingController: ObservableObject {
 
     var statusText: String {
         switch phase {
-        case .idle: "Idle"
+        case .idle: finalizingStage == nil ? "Idle" : "Processing"
         case .starting: "Starting"
         case .recording: "Recording · " + TBDPillClock.text(elapsedMs)
         case .paused: "Paused · " + TBDPillClock.text(elapsedMs)
@@ -95,12 +97,13 @@ final class TBDMeetingController: ObservableObject {
         Task {
             do {
                 let (_, folder) = try await recorder.stop()
+                phase = .idle
+                micLevel = 0; systemLevel = 0
                 await finalize(folder)
             } catch {
+                phase = .idle
                 onMessage?(error.localizedDescription)
             }
-            phase = .idle
-            micLevel = 0; systemLevel = 0
         }
     }
 
@@ -118,10 +121,14 @@ final class TBDMeetingController: ObservableObject {
 
     private func finalize(_ folder: URL) async {
         guard let database = env.database, finalizing.insert(folder.path).inserted else { return }
-        defer { finalizing.remove(folder.path) }
+        defer {
+            finalizing.remove(folder.path)
+            if finalizing.isEmpty { finalizingStage = nil }
+        }
+        finalizingStage = "Preparing transcript…"
         do {
             let item = try await recorder.finalize(folder: folder, database: database, keepAudio: env.preferences.keepAudio) { stage in
-                Task { @MainActor [weak self] in if case .processing = self?.phase { self?.phase = .processing(stage) } }
+                Task { @MainActor [weak self] in if self?.finalizingStage != nil { self?.finalizingStage = stage } }
             }
             env.selectedTranscriptionID = item.id
             onMessage?("Meeting transcript saved")

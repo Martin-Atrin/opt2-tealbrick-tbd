@@ -23,10 +23,11 @@ struct TBDListeningView: View {
             if let error = env.databaseError {
                 Text("The Listening library could not be opened: \(error)").foregroundStyle(TBDTokens.alert)
             }
+            TBDModelBanner()
             Picker("", selection: $env.selectedTab) {
                 ForEach(TBDListeningTab.allCases) { Text($0.title).tag($0) }
             }
-            .pickerStyle(.segmented).labelsHidden().frame(maxWidth: 360)
+            .pickerStyle(.segmented).labelsHidden().fixedSize()
             TBDQueueStrip(queue: context.files)
             Group {
                 switch env.selectedTab {
@@ -97,6 +98,33 @@ struct TBDQueueStrip: View {
         case .done: TBDChip("Done")
         case .failed(let message): TBDChip("Failed", color: TBDTokens.alert); Text(message).foregroundStyle(TBDTokens.muted).lineLimit(1)
         case .cancelled: TBDChip("Cancelled", color: TBDTokens.muted)
+        }
+    }
+}
+
+/// Shown until the selected engine's model is on disk. Downloads only when clicked.
+struct TBDModelBanner: View {
+    @EnvironmentObject private var env: TBDListeningEnvironment
+    @StateObject private var models = TBDModelsModel()
+
+    var body: some View {
+        let model = TBDModelManager.Model(engine: env.preferences.engine)
+        if !models.manager.isDownloaded(model) {
+            HStack(spacing: TBDTokens.Space.md) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Download the speech model to start").font(TBDTokens.Typography.control).foregroundStyle(TBDTokens.ink)
+                    Text("\(model.title): \(model.detail) Speech stays on this Mac.").font(.system(size: 12)).foregroundStyle(TBDTokens.muted)
+                    if let error = models.error { Text(error).font(.system(size: 12)).foregroundStyle(TBDTokens.alert) }
+                }
+                Spacer()
+                if let value = models.progress[model] {
+                    ProgressView(value: value).frame(width: 160)
+                } else {
+                    Button("Download") { models.download(model) }.buttonStyle(TBDButtonStyle(.primary))
+                }
+            }
+            .tbdCard(padding: TBDTokens.Space.md)
+            .onChange(of: models.statuses.map(\.downloaded)) { _, _ in env.changed(); Task { await env.speech.warmUp() } }
         }
     }
 }

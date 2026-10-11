@@ -49,7 +49,13 @@ public final class TBDAudioRecorder: @unchecked Sendable {
                 guard let self else { return }
                 self.lock.withLock { self.interruption = error }
             }) { [weak self] buffer in self?.consume(buffer) }
-            lock.withLock { self.token = token }
+            // stop() may have run while subscribing; never leave the microphone subscribed.
+            let current = lock.withLock { () -> Bool in
+                guard self.writer === writer else { return false }
+                self.token = token
+                return true
+            }
+            if !current { await microphone.unsubscribe(token) }
         } catch {
             lock.withLock { self.writer = nil }
             try? writer.close()
