@@ -11,6 +11,7 @@
 #   TBD_NOTARY_PROFILE    notarytool keychain profile; unset = build + sign only, then print setup steps
 #   TBD_NODE_SOURCE       optional Node binary for the Chat helper (default: scripts/fetch-node.sh, pinned official build)
 #   TBD_PUBLISH=1         after notarization, publish a GitHub release on Martin-Atrin/opt2-tealbrick-tbd (Coordinator approval required)
+#   TBD_RELEASE_TAG       release tag (default v<CFBundleShortVersionString>); a tag with "-" (e.g. v0.1.0-dev.1) is published as a PRE-RELEASE
 set -euo pipefail
 
 TBD_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -150,7 +151,11 @@ printf '\nNotarized and stapled:\n  app: %s\n  zip: %s\n  dmg: %s\n' "$APP" "$ZI
 printf '  sha256: %s\n' "$DIST/TBD-$VERSION-$BUILD.sha256"
 
 if [ "${TBD_PUBLISH:-}" = "1" ]; then
-  step "Publish GitHub release v$VERSION on Martin-Atrin/opt2-tealbrick-tbd"
-  gh release create "v$VERSION" "$ZIP" "$DMG" "$DIST/TBD-$VERSION-$BUILD.sha256" \
-    --repo Martin-Atrin/opt2-tealbrick-tbd --title "TBD $VERSION" --notes "TBD $VERSION (build $BUILD). Notarized, Apple silicon, macOS 14+."
+  TAG="${TBD_RELEASE_TAG:-v$VERSION}"
+  PRE=()
+  case "$TAG" in *-*) PRE=(--prerelease) ;; esac
+  step "Publish GitHub release $TAG on Martin-Atrin/opt2-tealbrick-tbd ${PRE[*]+${PRE[*]}}"
+  gh release create "$TAG" "$ZIP" "$DMG" "$DIST/TBD-$VERSION-$BUILD.sha256" ${PRE[@]+"${PRE[@]}"} \
+    --repo Martin-Atrin/opt2-tealbrick-tbd --target main --title "TBD ${TAG#v}" \
+    --notes "TBD ${TAG#v} (app $VERSION, build $BUILD). Notarized, Apple silicon, macOS 14+.${PRE:+ Pre-release for opt2 QA; not a stable release.}"
 fi

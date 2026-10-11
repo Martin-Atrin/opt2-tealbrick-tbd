@@ -1,5 +1,11 @@
-/* GENERATED from listening/design/tbd-tokens.json by scripts/gen-tbd-tokens.mjs. Do not edit. */
+/* TBD design tokens for Chat; mirror native/Sources/TBDDesign (TBDTokens, TBDMotion). */
 :root {
+  /* Motion: the same five curves as TBDMotion in the native app. */
+  --tbd-motion-instant: 120ms ease-out;
+  --tbd-motion-quick: 200ms ease-out;
+  --tbd-motion-standard: 250ms ease-in-out;
+  --tbd-motion-spring: 300ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  --tbd-motion-gentle: 400ms ease-in-out;
   --tbd-canvas: #F3F1E9;
   --tbd-paper: #FFFEFA;
   --tbd-ink: #173F3C;

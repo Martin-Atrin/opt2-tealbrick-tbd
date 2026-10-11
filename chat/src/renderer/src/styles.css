@@ -430,10 +430,10 @@ input, textarea { font: inherit; color: inherit; }
   /* Slides from the edge it belongs to. Appearing instantly reads as a jump
      cut: the eye has to re-find where it was, because nothing showed it that
      the layout moved rather than changed. */
-  animation: panel-in 180ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  animation: panel-in var(--tbd-motion-spring);
 }
 .panel--closing {
-  animation: panel-out 150ms cubic-bezier(0.55, 0.06, 0.68, 0.19) forwards;
+  animation: panel-out var(--tbd-motion-quick) forwards;
   /* Out of the flow on the way out, so the conversation reclaims the width in
      one movement instead of snapping wide after the drawer has gone. */
   pointer-events: none;
@@ -486,12 +486,12 @@ input, textarea { font: inherit; color: inherit; }
 
 .toggle {
   width: 40px; height: 24px; border-radius: 999px; background: var(--stroke-strong);
-  position: relative; transition: background 0.15s ease; flex: none;
+  position: relative; transition: background var(--tbd-motion-instant); flex: none;
 }
 .toggle--on { background: var(--ink); }
 .toggle__knob {
   position: absolute; top: 2.5px; left: 2.5px; width: 19px; height: 19px;
-  border-radius: 50%; background: #fff; transition: transform 0.15s ease;
+  border-radius: 50%; background: #fff; transition: transform var(--tbd-motion-instant);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28);
 }
 .toggle--on .toggle__knob { transform: translateX(16px); }
@@ -897,26 +897,17 @@ input, textarea { font: inherit; color: inherit; }
 .said__row { display: flex; align-items: flex-end; gap: 8px; }
 .said__row .bubble { max-width: 100%; }
 
-.newroom {
-  margin: 0 12px 8px; padding: 10px;
-  background: var(--surface-raised); border: 0.5px solid var(--stroke);
-  border-radius: var(--radius); box-shadow: var(--shadow-menu);
-  -webkit-app-region: no-drag;
-}
-.newroom__head { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 8px; }
-.newroom__label { font-size: var(--fs-sm); color: var(--ink-tertiary); padding-top: 3px; }
-.newroom__picked { display: flex; flex-wrap: wrap; gap: 4px; font-size: var(--fs-sm); }
-.newroom__list { max-height: 210px; overflow-y: auto; display: flex; flex-direction: column; }
-.newroom__opt {
-  display: flex; align-items: center; gap: 8px; width: 100%;
-  padding: 6px 7px; border-radius: var(--radius-sm);
-  font-size: var(--fs-base); text-align: left;
-}
-.newroom__opt:hover { background: var(--hover); }
-.newroom__opt--on { background: var(--selected); }
-.newroom__opt span { flex: 1; }
-.newroom__foot { display: flex; justify-content: flex-end; gap: 6px; margin-top: 8px; }
-.newroom__foot .btn[disabled] { opacity: 0.45; cursor: default; }
+
+
+
+
+
+
+
+
+
+
+
 
 /* Who answers an untagged message. A select rather than a menu: three fixed
    choices, and the current one has to be readable at a glance. */
