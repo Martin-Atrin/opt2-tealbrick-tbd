@@ -10,6 +10,7 @@ struct TBDModelsView: View {
   @State private var name = ""
   @State private var endpoint = ""
   @State private var secret = ""
+  @State private var kind: TBDModelKind = .openAICompatible
   @State private var error = ""
   @AppStorage(TBDCleanupPolicy.chatKey) private var chatCleanup = false
   @AppStorage(TBDCleanupPolicy.voiceNoteKey) private var noteCleanup = false
@@ -35,6 +36,7 @@ struct TBDModelsView: View {
             else {
               Text("Models by task").font(.title2)
               Text("Choose a connection once and reuse it. Selecting a model does not enable automatic cleanup. No automatic cross-provider fallback.").foregroundStyle(.secondary)
+              route("TBD agent", task: "agent", detail: "Your default agent in Chat (Claude Agent SDK). Needs an Anthropic connection with your API key.")
               route("Cleanup", task: "cleanup", detail: "Optional transcript correction; shared model, independent switches.")
               Toggle("Clean up Chat voice input", isOn: $chatCleanup)
               Toggle("Clean up voice notes", isOn: $noteCleanup)
@@ -53,20 +55,25 @@ struct TBDModelsView: View {
   private var connections: some View {
     VStack(alignment: .leading, spacing: 16) {
       Text("Connections").font(.title2)
-      Text("OpenAI-compatible endpoints. Keys are held in Keychain and reused only by routes assigned to that connection. Existing provider configurations remain unchanged until you assign a shared route.").foregroundStyle(.secondary)
+      Text("OpenAI-compatible or Anthropic endpoints. Keys are held in Keychain and reused only by routes assigned to that connection. Existing provider configurations remain unchanged until you assign a shared route.").foregroundStyle(.secondary)
       ForEach(state.connections) { connection in
         VStack(alignment: .leading) {
           Text(connection.name).fontWeight(.medium)
-          Text(connection.endpoint).font(.callout).textSelection(.enabled)
+          Text("\(connection.kind == .anthropic ? "Anthropic" : "OpenAI-compatible") · \(connection.endpoint)").font(.callout).textSelection(.enabled)
         }
         Divider()
       }
+      Picker("API", selection: $kind) {
+        Text("OpenAI-compatible").tag(TBDModelKind.openAICompatible)
+        Text("Anthropic").tag(TBDModelKind.anthropic)
+      }.pickerStyle(.segmented)
+      .onChange(of: kind) { _, k in if k == .anthropic && endpoint.isEmpty { endpoint = "https://api.anthropic.com" } }
       TextField("Connection name", text: $name).tbdField()
       TextField("https://host.example/v1", text: $endpoint).tbdField()
       SecureField("API key (optional for local servers)", text: $secret).tbdField()
       Button("Save connection") {
         do {
-          try registry.saveConnection(TBDModelConnection(name: name.trimmingCharacters(in: .whitespacesAndNewlines), endpoint: endpoint.trimmingCharacters(in: .whitespacesAndNewlines)), apiKey: secret.isEmpty ? nil : secret)
+          try registry.saveConnection(TBDModelConnection(name: name.trimmingCharacters(in: .whitespacesAndNewlines), endpoint: endpoint.trimmingCharacters(in: .whitespacesAndNewlines), kind: kind), apiKey: secret.isEmpty ? nil : secret)
           secret = ""; name = ""; endpoint = ""; reload()
         } catch { self.error = error.localizedDescription }
       }

@@ -65,6 +65,8 @@ for helper in "$APP"/Contents/Helpers/*; do
   if [ -f "$helper" ]; then sign --entitlements "$ENT/helper.entitlements" "$helper"; fi
 done
 sign --entitlements "$ENT/node.entitlements" "$APP/Contents/Resources/Chat/node"
+# The Claude Agent SDK executable of the default agent (JIT runtime, same entitlements as node).
+sign --entitlements "$ENT/node.entitlements" "$APP/Contents/Resources/Chat/claude"
 sign --entitlements "$ENT/TBD.entitlements" "$APP"
 
 step "Verify signatures"

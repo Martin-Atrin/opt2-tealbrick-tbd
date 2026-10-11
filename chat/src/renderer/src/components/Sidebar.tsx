@@ -130,6 +130,31 @@ function Row({
   );
 }
 
+/**
+ * Owner approvals waiting in the workspace's apps (counts only, C24). TBD is
+ * the default place to notice them; the hold pages open in the browser (B4).
+ */
+function PendingHolds(): ReactNode {
+  const issuer = useStore((s) => s.issuer);
+  const [holds, setHolds] = useState<{ product: string; count: number }[]>([]);
+  useEffect(() => {
+    let alive = true;
+    const load = (): void => { void window.studio?.pendingHolds().then((h) => { if (alive) setHolds(h); }).catch(() => {}); };
+    load();
+    const timer = window.setInterval(load, 60_000);
+    return () => { alive = false; window.clearInterval(timer); };
+  }, []);
+  const total = holds.reduce((n, h) => n + h.count, 0);
+  if (total === 0) return null;
+  const origin = issuer.startsWith("http") ? issuer : `https://${issuer}`;
+  return (
+    <button className="foot-row" title={holds.map((h) => `${h.product}: ${h.count}`).join(", ")} onClick={() => void window.studio.openExternal(origin)}>
+      <Icon name="bell" />
+      <span className="foot-row__label">{total === 1 ? "1 approval waiting" : `${total} approvals waiting`}</span>
+    </button>
+  );
+}
+
 export function Sidebar(): ReactNode {
   const { agents, setPaletteOpen, account, signOut, refreshAgents, issuer, patchAgent, authError } =
     useStore();
@@ -187,6 +212,7 @@ export function Sidebar(): ReactNode {
       </div>
 
       <div className="sidebar__foot">
+        <PendingHolds />
         <button className="foot-row account-rail-button" title="Account and workspace" aria-label="Account and workspace" onClick={() => setAccountMenu((v) => !v)}>
           <Avatar name={account?.email ?? "?"} accent="#1b3a34" size={28} />
         </button>

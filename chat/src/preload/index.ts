@@ -54,6 +54,12 @@ const studio: StudioApi = {
     ipcRenderer.on("studio:turn", listener);
     return () => ipcRenderer.off("studio:turn", listener);
   },
+  agentConnection: () => ipcRenderer.invoke("studio:agentConnection"),
+  agentConnect: () => ipcRenderer.invoke("studio:agentConnect"),
+  awaitAgentConnect: () => ipcRenderer.invoke("studio:awaitAgentConnect"),
+  cancelAgentConnect: () => ipcRenderer.invoke("studio:cancelAgentConnect"),
+  agentDisconnect: () => ipcRenderer.invoke("studio:agentDisconnect"),
+  pendingHolds: () => ipcRenderer.invoke("studio:pendingHolds"),
   openExternal: (url) => ipcRenderer.invoke("studio:openExternal", url),
   onAuthorization: (handler) => {
     const listener = (_e: unknown, payload: Parameters<typeof handler>[0]): void => handler(payload);

@@ -13,6 +13,7 @@ tbd_assemble Debug "$DERIVED" "$DERIVED/logs"
 IDENTITY="${TBD_SIGN_IDENTITY:?set TBD_SIGN_IDENTITY to a local codesigning identity (name, SHA-1, or - for ad hoc)}"
 for helper in "$TBD_APP"/Contents/Helpers/*; do codesign --force --sign "$IDENTITY" --timestamp=none "$helper"; done
 codesign --force --sign "$IDENTITY" --timestamp=none "$TBD_APP/Contents/Resources/Chat/node"
+codesign --force --sign "$IDENTITY" --timestamp=none "$TBD_APP/Contents/Resources/Chat/claude"
 codesign --force --sign "$IDENTITY" --timestamp=none "$TBD_APP"
 codesign --verify --strict "$TBD_APP"
 printf 'Built: %s\n' "$TBD_APP"

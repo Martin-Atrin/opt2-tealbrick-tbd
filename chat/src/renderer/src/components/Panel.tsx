@@ -12,7 +12,6 @@ import {
   toCron,
 } from "@/lib/schedule";
 import { useStore, type PanelView } from "@/lib/store";
-import type { LocalAction, LocalPermission } from "@shared/ipc";
 import { Avatar, Icon, Toggle } from "./primitives";
 
 /**
@@ -300,6 +299,53 @@ function RoutineView(): ReactNode {
   );
 }
 
+/**
+ * TBD's agent identity in the workspace (C24): a key connection approved by the
+ * owner in the browser. The key stays in this Mac's Keychain.
+ */
+function AgentConnectCard(): ReactNode {
+  const [state, setState] = useState<{ connected: boolean } | null>(null);
+  const [code, setCode] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const refresh = (): void => { void window.studio.agentConnection().then(setState).catch(() => setState(null)); };
+  useEffect(refresh, []);
+  const connect = async (): Promise<void> => {
+    setError(null);
+    try {
+      const start = await window.studio.agentConnect();
+      setCode(start.userCode);
+      await window.studio.awaitAgentConnect();
+      setCode(null);
+      refresh();
+    } catch (e) {
+      setCode(null);
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+  return (
+    <div className="card">
+      <div style={{ marginBottom: 6 }}>Teal Brick workspace</div>
+      {state?.connected ? (
+        <div className="stack-row">
+          <div className="muted" style={{ flex: 1 }}>Connected. Teal Brick apps are available to TBD&apos;s agent.</div>
+          <button className="btn" onClick={() => void window.studio.agentDisconnect().then(refresh)}>Disconnect</button>
+        </div>
+      ) : code ? (
+        <div className="stack-row">
+          <div className="muted" style={{ flex: 1 }}>Approve in your browser. Code: <span style={{ fontFamily: "var(--font-mono)" }}>{code}</span></div>
+          <button className="btn" onClick={() => { void window.studio.cancelAgentConnect(); setCode(null); }}>Cancel</button>
+        </div>
+      ) : (
+        <div className="stack-row">
+          <div className="muted" style={{ flex: 1 }}>Connect TBD&apos;s agent to your workspace to use memory and connected accounts.</div>
+          <button className="btn btn--primary" onClick={() => void connect()}>Connect</button>
+        </div>
+      )}
+      {error ? <div className="muted" style={{ color: "var(--danger)", marginTop: 6 }}>{error}</div> : null}
+    </div>
+  );
+}
+
 function Settings(): ReactNode {
   const { agents, activeAgentId, patchAgent, setPanel, details, models, resetConversation, sessions } =
     useStore();
@@ -366,6 +412,7 @@ function Settings(): ReactNode {
         </div>
 
 
+        <AgentConnectCard />
 
         <div className="card stack-row">
           <div style={{ flex: 1 }}>

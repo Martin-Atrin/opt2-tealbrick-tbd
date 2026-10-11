@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import TBDModels
 import WebKit
 import Security
 import UserNotifications
@@ -101,6 +102,12 @@ final class TBDChatRuntime: NSObject, ObservableObject, WKScriptMessageHandler, 
     let inherited = ProcessInfo.processInfo.environment
     var env: [String: String] = ["TBD_CHAT_DATA": data.path, "HOME": inherited["HOME"] ?? NSHomeDirectory(), "PATH": "/usr/bin:/bin"]
     for key in ["TMPDIR", "LANG", "LC_ALL", "TBD_PORTAL_URL", "TBD_CHAT_DEBUG_STREAM"] { if let v = inherited[key] { env[key] = v } }
+    // Paths the default agent needs: its bundle and the harness-local tool CLIs (C5).
+    env["TBD_RESOURCES"] = resources.appendingPathComponent("Chat").path
+    if let helpers = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers") as URL? {
+      env["TBD_COMPANION_CLI"] = helpers.appendingPathComponent("dayflow").path
+      env["TBD_LISTENING_CLI"] = helpers.appendingPathComponent("tbd-listen").path
+    }
     p.environment = env
     p.standardInput = stdin; p.standardOutput = stdout; p.standardError = stderr
     let reader = TBDLineReader()
@@ -274,6 +281,17 @@ final class TBDChatRuntime: NSObject, ObservableObject, WKScriptMessageHandler, 
     return data
   }
 
+  /// The "agent" model route; must be an Anthropic connection with a key (Claude Agent SDK).
+  static func agentModel() throws -> TBDModelConfig {
+    guard let config = try TBDModelRegistry().configuration(for: .agent) else {
+      throw NSError(domain: "TBD.Agent", code: 1, userInfo: [NSLocalizedDescriptionKey: "Choose a model for TBD's agent in Settings → Models (an Anthropic connection with your key)."])
+    }
+    guard config.kind == .anthropic, let key = config.apiKey, !key.isEmpty else {
+      throw NSError(domain: "TBD.Agent", code: 2, userInfo: [NSLocalizedDescriptionKey: "TBD's agent needs an Anthropic connection with an API key in Settings → Models."])
+    }
+    return config
+  }
+
   private func native(_ method: String, args: [Any]) async throws -> Any {
     let text = args.first as? String ?? ""
     switch method {
@@ -300,6 +318,11 @@ final class TBDChatRuntime: NSObject, ObservableObject, WKScriptMessageHandler, 
       guard (try? await center.requestAuthorization(options: [.alert, .sound])) == true else { return NSNull() }
       let content = UNMutableNotificationContent(); content.title = options["title"] ?? "TBD"; content.body = options["body"] ?? ""
       try? await center.add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)); return NSNull()
+    // TBD's default agent: the model route the person chose for the "agent" task (Settings → Models).
+    case "agentModelStatus": _ = try Self.agentModel(); return NSNull()
+    case "agentModel":
+      let config = try Self.agentModel()
+      return ["model": config.model, "baseUrl": config.baseURL.absoluteString, "apiKey": config.apiKey ?? ""]
     // Agent key (K4): the private key stays in the Keychain; the helper only gets public keys and signatures.
     case "agentKeyCreate": return try TBDAgentKeys.create(label: text)
     case "agentKeyPublic": return try TBDAgentKeys.publicJwk(label: text)

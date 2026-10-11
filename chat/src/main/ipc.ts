@@ -1,314 +1,209 @@
-import { portalWorkspaces, selectPortalWorkspace, scopedStateName } from "./portalWorkspaces";
-import { publicSession } from "./portalPrivacy";
-import { app, BrowserWindow, Notification, ipcMain, shell, type WebContents } from "../tbd/host";
+import { portalWorkspaces, selectPortalWorkspace, scopedStateName, selectedPortalWorkspace } from "./portalWorkspaces";
+import { app, BrowserWindow, Notification, ipcMain, nativeCall, shell, type WebContents } from "../tbd/host";
 import { activateControlPlane, addControlPlane, controlPlanes, removeControlPlane } from "./controlPlanes";
 import { assertPlaneSwitchAllowed } from "./controlPlaneProfiles";
-import type { Attachment } from "../shared/ipc";
+import type { Attachment, RemoteAgent } from "../shared/ipc";
 import { loadState, pickFolder, saveState } from "./store";
-import {
-  localFileExists,
-  openLocalFile,
-  openRemoteFile,
-  revealLocalFile,
-  saveRemoteFile,
-} from "./deliveredFile";
-import { replaySession } from "./sessionIndex";
+import { localFileExists, openLocalFile, openRemoteFile, revealLocalFile, saveRemoteFile } from "./deliveredFile";
 import { answerAsk } from "./asks";
-import {
-  type DeviceStart,
-  agentHealth,
-  agentInfo,
-  cancelTurn,
-  currentSession,
-  listAgents,
-  saveAgentProfile,
-  watchSession,
-  pollDeviceAuth,
-  resetSession,
-  sendTurn,
-  signOut,
-  startDeviceAuth,
-  cancelDeviceAuth,
-} from "./controlPlane";
+import { getServices, resetServices } from "./services";
+import { publicPersonSession } from "./portal";
+import { DEFAULT_AGENT_ID } from "./defaultAgent";
+import { buildMessage } from "../shared/message";
+import type { DeviceStart } from "@opt2-tealbrick/spec/routes";
 
 /**
- * The device flow spans two calls — start (show the code) and await (poll) — so
- * the UI can display the user code while the browser round-trip happens. The
- * pending start is held here rather than round-tripped through the renderer, so
- * a device code never sits in web content.
+ * The renderer's bridge into the helper. TBD Chat talks to exactly one agent:
+ * TBD's own default agent (C24). The person signs in with the owner device
+ * flow (K3); the agent connects with its own key (K4). Neither credential is
+ * ever returned to web content.
  */
-let pending: DeviceStart | null = null;
+
+let pendingSignIn: DeviceStart | null = null;
 let startingSignIn = false;
 
+/** Whether the agent has a model route; the note the UI shows when it does not. */
+async function agentReadiness(): Promise<{ ready: boolean; note?: string }> {
+  try {
+    await nativeCall("agentModelStatus");
+    const connection = getServices().agentIdentity.connection();
+    return connection
+      ? { ready: true }
+      : { ready: true, note: "TBD's agent works with your timeline and transcripts. Connect it to your workspace in its Settings to use Teal Brick apps." };
+  } catch (error) {
+    return { ready: false, note: error instanceof Error ? error.message : "Choose a model for TBD's agent in Settings → Models." };
+  }
+}
+
+async function defaultAgentRow(): Promise<RemoteAgent> {
+  const status = await agentReadiness();
+  return {
+    id: DEFAULT_AGENT_ID,
+    name: "TBD",
+    runtime: "tbd-default",
+    url: "local://tbd",
+    accessMode: "private",
+    audience: null,
+    hasUrl: true,
+    reachable: status.ready,
+    daemonLabel: null,
+    connection: status.note ? { mode: "withheld", note: status.note } : undefined,
+    peers: [],
+    profile: null,
+  };
+}
+
+function requireDefaultAgent(agentId: unknown): void {
+  if (agentId !== DEFAULT_AGENT_ID) throw new Error("TBD Chat talks only to TBD's own agent.");
+}
+
 export function registerIpc(): void {
+  const signedIn = () => Boolean(getServices().portal.session());
   ipcMain.handle("studio:portalWorkspaces", () => portalWorkspaces());
   ipcMain.handle("studio:selectPortalWorkspace", (_e, id: string) => selectPortalWorkspace(id));
-  const requireSignedOut = (): void => assertPlaneSwitchAllowed(Boolean(currentSession()), startingSignIn || Boolean(pending));
+  const requireSignedOut = (): void => assertPlaneSwitchAllowed(signedIn(), startingSignIn || Boolean(pendingSignIn));
   ipcMain.handle("studio:controlPlanes", () => controlPlanes());
-  ipcMain.handle("studio:activateControlPlane", (_e, id: string) => { requireSignedOut(); activateControlPlane(id); });
-  ipcMain.handle("studio:addControlPlane", (_e, input: { name: string; issuer: string }) => { requireSignedOut(); addControlPlane(input); });
+  ipcMain.handle("studio:activateControlPlane", (_e, id: string) => { requireSignedOut(); activateControlPlane(id); resetServices(); });
+  ipcMain.handle("studio:addControlPlane", (_e, input: { name: string; issuer: string }) => { requireSignedOut(); addControlPlane(input); resetServices(); });
   ipcMain.handle("studio:removeControlPlane", (_e, id: string) => { requireSignedOut(); return removeControlPlane(id); });
-  ipcMain.handle("studio:session", () => publicSession(currentSession()));
+  ipcMain.handle("studio:session", () => {
+    const s = publicPersonSession(getServices().portal.session());
+    return s ? { expiresAt: s.expiresAt, email: s.email ?? undefined } : null;
+  });
 
+  // Person sign-in: device flow client_id=tbd, scope=owner. The approval page opens in the system browser.
   ipcMain.handle("studio:signIn", async () => {
     startingSignIn = true;
     try {
-      pending = await startDeviceAuth();
-      return { userCode: pending.userCode, verificationUri: pending.verificationUri };
+      pendingSignIn = await getServices().portal.startSignIn();
+      void shell.openExternal(pendingSignIn.verification_uri_complete);
+      return { userCode: pendingSignIn.user_code, verificationUri: pendingSignIn.verification_uri };
     } finally { startingSignIn = false; }
   });
-
-  ipcMain.handle("studio:cancelSignIn", () => {
-    cancelDeviceAuth();
-    pending = null;
-  });
-
+  ipcMain.handle("studio:cancelSignIn", () => { getServices().portal.cancelSignIn(); pendingSignIn = null; });
   ipcMain.handle("studio:awaitSignIn", async () => {
-    if (!pending) throw new Error("No sign-in in progress.");
+    if (!pendingSignIn) throw new Error("No sign-in in progress.");
     try {
-      return publicSession(await pollDeviceAuth(pending));
-    } finally {
-      pending = null;
-    }
+      const s = await getServices().portal.awaitSignIn(pendingSignIn);
+      return { expiresAt: s.expiresAt, email: s.email ?? undefined };
+    } finally { pendingSignIn = null; }
   });
-
-  ipcMain.handle("studio:signOut", () => {
-    pending = null;
-    cancelDeviceAuth();
-    signOut();
-    // A new account must never inherit old in-flight streams or callbacks.
+  ipcMain.handle("studio:signOut", async () => {
+    pendingSignIn = null;
+    await getServices().portal.signOut();
+    resetServices();
     app.emit("tbd:reset-session");
   });
 
-  ipcMain.handle("studio:listAgents", (_event, opts?: { refreshSession?: boolean }) =>
-    listAgents({ refreshSession: opts?.refreshSession === true }));
-  ipcMain.handle(
-    "studio:saveAgentProfile",
-    (_e, input: Parameters<typeof saveAgentProfile>[0]) => saveAgentProfile(input),
-  );
+  // The agent directory is TBD's own agent only.
+  ipcMain.handle("studio:listAgents", async () => {
+    if (!signedIn()) throw new Error("Not signed in.");
+    return [await defaultAgentRow()];
+  });
+  ipcMain.handle("studio:saveAgentProfile", () => undefined);
+  ipcMain.handle("studio:agentInfo", (_e, agentId: string) => {
+    requireDefaultAgent(agentId);
+    return {
+      name: "TBD",
+      harness: "tbd-default",
+      protocol: "tealbrick-native",
+      native: true,
+      capabilities: ["chat", "resume", "cancel", "timeline", "transcripts"],
+      tools: [
+        { name: "Companion timeline", description: "Your screen-activity timeline on this Mac." },
+        { name: "Listening", description: "Your local transcripts, meetings and dictations." },
+      ],
+    };
+  });
+  ipcMain.handle("studio:agentHealth", async (_e, agentId: string) => { requireDefaultAgent(agentId); return (await agentReadiness()).ready; });
+  ipcMain.handle("studio:replaySession", () => null);
 
-  // F4-1: every agent-bound handler takes an agent id, never a URL. Main
-  // resolves the address from Portal's records, so web content cannot make
-  // this app send a credential somewhere of its choosing.
-  ipcMain.handle("studio:agentInfo", (_e, agentId: string) => agentInfo(agentId));
+  // TBD's agent identity (key connection, K4 in the Keychain).
+  ipcMain.handle("studio:agentConnection", () => {
+    const c = getServices().agentIdentity.connection();
+    return c ? { connected: true, workspaceId: c.workspaceId, agentId: c.agentId } : { connected: false };
+  });
+  ipcMain.handle("studio:agentConnect", async () => {
+    if (!signedIn()) throw new Error("Sign in first.");
+    const start = await getServices().agentIdentity.start();
+    void shell.openExternal(start.verification_uri_complete);
+    return { userCode: start.user_code, verificationUri: start.verification_uri };
+  });
+  ipcMain.handle("studio:awaitAgentConnect", async () => {
+    const c = await getServices().agentIdentity.await();
+    getServices().agent.stop(); // restart with the relay on the next turn
+    return { connected: true, workspaceId: c.workspaceId, agentId: c.agentId };
+  });
+  ipcMain.handle("studio:cancelAgentConnect", () => getServices().agentIdentity.cancel());
+  ipcMain.handle("studio:agentDisconnect", async () => { await getServices().agentIdentity.disconnect(); getServices().agent.stop(); });
 
-  ipcMain.handle("studio:agentHealth", (_e, agentId: string) => agentHealth(agentId));
+  // Approvals: counts only (S2/C24); the hold pages open in the system browser.
+  ipcMain.handle("studio:pendingHolds", async () => {
+    try { return await getServices().portal.pendingHolds(selectedPortalWorkspace()); } catch { return []; }
+  });
 
-  ipcMain.handle(
-    "studio:localAnswer",
-    (_e, input: { id: string; allow: boolean; remember: boolean }) => {
-      answerAsk(input.id, input.allow, input.remember);
-    },
-  );
-
-  ipcMain.handle(
-    "studio:replaySession",
-    (_e, input: { agentId: string; sessionId: string; limit?: number }) =>
-      replaySession({ agentId: input?.agentId, sessionId: input?.sessionId, limit: input?.limit }),
-  );
+  ipcMain.handle("studio:localAnswer", (_e, input: { id: string; allow: boolean; remember: boolean }) => {
+    answerAsk(input.id, input.allow, input.remember);
+  });
 
   ipcMain.handle("studio:loadState", (_e, name: string) => loadState(scopedStateName(name), null));
   ipcMain.handle("studio:saveState", (_e, input: { name: string; value: unknown }) => {
     saveState(scopedStateName(input.name), input.value);
   });
   ipcMain.handle("studio:pickFolder", () => pickFolder());
-
-
-
-
-
-
-
-
-
-
   ipcMain.handle("studio:openExternal", (_e, url: string) => shell.openExternal(url));
 
-  // Files the agent handed back. The renderer passes a location the USER
-  // clicked; none of these take an instruction from the model.
+  // Files the agent handed back. The renderer passes a location the USER clicked.
   ipcMain.handle("studio:fileExists", (_e, path: string) => localFileExists(path));
-
   ipcMain.handle("studio:openLocalFile", (_e, path: string) => openLocalFile(path));
   ipcMain.handle("studio:revealLocalFile", (_e, path: string) => revealLocalFile(path));
-  ipcMain.handle(
-    "studio:saveRemoteFile",
-    (_e, input: { url: string; suggestedName: string }) => saveRemoteFile(input),
-  );
-  ipcMain.handle(
-    "studio:openRemoteFile",
-    (_e, input: { url: string; suggestedName: string }) => openRemoteFile(input),
-  );
+  ipcMain.handle("studio:saveRemoteFile", (_e, input: { url: string; suggestedName: string }) => saveRemoteFile(input));
+  ipcMain.handle("studio:openRemoteFile", (_e, input: { url: string; suggestedName: string }) => openRemoteFile(input));
 
+  /** Live turn ids per stream, so Stop reaches the right turn. */
+  const liveTurns = new Map<string, string>();
+  ipcMain.handle("studio:cancelTurn", (_e, input: { agentId: string; turnId?: string }) => {
+    requireDefaultAgent(input?.agentId);
+    getServices().agent.cancel(input?.turnId);
+    return "cancelled";
+  });
+  ipcMain.handle("studio:resetSession", (_e, input: { agentId: string }) => { requireDefaultAgent(input?.agentId); });
+  // Only TBD's own turns exist; there is no remote session to follow.
+  ipcMain.handle("studio:watch", () => undefined);
+  ipcMain.handle("studio:unwatch", () => undefined);
 
-
-  ipcMain.handle(
-    "studio:cancelTurn",
-    (_e, input: { agentId: string; sessionId: string; turnId?: string }) =>
-      cancelTurn({ agentId: input?.agentId, sessionId: input?.sessionId, turnId: input?.turnId }),
-  );
-
-  ipcMain.handle(
-    "studio:resetSession",
-    (_e, input: { agentId: string; sessionId?: string }) =>
-      resetSession({ agentId: input?.agentId, sessionId: input?.sessionId }),
-  );
-
-  /** One watcher per stream id; stopping one aborts its follower. */
-  const watchers = new Map<string, AbortController>();
-  ipcMain.handle(
-    "studio:watch",
-    (e, input: { agentId: string; sessionId: string; streamIndex: number; streamId: string }) => {
-      const sender: WebContents = e.sender;
-      console.log(`[watch] asked for ${input.streamId} on ${input.sessionId.slice(0, 18)} from ${input.streamIndex}`);
-      watchers.get(input.streamId)?.abort();
-      const ctrl = new AbortController();
-      watchers.set(input.streamId, ctrl);
-      const send = (channel: string, payload: unknown): void => {
-        if (!sender.isDestroyed() && !ctrl.signal.aborted) sender.send(channel, payload);
-      };
-      // A watcher outlives its page unless something ends it. The renderer only
-      // sends unwatch when it switches agent — never when the window closes or
-      // the page reloads — and stream ids are minted fresh per watch, so the old
-      // one can never be displaced by a re-watch. Left alone, `follow: true`
-      // reconnects to the agent forever with nobody listening. Tie it to the
-      // page that asked for it.
-      const drop = (): void => {
-        if (watchers.get(input.streamId) === ctrl) watchers.delete(input.streamId);
-        ctrl.abort();
-      };
-      sender.once("destroyed", drop);
-      sender.once("did-start-loading", drop);
-
-      void watchSession({
-        agentId: input.agentId,
-        sessionId: input.sessionId,
-        startIndex: input.streamIndex,
-        signal: ctrl.signal,
-        onDelta: (text) => send("studio:delta", { streamId: input.streamId, text }),
-        onReset: () => send("studio:reset", { streamId: input.streamId }),
-        onActivity: (label) => send("studio:activity", { streamId: input.streamId, label }),
-        onCursor: (index) => send("studio:cursor", { streamId: input.streamId, index }),
-        onPeer: (event) => send("studio:peer", { streamId: input.streamId, event }),
-        onAuthorization: (event) => send("studio:authorization", { streamId: input.streamId, event }),
-        onQuestion: (request) => send("studio:question", { streamId: input.streamId, request }),
-        onLive: (kind) => send("studio:live", { streamId: input.streamId, kind }),
-      })
-        .catch((error: unknown) => {
-          console.log("[watch] stream ended with an error");
-          send("studio:live", { streamId: input.streamId, kind: "ended" });
-        })
-        .finally(() => {
-          if (watchers.get(input.streamId) === ctrl) watchers.delete(input.streamId);
-          // The stream is over on its own terms; stop holding listeners on the page.
-          if (!sender.isDestroyed()) {
-            sender.off("destroyed", drop);
-            sender.off("did-start-loading", drop);
-          }
-        });
-    },
-  );
-  /**
-   * A native notification, when the person is elsewhere.
-   *
-   * The renderer decides whether one is warranted — it knows whether the
-   * window is focused and which thread is open — and main only shows it.
-   * Clicking brings the window forward and opens the agent it came from.
-   */
   ipcMain.handle("studio:notify", (e, input: { title: string; body: string; agentId: string }) => {
-    console.log(`[notify] main: supported=${Notification.isSupported()}`);
     if (!Notification.isSupported()) return;
     const sender: WebContents = e.sender;
     const n = new Notification({ title: input.title, body: input.body });
-    n.on("show", () => console.log("[notify] main: shown"));
-    n.on("failed", () => console.log("[notify] main: failed"));
     n.on("click", () => {
       const win = BrowserWindow.fromWebContents(sender);
-      if (win) {
-        if (win.isMinimized()) win.restore();
-        win.show();
-        win.focus();
-      }
+      if (win) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); }
       if (!sender.isDestroyed()) sender.send("studio:open-agent", { agentId: input.agentId });
     });
     n.show();
   });
-  ipcMain.handle("studio:unwatch", (_e, streamId: string) => {
-    watchers.get(streamId)?.abort();
-    watchers.delete(streamId);
-  });
 
   ipcMain.handle(
     "studio:send",
-    (
-      e,
-      input: {
-        agentId: string;
-        text: string;
-        attachments?: Attachment[];
-        sessionId?: string;
-        streamIndex?: number;
-        inputResponses?: { requestId: string; optionId?: string; text?: string }[];
-        clientContext?: Record<string, unknown>;
-        streamId: string;
-      },
-    ) => {
+    async (e, input: { agentId: string; text: string; attachments?: Attachment[]; sessionId?: string; clientContext?: Record<string, unknown>; streamId: string }) => {
+      requireDefaultAgent(input.agentId);
       const sender: WebContents = e.sender;
-      return sendTurn({
-        // Named fields, not a spread: an extra `url` from web content must not
-        // ride along into the main process.
-        agentId: input.agentId,
-        text: input.text,
-        attachments: input.attachments,
+      const emit = (channel: string, payload: Record<string, unknown>) => {
+        if (!sender.isDestroyed()) sender.send(channel, { streamId: input.streamId, ...payload });
+      };
+      const folder = typeof input.clientContext?.workingFolder === "string" ? `\n\n(Working folder: ${input.clientContext.workingFolder})` : "";
+      const text = buildMessage(input.text, input.attachments ?? []) + folder;
+      const result = await getServices().agent.sendTurn({
+        text,
         sessionId: input.sessionId,
-        streamIndex: input.streamIndex,
-        inputResponses: input.inputResponses,
-        clientContext: input.clientContext,
-        onDelta: (text) => {
-          // The window can go away mid-turn; writing to a destroyed sender throws.
-          if (!sender.isDestroyed()) sender.send("studio:delta", { streamId: input.streamId, text });
-        },
-        onReset: () => {
-          if (!sender.isDestroyed()) sender.send("studio:reset", { streamId: input.streamId });
-        },
-        onActivity: (label) => {
-          if (!sender.isDestroyed()) {
-            sender.send("studio:activity", { streamId: input.streamId, label });
-          }
-        },
-        onCursor: (index) => {
-          if (!sender.isDestroyed()) {
-            sender.send("studio:cursor", { streamId: input.streamId, index });
-          }
-        },
-        onTurn: (turn) => {
-          if (!sender.isDestroyed()) {
-            sender.send("studio:turn", { streamId: input.streamId, ...turn });
-          }
-        },
-        onPeer: (event) => {
-          if (!sender.isDestroyed()) {
-            sender.send('studio:peer', { streamId: input.streamId, event });
-          }
-        },
-        onAuthorization: (event) => {
-          if (!sender.isDestroyed()) {
-            sender.send("studio:authorization", { streamId: input.streamId, event });
-          }
-        },
-        onQuestion: (request) => {
-          // Logged because a question that never reaches the window is
-          // indistinguishable from an agent that said nothing.
-          console.log(
-            `[question→ui] ${request.requestId} destroyed=${sender.isDestroyed()} stream=${input.streamId}`,
-          );
-          if (!sender.isDestroyed()) {
-            sender.send("studio:question", { streamId: input.streamId, request });
-          }
-        },
+        onDelta: (t) => emit("studio:delta", { text: t }),
+        onReset: () => emit("studio:reset", {}),
+        onActivity: (label) => emit("studio:activity", { label }),
+        onTurn: (turn) => { if (turn.turnId) liveTurns.set(input.streamId, turn.turnId); emit("studio:turn", turn); },
       });
+      liveTurns.delete(input.streamId);
+      return { reply: result.reply, sessionId: result.sessionId, streamIndex: 0, askedQuestion: false };
     },
   );
-
-
-
 }

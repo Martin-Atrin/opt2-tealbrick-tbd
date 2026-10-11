@@ -153,6 +153,14 @@ export interface StudioApi {
   openRemoteFile(input: { url: string; suggestedName: string }): Promise<DeliveryResult>;
   /** Subscribe to streaming deltas. Returns an unsubscribe function. */
   onDelta(handler: (payload: { streamId: string; text: string }) => void): () => void;
+  /** TBD's agent identity: a key connection to the selected workspace (K4 stays in the Keychain). */
+  agentConnection(): Promise<{ connected: boolean; workspaceId?: string; agentId?: string }>;
+  agentConnect(): Promise<{ userCode: string; verificationUri: string }>;
+  awaitAgentConnect(): Promise<{ connected: boolean; workspaceId?: string; agentId?: string }>;
+  cancelAgentConnect(): Promise<void>;
+  agentDisconnect(): Promise<void>;
+  /** Owner approvals waiting in apps: counts only; the hold pages open in the browser. */
+  pendingHolds(): Promise<{ product: string; count: number }[]>;
   openExternal(url: string): Promise<void>;
   cancelTurn(input: { agentId: string; sessionId: string; turnId?: string }): Promise<string>;
   resetSession(input: {
