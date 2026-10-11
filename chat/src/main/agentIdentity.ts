@@ -172,7 +172,7 @@ export function createAgentIdentity(deps: AgentIdentityDeps) {
             connectionId: mine.connection_id,
             agentId: mine.agent_id,
             workspaceId: result.workspace_id,
-            bridgeId: await deps.bridgeIdFor(result.workspace_id, result),
+            bridgeId: (result as { bridge_id?: string }).bridge_id ?? await deps.bridgeIdFor(result.workspace_id, result),
             mcpUrl: result.mcp_url,
             tokenEndpoint: result.token_endpoint,
             thumbprint,

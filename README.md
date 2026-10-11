@@ -22,6 +22,7 @@ Status: opt2 build in progress. See `AGENTS.md` for the working rules.
 
 - `chat/` started from an MIT-licensed upstream chat client (see `chat/LICENSE`).
 - `companion/` is a fork of Dayflow 2.5.4 (MIT, see `companion/LICENSE`).
+- Listening (`native/`) is a rewrite of the features of MacParakeet (GPL-3.0); see `native/NOTICE.md` and `native/LICENSE-Listening-GPL-3.0.txt`.
 
 ## No secrets policy
 
