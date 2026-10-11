@@ -1,0 +1,137 @@
+import SwiftUI
+import MacParakeet
+
+struct TabFilterBar: View {
+  let categories: [TimelineCategory]
+  let idleCategory: TimelineCategory?
+  let onManageCategories: () -> Void
+
+  @Environment(\.dayflowTheme) private var theme
+  @State private var chipRowWidth: CGFloat = 0
+
+  private let editButtonSize: CGFloat = 24
+  private let chipButtonSpacing: CGFloat = 8
+  private let chipRowHeight: CGFloat = 26
+
+  var body: some View {
+    GeometryReader { geometry in
+      let availableWidth = max(0, geometry.size.width)
+      let maxChipRowWidth = max(0, availableWidth - editButtonSize - chipButtonSpacing)
+      let hasMeasuredChipRow = chipRowWidth > 0
+      let isOverflowing = hasMeasuredChipRow && chipRowWidth > maxChipRowWidth
+      let chipRowFrameWidth =
+        hasMeasuredChipRow
+        ? min(chipRowWidth, maxChipRowWidth)
+        : maxChipRowWidth
+
+      ZStack(alignment: .topLeading) {
+        HStack(spacing: chipButtonSpacing) {
+          visibleChipRow(width: chipRowFrameWidth)
+          editButton
+        }
+        .frame(width: availableWidth, height: editButtonSize, alignment: .leading)
+        .overlay(alignment: .trailing) {
+          if isOverflowing {
+            overflowGradient
+              .padding(.trailing, editButtonSize + chipButtonSpacing)
+          }
+        }
+
+        measuredChipRow
+          .opacity(0)
+          .allowsHitTesting(false)
+          .accessibilityHidden(true)
+      }
+      .frame(width: availableWidth, height: editButtonSize, alignment: .leading)
+    }
+    .frame(height: editButtonSize)
+    .onPreferenceChange(ChipRowWidthPreferenceKey.self) { chipRowWidth = $0 }
+  }
+
+  struct CategoryChip: View {
+    @Environment(\.dayflowTheme) private var theme
+
+    let category: TimelineCategory
+    let isIdle: Bool
+
+    var body: some View {
+      HStack(spacing: 10) {
+        RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
+          .fill(Color(hex: category.colorHex))
+          .frame(width: 6, height: 6)
+
+        Text(category.name)
+          .font(Font.custom("Switzer", size: 13).weight(.medium))
+          .foregroundColor(theme.chipText)
+          .lineLimit(1)
+          .fixedSize()
+      }
+      .padding(.horizontal, 8)
+      .padding(.vertical, 5)
+      .frame(height: 26)
+      .background(theme.chipFill)
+      .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
+      .overlay(
+        RoundedRectangle(cornerRadius: 2, style: .continuous)
+          .strokeBorder(theme.chipBorder, lineWidth: 0.5)
+      )
+    }
+  }
+
+  private func visibleChipRow(width: CGFloat) -> some View {
+    ScrollView(.horizontal, showsIndicators: false) {
+      chipRowContent
+        .fixedSize(horizontal: true, vertical: false)
+        .frame(height: chipRowHeight)
+    }
+    .frame(width: max(0, width), height: chipRowHeight, alignment: .leading)
+    .clipped()
+  }
+
+  private var measuredChipRow: some View {
+    chipRowContent
+      .fixedSize(horizontal: true, vertical: false)
+      .background(
+        GeometryReader { proxy in
+          Color.clear.preference(key: ChipRowWidthPreferenceKey.self, value: proxy.size.width)
+        }
+      )
+  }
+
+  private var chipRowContent: some View {
+    HStack(spacing: 5) {
+      ForEach(categories) { category in
+        CategoryChip(category: category, isIdle: false)
+      }
+
+      if let idleCategory {
+        CategoryChip(category: idleCategory, isIdle: true)
+      }
+    }
+    .padding(.leading, 2)
+  }
+
+  private var editButton: some View {
+    CategoryEditCircleButton(
+      action: onManageCategories,
+      diameter: editButtonSize
+    )
+  }
+
+  private var overflowGradient: some View {
+    LinearGradient(
+      gradient: Gradient(colors: [Color.clear, theme.panelSolid]),
+      startPoint: .leading,
+      endPoint: .trailing
+    )
+    .frame(width: 40)
+    .allowsHitTesting(false)
+  }
+
+  private struct ChipRowWidthPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+      value = nextValue()
+    }
+  }
+}

@@ -1,0 +1,59 @@
+/* GENERATED from listening/design/tbd-tokens.json by scripts/gen-tbd-tokens.mjs. Do not edit. */
+:root {
+  --tbd-canvas: #F3F1E9;
+  --tbd-paper: #FFFEFA;
+  --tbd-ink: #173F3C;
+  --tbd-muted: #526560;
+  --tbd-border: #C9D0C5;
+  --tbd-selected: #D5DED1;
+  --tbd-hover: #DFE5DA;
+  --tbd-on-primary: #F3F1E9;
+  --tbd-alert: #A8442F;
+  --tbd-accent: #087373; --tbd-fill: #034A4A;
+  --tbd-data-teal: #3E7F78;
+  --tbd-data-moss: #6B7F3E;
+  --tbd-data-ochre: #A07A2C;
+  --tbd-data-clay: #A4583F;
+  --tbd-data-slate: #4F6479;
+  --tbd-data-plum: #7A4E6E;
+  --tbd-radius-base: 2px;
+  --tbd-radius-xs: 3px;
+  --tbd-radius-sm: 4px;
+  --tbd-space-xs: 4px;
+  --tbd-space-sm: 8px;
+  --tbd-space-md: 12px;
+  --tbd-space-lg: 16px;
+  --tbd-space-xl: 20px;
+  --tbd-space-xxl: 24px;
+  --tbd-space-xxxl: 32px;
+  --tbd-shadow-brick-sm: 3px 3px 0 rgb(23 63 60 / 0.09);
+  --tbd-shadow-brick-md: 6px 6px 0 rgb(23 63 60 / 0.08);
+  --tbd-shadow-brick-lg: 12px 12px 0 rgb(23 63 60 / 0.09);
+  --tbd-control-height: 34px; --tbd-control-pad: 14px;
+  --tbd-font-display: Georgia, 'New York', 'Times New Roman', serif;
+  --tbd-font-body: Switzer, -apple-system, sans-serif;
+  --tbd-font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+:root[data-appearance="dark"] {
+  --tbd-canvas: #142321;
+  --tbd-paper: #1C2B2A;
+  --tbd-ink: #F3F1E9;
+  --tbd-muted: #AEC3BC;
+  --tbd-border: #3C5550;
+  --tbd-selected: #2D4944;
+  --tbd-hover: #273D39;
+  --tbd-on-primary: #F3F1E9;
+  --tbd-alert: #E7ACA7;
+  --tbd-accent: #72D4CA; --tbd-fill: #17544F;
+  --tbd-data-teal: #7DBDB5;
+  --tbd-data-moss: #AFC07F;
+  --tbd-data-ochre: #D9B46A;
+  --tbd-data-clay: #DE9A82;
+  --tbd-data-slate: #9DB2C6;
+  --tbd-data-plum: #C49AB9;
+  --tbd-shadow-brick-sm: 3px 3px 0 rgb(0 0 0 / 0.27);
+  --tbd-shadow-brick-md: 6px 6px 0 rgb(0 0 0 / 0.24);
+  --tbd-shadow-brick-lg: 12px 12px 0 rgb(0 0 0 / 0.27);
+}
+:root[data-palette="burgundy"] { --tbd-accent: #A94944; --tbd-fill: #552522; }
+:root[data-palette="burgundy"][data-appearance="dark"] { --tbd-accent: #E7ACA7; --tbd-fill: #813F3B; }

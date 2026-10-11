@@ -1,0 +1,114 @@
+import AppKit
+import AVFoundation
+import ApplicationServices
+import CoreGraphics
+import EventKit
+import SwiftUI
+import UserNotifications
+
+/// TCC belongs to the signed host, never to a Portal account or workspace.
+@MainActor
+final class TBDPermissions: ObservableObject {
+  static let shared = TBDPermissions()
+  @Published private(set) var microphone = "Checking…"
+  @Published private(set) var screen = "Checking…"
+  @Published private(set) var accessibility = "Checking…"
+  @Published private(set) var notifications = "Checking…"
+  @Published private(set) var calendar = "Checking…"
+  @Published private(set) var error = ""
+  private var refreshing = false
+
+  func refresh() async {
+    guard !refreshing else { return }
+    refreshing = true
+    defer { refreshing = false }
+    switch AVCaptureDevice.authorizationStatus(for: .audio) {
+    case .authorized: microphone = "Allowed"
+    case .notDetermined: microphone = "Not requested"
+    case .denied: microphone = "Denied"
+    case .restricted: microphone = "Restricted"
+    @unknown default: microphone = "Unknown"
+    }
+    screen = CGPreflightScreenCaptureAccess() ? "Allowed" : "Not granted"
+    accessibility = AXIsProcessTrusted() ? "Allowed" : "Not granted"
+    let settings = await UNUserNotificationCenter.current().notificationSettings()
+    switch settings.authorizationStatus {
+    case .authorized, .provisional, .ephemeral: notifications = "Allowed"
+    case .notDetermined: notifications = "Not requested"
+    case .denied: notifications = "Denied"
+    @unknown default: notifications = "Unknown"
+    }
+    switch EKEventStore.authorizationStatus(for: .event) {
+    case .fullAccess, .authorized: calendar = "Allowed"
+    case .writeOnly: calendar = "Write only"
+    case .notDetermined: calendar = "Not requested"
+    case .denied: calendar = "Denied"
+    case .restricted: calendar = "Restricted"
+    @unknown default: calendar = "Unknown"
+    }
+  }
+  func request(_ permission: String) async {
+    error = ""
+    switch permission {
+    case "Microphone":
+      if AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined {
+        _ = await AVCaptureDevice.requestAccess(for: .audio)
+      } else { open("Privacy_Microphone") }
+    case "Screen recording":
+      // Explicit user action only. macOS may require an app restart after approval.
+      if screen == "Allowed" || !CGRequestScreenCaptureAccess() { open("Privacy_ScreenCapture") }
+    case "Accessibility":
+      _ = AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
+      open("Privacy_Accessibility")
+    case "Notifications":
+      if notifications == "Not requested" {
+        do { _ = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) }
+        catch { self.error = error.localizedDescription }
+      } else { open("Notifications") }
+    case "Calendar": open("Privacy_Calendars")
+    default: break
+    }
+    await refresh()
+  }
+  private func open(_ pane: String) {
+    let address = pane == "Notifications" ? "x-apple.systempreferences:com.apple.Notifications-Settings.extension" : "x-apple.systempreferences:com.apple.preference.security?" + pane
+    if let url = URL(string: address) { NSWorkspace.shared.open(url) }
+  }
+}
+
+struct TBDPermissionsView: View {
+  @ObservedObject private var permissions = TBDPermissions.shared
+  var body: some View {
+    VStack(alignment: .leading, spacing: 20) {
+      Text("Permissions").font(.title2)
+      Text("Access is granted to TBD on this Mac and shared across its features. Portal sign-in does not grant or revoke these permissions.").foregroundStyle(.secondary)
+      row("Microphone", permissions.microphone, "Chat dictation, Listening and microphone meetings.")
+      row("Screen recording", permissions.screen, "Companion screenshots and meetings that capture system audio. macOS may require a restart after approval.")
+      row("Accessibility", permissions.accessibility, "Global dictation insertion and desktop interactions.")
+      row("Notifications", permissions.notifications, "Reminders, nudges and completion alerts.")
+      row("Calendar", permissions.calendar, "Optional meeting calendar integration. Request access when enabling that feature.")
+      Button("Refresh permissions") { Task { await permissions.refresh() } }
+      if !permissions.error.isEmpty { Text(permissions.error).foregroundStyle(.red) }
+    }
+    .task {
+      while !Task.isCancelled {
+        await permissions.refresh()
+        do { try await Task.sleep(for: .seconds(3)) } catch { return }
+      }
+    }
+  }
+  private func row(_ name: String, _ status: String, _ detail: String) -> some View {
+    VStack(alignment: .leading, spacing: 6) {
+      HStack {
+        Text(name).fontWeight(.medium)
+        Spacer()
+        Text(status).foregroundStyle(status == "Allowed" ? Color.green : Color.secondary)
+        Button(status == "Allowed" || name == "Calendar" ? "Manage" : "Allow…") {
+          Task { await permissions.request(name) }
+        }
+      }
+      Text(detail).font(.callout).foregroundStyle(.secondary)
+      Divider()
+    }
+  }
+}

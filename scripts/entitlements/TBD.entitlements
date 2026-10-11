@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Mirrors companion/Dayflow/Dayflow/Dayflow.entitlements (not sandboxed). -->
+	<key>com.apple.security.app-sandbox</key>
+	<false/>
+	<key>com.apple.security.files.downloads.read-write</key>
+	<true/>
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<key>com.apple.security.network.server</key>
+	<true/>
+	<key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
+	<array>
+		<string>com.tealbrick.tbd-spks</string>
+		<string>com.tealbrick.tbd-spki</string>
+	</array>
+
+	<!-- Hardened-runtime resource access the app actually uses. -->
+	<!-- Microphone: dictation and meeting capture (AVCaptureDevice .audio). -->
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
+	<!-- Calendars: meeting association (EKEventStore). -->
+	<key>com.apple.security.personal-information.calendars</key>
+	<true/>
+	<!-- Apple Events: osascript to focus agent terminals and control media. -->
+	<key>com.apple.security.automation.apple-events</key>
+	<true/>
+</dict>
+</plist>

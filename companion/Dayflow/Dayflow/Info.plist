@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>ATSApplicationFontsPath</key>
+	<string>.</string>
+	<key>CFBundleDisplayName</key>
+	<string>TBD</string>
+	<key>CFBundleName</key>
+	<string>TBD</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.tealbrick.tbd</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>tealbrick-tbd</string>
+			</array>
+		</dict>
+	</array>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>DayflowBackendURL</key>
+	<string></string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Tealbrick (companion) uses Automation to focus or reopen your agent sessions in the terminal.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>TBD uses the microphone for dictation and meetings only when you start capture.</string>
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>Tealbrick (companion) uses screen access to create your timeline. Recordings stay on your Mac and you can pause or delete them anytime.</string>
+	<key>PHPostHogApiKey</key>
+	<string></string>
+	<key>SUAllowsAutomaticUpdates</key>
+	<false/>
+	<key>SUAutomaticallyUpdate</key>
+	<false/>
+	<key>SUEnableAutomaticChecks</key>
+	<false/>
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
+	<key>SUScheduledCheckInterval</key>
+	<integer>3600</integer>
+	<key>SUSendProfileInfo</key>
+	<false/>
+	<key>SentryDSN</key>
+	<string></string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>InstrumentSerif-Regular.ttf</string>
+		<string>InstrumentSerif-Italic.ttf</string>
+		<string>Figtree-VariableFont_wght.ttf</string>
+		<string>Figtree-Italic-VariableFont_wght.ttf</string>
+		<string>Nunito-VariableFont_wght.ttf</string>
+		<string>Nunito-Italic-VariableFont_wght.ttf</string>
+	</array>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>TBD uses calendars to associate meetings with recordings when you enable calendar access.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>TBD uses calendars to associate meetings with recordings when you enable calendar access.</string>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>TBD captures meeting audio only when you start recording.</string>
+</dict>
+</plist>

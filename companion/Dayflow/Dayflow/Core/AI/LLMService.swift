@@ -1,0 +1,1315 @@
+//
+//  LLMService.swift
+//  Dayflow
+//
+
+import AppKit
+import Combine
+import Foundation
+import MacParakeetCore
+import GRDB
+import SwiftUI
+
+private final class TimelineCardGenerationGate: @unchecked Sendable {
+  private let lock = NSLock()
+  private var isHeld = false
+  private var waiters: [CheckedContinuation<Void, Never>] = []
+
+  func acquire() async {
+    await withCheckedContinuation { continuation in
+      lock.lock()
+      if isHeld {
+        waiters.append(continuation)
+        lock.unlock()
+      } else {
+        isHeld = true
+        lock.unlock()
+        continuation.resume()
+      }
+    }
+  }
+
+  func release() {
+    lock.lock()
+    let next = waiters.isEmpty ? nil : waiters.removeFirst()
+    if next == nil { isHeld = false }
+    lock.unlock()
+    next?.resume()
+  }
+}
+
+struct ProcessedBatchResult {
+  let cards: [ActivityCardData]
+  let cardIds: [Int64]
+}
+
+enum LLMProcessingStep: Sendable, Equatable {
+  case transcribing
+  case generatingCards
+}
+
+struct TimelineProviderStartupSelection<Context> {
+  let baselineContext: Context
+  let fallbackContext: Context?
+  let activeContext: Context
+  let usedProviderBackup: Bool
+  let primaryInitializationError: Error?
+}
+
+func selectTimelineProviderStartup<Context>(
+  primary: Result<Context, Error>,
+  backup: Context?
+) throws -> TimelineProviderStartupSelection<Context> {
+  switch primary {
+  case .success(let primaryContext):
+    return TimelineProviderStartupSelection(
+      baselineContext: primaryContext,
+      fallbackContext: backup,
+      activeContext: primaryContext,
+      usedProviderBackup: false,
+      primaryInitializationError: nil
+    )
+  case .failure(let error):
+    guard let backup else { throw error }
+    return TimelineProviderStartupSelection(
+      baselineContext: backup,
+      fallbackContext: nil,
+      activeContext: backup,
+      usedProviderBackup: true,
+      primaryInitializationError: error
+    )
+  }
+}
+
+protocol LLMServicing {
+  func processBatch(
+    _ batchId: Int64, progressHandler: ((LLMProcessingStep) -> Void)?,
+    completion: @escaping (Result<ProcessedBatchResult, Error>) -> Void)
+  func generateText(prompt: String) async throws -> String
+  func generateTextStreaming(prompt: String) -> AsyncThrowingStream<String, Error>
+  /// Rich chat streaming with thinking, tool calls, and text events.
+  /// - Parameter sessionId: Optional session ID to resume a previous conversation
+  func generateChatStreaming(request: DashboardChatRequest) -> AsyncThrowingStream<
+    ChatStreamEvent, Error
+  >
+  var batchingConfig: BatchingConfig { get }
+}
+
+final class LLMService: LLMServicing {
+  static let shared: LLMServicing = LLMService()
+  private static let timelineCardGenerationGate = TimelineCardGenerationGate()
+  private static let timelineFailureToastLastShownDayByKindDefaultsKey =
+    "timelineFailureToastLastShownDayByKind"
+  private static let timelineFailureToastThrottleQueue = DispatchQueue(
+    label: "com.dayflow.timelineFailureToastThrottle"
+  )
+
+  private struct BatchProviderActions {
+    let transcribeScreenshots:
+      ([Screenshot], Date, Int64?) async throws -> (observations: [Observation], log: LLMCall)
+    let generateActivityCards:
+      ([Observation], ActivityGenerationContext, Int64?) async throws -> (
+        cards: [ActivityCardData], log: LLMCall
+      )
+  }
+
+  private struct TextProviderActions {
+    let generateText: (String) async throws -> (text: String, log: LLMCall)
+    let generateTextStreaming: ((String) -> AsyncThrowingStream<String, Error>)?
+  }
+
+  private struct TimelineProviderContext {
+    let id: LLMProviderID
+    let providerLabel: String
+    let actions: BatchProviderActions
+    let fallbackState: GemmaFallbackState?
+  }
+
+  private func makeGeminiProvider() -> GeminiDirectProvider? {
+    if let apiKey = KeychainManager.shared.retrieve(for: "gemini"), !apiKey.isEmpty {
+      let preference = GeminiModelPreference.load()
+      return GeminiDirectProvider(apiKey: apiKey, preference: preference)
+    } else {
+      print("❌ [LLMService] Failed to retrieve Gemini API key from Keychain")
+      return nil
+    }
+  }
+
+  private func makeGemmaBackupProvider() -> GemmaBackupProvider? {
+    if let apiKey = KeychainManager.shared.retrieve(for: "gemini"), !apiKey.isEmpty {
+      return GemmaBackupProvider(apiKey: apiKey)
+    }
+    print("❌ [LLMService] Failed to retrieve Gemini API key for Gemma fallback")
+    return nil
+  }
+
+  private func makeDayflowProvider(endpoint: String) -> DayflowBackendProvider? {
+    let token = DayflowAuthManager.storedSessionToken()?
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard let token, !token.isEmpty else {
+      print("❌ [LLMService] Tealbrick provider unavailable: missing session token")
+      return nil
+    }
+    print(
+      "🔐 [LLMService] Tealbrick provider ready endpoint=\(endpoint) token_length=\(token.count)"
+    )
+    return DayflowBackendProvider(token: token, endpoint: endpoint)
+  }
+
+  private func resolvedDayflowEndpoint(savedEndpoint: String?) -> String? {
+    DayflowBackendConfiguration.endpoint(legacySavedEndpoint: savedEndpoint)
+  }
+
+  private func makeOllamaProvider(endpoint: String) -> OllamaProvider {
+    OllamaProvider(endpoint: endpoint)
+  }
+
+  private func localProviderEndpoint() -> String {
+    let saved =
+      UserDefaults.standard.string(forKey: "llmLocalBaseURL")?
+      .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    return saved.isEmpty ? "http://localhost:11434" : saved
+  }
+
+  private func makeOpenAICompatibleProvider() -> OpenAICompatibleProvider? {
+    do { if let shared = try TBDModelRegistry().configuration(for: "screen") {
+      return OpenAICompatibleProvider(configuration: OpenAICompatibleRuntimeConfiguration(
+        configuration: OpenAICompatibleConfiguration(preset: .custom, baseURL: shared.baseURL.absoluteString, modelID: shared.modelName),
+        bearerToken: shared.apiKey))
+    } } catch { return nil }
+    guard let configuration = OpenAICompatiblePreferences.load(), configuration.isComplete else {
+      print("❌ [LLMService] OpenAI-compatible provider unavailable: incomplete configuration")
+      return nil
+    }
+    let apiKey = KeychainManager.shared.retrieve(for: OpenAICompatiblePreferences.keychainProvider)
+    let runtimeConfiguration = OpenAICompatibleRuntimeConfiguration(
+      configuration: configuration,
+      bearerToken: apiKey
+    )
+    return OpenAICompatibleProvider(configuration: runtimeConfiguration)
+  }
+
+  private func providerLabel(for providerID: LLMProviderID) -> String {
+    providerID.providerLabel
+  }
+
+  private func noProviderError() -> NSError {
+    NSError(
+      domain: "LLMService",
+      code: 1,
+      userInfo: [
+        NSLocalizedDescriptionKey: "No LLM provider configured. Please configure in settings."
+      ]
+    )
+  }
+
+  private func makeBatchProvider(for providerID: LLMProviderID) throws -> (
+    actions: BatchProviderActions, fallbackState: GemmaFallbackState?
+  ) {
+    switch providerID {
+    case .gemini:
+      guard let provider = makeGeminiProvider() else { throw noProviderError() }
+      let gemmaProvider = makeGemmaBackupProvider()
+      let fallbackState = GemmaFallbackState()
+
+      return (
+        actions: BatchProviderActions(
+          transcribeScreenshots: { [weak self] screenshots, batchStartTime, batchId in
+            if fallbackState.preferGemma, let gemmaProvider {
+              return try await gemmaProvider.transcribeScreenshots(
+                screenshots, batchStartTime: batchStartTime, batchId: batchId)
+            }
+
+            do {
+              return try await provider.transcribeScreenshots(
+                screenshots, batchStartTime: batchStartTime, batchId: batchId)
+            } catch {
+              guard let gemmaProvider else { throw error }
+              fallbackState.preferGemma = true
+              self?.logGemmaFallback(operation: "transcribe", error: error, batchId: batchId)
+              return try await gemmaProvider.transcribeScreenshots(
+                screenshots, batchStartTime: batchStartTime, batchId: batchId)
+            }
+          },
+          generateActivityCards: { [weak self] observations, context, batchId in
+            if fallbackState.preferGemma, let gemmaProvider {
+              fallbackState.usedGemmaForCardGeneration = true
+              return try await gemmaProvider.generateActivityCards(
+                observations: observations, context: context, batchId: batchId)
+            }
+
+            do {
+              return try await provider.generateActivityCards(
+                observations: observations, context: context, batchId: batchId)
+            } catch {
+              guard let gemmaProvider else { throw error }
+              fallbackState.preferGemma = true
+              fallbackState.usedGemmaForCardGeneration = true
+              self?.logGemmaFallback(operation: "generate_cards", error: error, batchId: batchId)
+              return try await gemmaProvider.generateActivityCards(
+                observations: observations, context: context, batchId: batchId)
+            }
+          }
+        ), fallbackState: fallbackState
+      )
+    case .dayflow:
+      let savedEndpoint = DayflowEndpointPreferences.load()
+      guard let endpoint = resolvedDayflowEndpoint(savedEndpoint: savedEndpoint) else {
+        throw noProviderError()
+      }
+      guard let provider = makeDayflowProvider(endpoint: endpoint) else { throw noProviderError() }
+      return (
+        actions: BatchProviderActions(
+          transcribeScreenshots: provider.transcribeScreenshots,
+          generateActivityCards: provider.generateActivityCards
+        ), fallbackState: nil
+      )
+    case .local:
+      let provider = makeOllamaProvider(endpoint: localProviderEndpoint())
+      return (
+        actions: BatchProviderActions(
+          transcribeScreenshots: provider.transcribeScreenshots,
+          generateActivityCards: provider.generateActivityCards
+        ), fallbackState: nil
+      )
+    case .openAICompatible:
+      guard let provider = makeOpenAICompatibleProvider() else { throw noProviderError() }
+      return (
+        actions: BatchProviderActions(
+          transcribeScreenshots: provider.transcribeScreenshots,
+          generateActivityCards: provider.generateActivityCards
+        ), fallbackState: nil
+      )
+    case .chatGPT:
+      let provider = CodexProvider()
+      return (
+        actions: BatchProviderActions(
+          transcribeScreenshots: provider.transcribeScreenshots,
+          generateActivityCards: provider.generateActivityCards
+        ), fallbackState: nil
+      )
+    case .claude:
+      let provider = ClaudeProvider()
+      return (
+        actions: BatchProviderActions(
+          transcribeScreenshots: provider.transcribeScreenshots,
+          generateActivityCards: provider.generateActivityCards
+        ), fallbackState: nil
+      )
+    }
+  }
+
+  private func makeTimelineProviderContext(for providerID: LLMProviderID) throws
+    -> TimelineProviderContext
+  {
+    let providerBundle = try makeBatchProvider(for: providerID)
+    return TimelineProviderContext(
+      id: providerID,
+      providerLabel: providerLabel(for: providerID),
+      actions: providerBundle.actions,
+      fallbackState: providerBundle.fallbackState
+    )
+  }
+
+  private func configuredBackupProvider(
+    primaryProviderID: LLMProviderID,
+    routing: LLMProviderRouting
+  ) -> LLMProviderID? {
+    guard let secondary = routing.secondary, secondary != primaryProviderID else { return nil }
+    return secondary
+  }
+
+  private final class GemmaFallbackState {
+    var preferGemma = false
+    var usedGemmaForCardGeneration = false
+  }
+
+  private func logGemmaFallback(operation: String, error: Error, batchId: Int64?) {
+    let nsError = error as NSError
+    AnalyticsService.shared.capture(
+      "llm_fallback_used",
+      [
+        "provider": "gemini",
+        "provider_id": LLMProviderID.gemini.rawValue,
+        "provider_label": "gemini",
+        "fallback_provider": "gemma",
+        "fallback_provider_label": "gemma",
+        "operation": operation,
+        "error_domain": nsError.domain,
+        "error_code": nsError.code,
+        "batch_id": batchId as Any,
+      ])
+  }
+
+  private func fallbackProps(
+    operation: String,
+    batchId: Int64?,
+    primaryProviderID: LLMProviderID,
+    primaryProviderLabel: String,
+    backupProviderID: LLMProviderID,
+    backupProviderLabel: String,
+    error: Error
+  ) -> [String: Any] {
+    let nsError = error as NSError
+    return [
+      "operation": operation,
+      "batch_id": batchId as Any,
+      "primary_provider": primaryProviderID.analyticsName,
+      "primary_provider_id": primaryProviderID.rawValue,
+      "primary_provider_label": primaryProviderLabel,
+      "backup_provider": backupProviderID.analyticsName,
+      "backup_provider_id": backupProviderID.rawValue,
+      "backup_provider_label": backupProviderLabel,
+      "error_domain": nsError.domain,
+      "error_code": nsError.code,
+    ]
+  }
+
+  private func executeWithProviderBackup<T>(
+    operation: String,
+    batchId: Int64?,
+    primaryContext: TimelineProviderContext,
+    activeContext: TimelineProviderContext,
+    backupContext: TimelineProviderContext?,
+    work: (TimelineProviderContext) async throws -> T
+  ) async throws -> (value: T, activeContext: TimelineProviderContext, usedProviderBackup: Bool) {
+    do {
+      let value = try await work(activeContext)
+      let usingBackup = activeContext.id != primaryContext.id
+      return (value, activeContext, usingBackup)
+    } catch {
+      guard activeContext.id == primaryContext.id, let backupContext else {
+        throw error
+      }
+
+      let attemptProps = fallbackProps(
+        operation: operation,
+        batchId: batchId,
+        primaryProviderID: primaryContext.id,
+        primaryProviderLabel: primaryContext.providerLabel,
+        backupProviderID: backupContext.id,
+        backupProviderLabel: backupContext.providerLabel,
+        error: error
+      )
+      AnalyticsService.shared.capture("llm_timeline_fallback_attempted", attemptProps)
+
+      do {
+        let value = try await work(backupContext)
+        AnalyticsService.shared.capture("llm_timeline_fallback_succeeded", attemptProps)
+        return (value, backupContext, true)
+      } catch {
+        var failureProps = attemptProps
+        let backupError = error as NSError
+        failureProps["backup_error_domain"] = backupError.domain
+        failureProps["backup_error_code"] = backupError.code
+        AnalyticsService.shared.capture("llm_timeline_fallback_failed", failureProps)
+        throw error
+      }
+    }
+  }
+
+  private func operationName(for step: LLMProcessingStep?) -> String {
+    switch step {
+    case .transcribing:
+      return "transcribe"
+    case .generatingCards:
+      return "generate_cards"
+    case .none:
+      return "unknown"
+    }
+  }
+
+  private func isRateLimitError(_ error: Error) -> Bool {
+    let nsError = error as NSError
+    if nsError.domain == "GeminiError" || nsError.domain == "GeminiProvider" {
+      if nsError.code == 429 || nsError.code == 403 {
+        return true
+      }
+      let message = nsError.localizedDescription.lowercased()
+      if message.contains("quota") || message.contains("rate limit")
+        || message.contains("too many requests")
+      {
+        return true
+      }
+    }
+
+    let message = error.localizedDescription.lowercased()
+    if message.contains("rate limit") || message.contains("too many requests")
+      || message.contains("quota exceeded") || message.contains("quota")
+      || message.contains("you've hit your limit")
+    {
+      return true
+    }
+
+    return false
+  }
+
+  private func buildFailureToastMessage(
+    operation: LLMProcessingStep?,
+    error: Error,
+    backupConfigured: Bool
+  ) -> String {
+    let rateLimited = isRateLimitError(error)
+
+    if rateLimited && !backupConfigured {
+      return
+        "Tealbrick hit a rate limit and no backup provider is configured. Add a backup in Settings > Providers to avoid interruptions."
+    }
+
+    switch operation {
+    case .transcribing:
+      return
+        "Tealbrick couldn't transcribe this batch. Check Settings > Providers and configure a backup provider."
+    case .generatingCards:
+      return
+        "Tealbrick couldn't generate timeline cards for this batch. Check Settings > Providers and configure a backup provider."
+    case .none:
+      return
+        "Tealbrick couldn't finish this batch. Check Settings > Providers and configure a backup provider."
+    }
+  }
+
+  private func emitTimelineFailureToast(
+    classification: TimelineFailureClassification,
+    operation: LLMProcessingStep?,
+    error: Error,
+    primaryProvider: String,
+    primaryProviderLabel: String,
+    backupProvider: String?,
+    backupProviderLabel: String?,
+    backupConfigured: Bool,
+    batchId: Int64?
+  ) {
+    let content = classification.toastContent(fallbackProviderLabel: primaryProviderLabel)
+
+    // Non-actionable failures resolve on their own; the only reason to
+    // surface one is to pitch a backup provider, so skip when one exists.
+    if content == nil && backupConfigured { return }
+
+    guard shouldEmitTimelineFailureToast(kind: classification.kind) else { return }
+
+    let nsError = error as NSError
+    let rateLimited = isRateLimitError(error)
+    let payload = TimelineFailureToastPayload(
+      message: content?.body
+        ?? buildFailureToastMessage(
+          operation: operation, error: error, backupConfigured: backupConfigured),
+      title: content?.title,
+      destination: content?.destination ?? .providers,
+      failureKind: classification.kind.rawValue,
+      operation: operationName(for: operation),
+      primaryProvider: primaryProvider,
+      primaryProviderLabel: primaryProviderLabel,
+      backupProvider: backupProvider,
+      backupProviderLabel: backupProviderLabel,
+      backupConfigured: backupConfigured,
+      rateLimitDetected: rateLimited,
+      errorDomain: nsError.domain,
+      errorCode: nsError.code,
+      batchId: batchId
+    )
+    AnalyticsService.shared.capture("llm_timeline_failure_toast_shown", payload.analyticsProps)
+    TimelineFailureToastCenter.post(payload)
+  }
+
+  private func shouldEmitTimelineFailureToast(
+    kind: TimelineFailureKind, now: Date = Date()
+  ) -> Bool {
+    let logicalDay = now.getDayInfoFor4AMBoundary().dayString
+    return Self.timelineFailureToastThrottleQueue.sync {
+      let defaults = UserDefaults.standard
+      var lastShownDayByKind =
+        defaults.dictionary(forKey: Self.timelineFailureToastLastShownDayByKindDefaultsKey)
+        as? [String: String] ?? [:]
+      guard lastShownDayByKind[kind.rawValue] != logicalDay else {
+        return false
+      }
+      lastShownDayByKind[kind.rawValue] = logicalDay
+      defaults.set(
+        lastShownDayByKind, forKey: Self.timelineFailureToastLastShownDayByKindDefaultsKey)
+      return true
+    }
+  }
+
+  private func makeTextProvider() throws -> TextProviderActions {
+    let providerID = try LLMProviderRoutingStore.load().primary
+    switch providerID {
+    case .gemini:
+      guard let provider = makeGeminiProvider() else { throw noProviderError() }
+      return TextProviderActions(
+        generateText: { prompt in
+          try await provider.generateText(prompt: prompt)
+        },
+        generateTextStreaming: nil
+      )
+    case .dayflow:
+      guard
+        let resolvedEndpoint = resolvedDayflowEndpoint(
+          savedEndpoint: DayflowEndpointPreferences.load())
+      else {
+        throw noProviderError()
+      }
+      guard let provider = makeDayflowProvider(endpoint: resolvedEndpoint) else {
+        throw noProviderError()
+      }
+      return TextProviderActions(
+        generateText: { prompt in
+          try await provider.generateText(prompt: prompt)
+        },
+        generateTextStreaming: nil
+      )
+    case .local:
+      let provider = makeOllamaProvider(endpoint: localProviderEndpoint())
+      return TextProviderActions(
+        generateText: { prompt in
+          try await provider.generateText(prompt: prompt)
+        },
+        generateTextStreaming: nil
+      )
+    case .openAICompatible:
+      guard let provider = makeOpenAICompatibleProvider() else { throw noProviderError() }
+      return TextProviderActions(
+        generateText: { prompt in
+          try await provider.generateText(prompt: prompt)
+        },
+        generateTextStreaming: nil
+      )
+    case .chatGPT:
+      let provider = CodexProvider()
+      return TextProviderActions(
+        generateText: { prompt in
+          try await provider.generateText(prompt: prompt)
+        },
+        generateTextStreaming: provider.generateTextStreaming
+      )
+    case .claude:
+      let provider = ClaudeProvider()
+      return TextProviderActions(
+        generateText: { prompt in
+          try await provider.generateText(prompt: prompt)
+        },
+        generateTextStreaming: provider.generateTextStreaming
+      )
+    }
+  }
+
+  private func makeFallbackTextStream(_ work: @escaping () async throws -> String)
+    -> AsyncThrowingStream<String, Error>
+  {
+    AsyncThrowingStream { continuation in
+      Task {
+        do {
+          let text = try await work()
+          continuation.yield(text)
+          continuation.finish()
+        } catch {
+          continuation.finish(throwing: error)
+        }
+      }
+    }
+  }
+
+  private func makeErrorStream(_ error: Error) -> AsyncThrowingStream<String, Error> {
+    AsyncThrowingStream { continuation in
+      continuation.finish(throwing: error)
+    }
+  }
+
+  var batchingConfig: BatchingConfig {
+    .standard
+  }
+
+  static func cardReplacementStartTime(
+    activeProviderID: LLMProviderID,
+    generatedCards: [ActivityCardData],
+    batchStartTime: Date,
+    windowStartTime: Date
+  ) -> Date {
+    guard activeProviderID == .claude else { return windowStartTime }
+    guard let firstCard = generatedCards.first,
+      let interval = try? ClaudeOutputValidator.resolveActivityCardInterval(
+        firstCard,
+        nearest: Int(batchStartTime.timeIntervalSince1970)
+      )
+    else {
+      return batchStartTime
+    }
+    return Date(timeIntervalSince1970: TimeInterval(interval.lowerBound))
+  }
+
+  static func cardReplacementEndTime(
+    activeProviderID: LLMProviderID,
+    generatedCards: [ActivityCardData],
+    batchEndTime: Date
+  ) -> Date {
+    guard activeProviderID == .claude else { return batchEndTime }
+    guard let lastCard = generatedCards.last,
+      let interval = try? ClaudeOutputValidator.resolveActivityCardInterval(
+        lastCard,
+        nearest: Int(batchEndTime.timeIntervalSince1970)
+      )
+    else {
+      return batchEndTime
+    }
+    return max(
+      batchEndTime,
+      Date(timeIntervalSince1970: TimeInterval(interval.upperBound))
+    )
+  }
+
+  // Keep the existing processBatch implementation for backward compatibility
+  func processBatch(
+    _ batchId: Int64, progressHandler: ((LLMProcessingStep) -> Void)? = nil,
+    completion: @escaping (Result<ProcessedBatchResult, Error>) -> Void
+  ) {
+    Task {
+      var holdsTimelineCardGenerationGate = false
+      defer {
+        if holdsTimelineCardGenerationGate {
+          Self.timelineCardGenerationGate.release()
+        }
+      }
+
+      // Get batch info first (outside do-catch so it's available in catch block)
+      let batches = StorageManager.shared.allBatches()
+      guard let batchInfo = batches.first(where: { $0.0 == batchId }) else {
+        completion(
+          .failure(
+            NSError(
+              domain: "LLMService", code: 2,
+              userInfo: [NSLocalizedDescriptionKey: "Batch not found"])))
+        return
+      }
+
+      let (_, batchStartTs, batchEndTs, _) = batchInfo
+      let routing: LLMProviderRouting
+      do {
+        routing = try LLMProviderRoutingStore.load()
+      } catch {
+        completion(.failure(error))
+        return
+      }
+      let processingStartTime = Date()
+      let primaryProviderID = routing.primary
+      let primaryProviderLabel = providerLabel(for: primaryProviderID)
+      let configuredBackup = configuredBackupProvider(
+        primaryProviderID: primaryProviderID,
+        routing: routing
+      )
+      let configuredBackupProviderName = configuredBackup?.analyticsName
+      let configuredBackupProviderLabel = configuredBackup.map { providerLabel(for: $0) }
+      var backupConfigured = false
+      var lastProcessingStep: LLMProcessingStep?
+      print(
+        "🧭 [LLMService] processBatch selected primary=\(primaryProviderID.analyticsName) "
+          + "label=\(primaryProviderLabel) backup=\(configuredBackup?.analyticsName ?? "none")"
+      )
+
+      do {
+        print("\n📦 [LLMService] Processing batch \(batchId)")
+        print(
+          "   Batch time: \(Date(timeIntervalSince1970: TimeInterval(batchStartTs))) to \(Date(timeIntervalSince1970: TimeInterval(batchEndTs)))"
+        )
+
+        // Track analysis batch started
+        AnalyticsService.shared.capture(
+          "analysis_batch_started",
+          [
+            "batch_id": batchId,
+            "total_duration_seconds": batchEndTs - batchStartTs,
+            "llm_provider": primaryProviderID.analyticsName,
+            "llm_provider_label": primaryProviderLabel,
+            "provider_id": primaryProviderID.rawValue,
+          ])
+
+        let primaryResult: Result<TimelineProviderContext, Error> = Result {
+          try makeTimelineProviderContext(for: primaryProviderID)
+        }
+        let configuredBackupContext: TimelineProviderContext? = {
+          guard let configuredBackup else { return nil }
+          return try? makeTimelineProviderContext(for: configuredBackup)
+        }()
+        backupConfigured = configuredBackupContext != nil
+        if let configuredBackup, configuredBackupContext == nil {
+          AnalyticsService.shared.capture(
+            "llm_timeline_backup_unavailable",
+            [
+              "primary_provider": primaryProviderID.analyticsName,
+              "primary_provider_label": primaryProviderLabel,
+              "primary_provider_id": primaryProviderID.rawValue,
+              "backup_provider": configuredBackup.analyticsName,
+              "backup_provider_label": configuredBackupProviderLabel as Any,
+              "backup_provider_id": configuredBackup.rawValue,
+              "batch_id": batchId,
+            ])
+        }
+        let startup = try selectTimelineProviderStartup(
+          primary: primaryResult,
+          backup: configuredBackupContext
+        )
+        if startup.usedProviderBackup,
+          let configuredBackup,
+          let configuredBackupContext,
+          let primaryError = startup.primaryInitializationError
+        {
+          let props = fallbackProps(
+            operation: "initialize_provider",
+            batchId: batchId,
+            primaryProviderID: primaryProviderID,
+            primaryProviderLabel: primaryProviderLabel,
+            backupProviderID: configuredBackup,
+            backupProviderLabel: configuredBackupContext.providerLabel,
+            error: primaryError
+          )
+          AnalyticsService.shared.capture("llm_timeline_fallback_attempted", props)
+          AnalyticsService.shared.capture("llm_timeline_fallback_succeeded", props)
+        }
+
+        // If the routed primary could not initialize, the backup becomes the batch baseline.
+        // Its fallback is nil so later stages stay pinned to it instead of retrying the primary.
+        let primaryContext = startup.baselineContext
+        let backupContext = startup.fallbackContext
+        var activeContext = startup.activeContext
+        var usedProviderBackup = startup.usedProviderBackup
+
+        // Mark batch as processing
+        StorageManager.shared.updateBatch(batchId, status: "processing")
+
+        // Get batch start time for timestamp conversion
+        let batchStartDate = Date(timeIntervalSince1970: TimeInterval(batchStartTs))
+
+        // Try screenshot-based transcription first (new system)
+        let screenshots = StorageManager.shared.screenshotsForBatch(batchId)
+        var observations: [Observation]
+        var transcribeLog: LLMCall
+
+        guard !screenshots.isEmpty else {
+          throw NSError(
+            domain: "LLMService", code: 3,
+            userInfo: [NSLocalizedDescriptionKey: "No screenshots in batch"])
+        }
+
+        lastProcessingStep = .transcribing
+        await MainActor.run {
+          progressHandler?(.transcribing)
+        }
+
+        print("📸 [LLMService] Transcribing \(screenshots.count) screenshots")
+
+        // Transcribe screenshots using provider
+        let transcribeResult = try await executeWithProviderBackup(
+          operation: "transcribe",
+          batchId: batchId,
+          primaryContext: primaryContext,
+          activeContext: activeContext,
+          backupContext: backupContext
+        ) { context in
+          try await context.actions.transcribeScreenshots(screenshots, batchStartDate, batchId)
+        }
+        observations = transcribeResult.value.observations
+        transcribeLog = transcribeResult.value.log
+        activeContext = transcribeResult.activeContext
+        usedProviderBackup = usedProviderBackup || transcribeResult.usedProviderBackup
+        print("📸 [LLMService] Transcribed → \(observations.count) observations")
+
+        StorageManager.shared.saveObservations(batchId: batchId, observations: observations)
+
+        // If no observations, mark batch as complete with no activities
+        guard !observations.isEmpty else {
+          print("⚠️ [LLMService] Transcription returned 0 observations for batch \(batchId)")
+          if let logOutput = transcribeLog.output, !logOutput.isEmpty {
+            print("   ↳ transcribeLog.output: \(logOutput)")
+          }
+          if let logInput = transcribeLog.input, !logInput.isEmpty {
+            print("   ↳ transcribeLog.input: \(logInput)")
+          }
+          AnalyticsService.shared.capture(
+            "transcription_returned_empty",
+            [
+              "batch_id": batchId,
+              "provider": activeContext.id.analyticsName,
+              "provider_id": activeContext.id.rawValue,
+              "provider_label": activeContext.providerLabel,
+              "transcribe_latency_ms": Int((transcribeLog.latency ?? 0) * 1000),
+            ])
+          StorageManager.shared.updateBatch(batchId, status: "analyzed")
+          completion(.success(ProcessedBatchResult(cards: [], cardIds: [])))
+          return
+        }
+
+        // SLIDING WINDOW CARD GENERATION - Replace old card generation with sliding window approach
+
+        // Transcription can run in parallel, but timeline reads, generation, and replacement form
+        // one serialized rewrite and must not overlap another batch's rewrite.
+        await Self.timelineCardGenerationGate.acquire()
+        holdsTimelineCardGenerationGate = true
+
+        // Calculate card-generation lookback window.
+        let currentTime = Date(timeIntervalSince1970: TimeInterval(batchEndTs))
+        let windowStartTime = currentTime.addingTimeInterval(-batchingConfig.cardLookbackDuration)
+
+        // Fetch observations from the recent batching window (instead of just current batch).
+        let recentObservations = StorageManager.shared.fetchObservationsByTimeRange(
+          from: windowStartTime,
+          to: currentTime
+        )
+
+        print("[DEBUG] LLMService fetched \(recentObservations.count) observations")
+        for (i, obs) in recentObservations.enumerated() {
+          print("  [\(i)] observation type: \(type(of: obs.observation))")
+          print("       observation: \(obs.observation)")
+        }
+
+        // Fetch existing timeline cards that overlap with the recent batching window.
+        let existingTimelineCards = StorageManager.shared.fetchTimelineCardsByTimeRange(
+          from: windowStartTime,
+          to: currentTime
+        )
+
+        let batchStartTime = Date(timeIntervalSince1970: TimeInterval(batchStartTs))
+        let hasPreviousCardWithinFiveMinutes = StorageManager.shared.hasTimelineCardConnected(
+          toBatchStartingAt: batchStartTime,
+          maxGap: 5 * 60
+        )
+
+        // Convert TimelineCards to ActivityCardData for context
+        let existingActivityCards = existingTimelineCards.filter { card in
+          card.category != "System"
+        }.map { card in
+          ActivityCardData(
+            startTime: card.startTimestamp,
+            endTime: card.endTimestamp,
+            category: card.category,
+            subcategory: card.subcategory,
+            title: card.title,
+            summary: card.summary,
+            detailedSummary: card.detailedSummary,
+            distractions: card.distractions,
+            appSites: card.appSites
+          )
+        }
+
+        // Prepare context for activity generation
+        let categories = CategoryStore.descriptorsForLLM()
+        print("[DEBUG] LLMService loaded \(categories.count) categories")
+        for (i, cat) in categories.enumerated() {
+          print("  [\(i)] name type: \(type(of: cat.name)), value: \(cat.name)")
+          print(
+            "       description type: \(type(of: cat.description)), value: \(cat.description ?? "nil")"
+          )
+        }
+
+        let context = ActivityGenerationContext(
+          batchObservations: observations,
+          existingCards: existingActivityCards,
+          currentTime: currentTime,
+          categories: categories,
+          hasPreviousCardWithinFiveMinutes: hasPreviousCardWithinFiveMinutes
+        )
+
+        lastProcessingStep = .generatingCards
+        await MainActor.run {
+          progressHandler?(.generatingCards)
+        }
+
+        // Generate activity cards using sliding window observations
+        let cardsResult = try await executeWithProviderBackup(
+          operation: "generate_cards",
+          batchId: batchId,
+          primaryContext: primaryContext,
+          activeContext: activeContext,
+          backupContext: backupContext
+        ) { providerContext in
+          try await providerContext.actions.generateActivityCards(
+            recentObservations, context, batchId)
+        }
+        let cards = cardsResult.value.cards
+        activeContext = cardsResult.activeContext
+        usedProviderBackup = usedProviderBackup || cardsResult.usedProviderBackup
+        let usedGemmaForCardGeneration =
+          activeContext.fallbackState?.usedGemmaForCardGeneration == true
+        let isBackupGenerated = usedProviderBackup || usedGemmaForCardGeneration
+        // Note: card generation log is not persisted per-batch yet
+
+        // Replace old cards with new ones in the time range
+        let replacementStartTime = Self.cardReplacementStartTime(
+          activeProviderID: activeContext.id,
+          generatedCards: cards,
+          batchStartTime: batchStartTime,
+          windowStartTime: windowStartTime
+        )
+        let replacementEndTime = Self.cardReplacementEndTime(
+          activeProviderID: activeContext.id,
+          generatedCards: cards,
+          batchEndTime: currentTime
+        )
+        let (insertedCardIds, deletedVideoPaths) = StorageManager.shared
+          .replaceTimelineCardsInRange(
+            from: replacementStartTime,
+            to: replacementEndTime,
+            with: cards.map { card in
+              TimelineCardShell(
+                startTimestamp: card.startTime,
+                endTimestamp: card.endTime,
+                category: card.category,
+                subcategory: card.subcategory,
+                title: card.title,
+                summary: card.summary,
+                detailedSummary: card.detailedSummary,
+                distractions: card.distractions,
+                appSites: card.appSites,
+                isBackupGenerated: isBackupGenerated ? true : nil
+              )
+            },
+            batchId: batchId
+          )
+
+        // Clean up deleted video files
+        for path in deletedVideoPaths {
+          let url = URL(fileURLWithPath: path)
+          do {
+            try FileManager.default.removeItem(at: url)
+            print("🗑️ Deleted timelapse: \(path)")
+          } catch {
+            print("❌ Failed to delete timelapse: \(path) - \(error)")
+          }
+        }
+
+        // Mark batch as complete
+        StorageManager.shared.updateBatch(batchId, status: "analyzed")
+
+        // Checkpoint WAL after batch processing to ensure data is persisted
+        StorageManager.shared.checkpoint(mode: .passive)
+
+        // Track analysis batch completed
+        AnalyticsService.shared.capture(
+          "analysis_batch_completed",
+          [
+            "batch_id": batchId,
+            "cards_generated": cards.count,
+            "processing_duration_seconds": Int(Date().timeIntervalSince(processingStartTime)),
+            "llm_provider": primaryProviderID.analyticsName,
+            "llm_provider_label": primaryProviderLabel,
+            "provider_id": primaryProviderID.rawValue,
+            "effective_llm_provider": activeContext.id.analyticsName,
+            "effective_provider_id": activeContext.id.rawValue,
+            "used_provider_backup": usedProviderBackup,
+          ])
+
+        completion(.success(ProcessedBatchResult(cards: cards, cardIds: insertedCardIds)))
+
+      } catch {
+        if !holdsTimelineCardGenerationGate {
+          await Self.timelineCardGenerationGate.acquire()
+          holdsTimelineCardGenerationGate = true
+        }
+
+        print("Error processing batch: \(error)")
+        if let ns = error as NSError?, ns.domain == "GeminiError" {
+          print("🔎 GEMINI DEBUG: NSError.userInfo=\(ns.userInfo)")
+        }
+
+        let failureClassification = TimelineFailureClassifier.classify(error)
+
+        // Track analysis batch failed
+        AnalyticsService.shared.capture(
+          "analysis_batch_failed",
+          [
+            "batch_id": batchId,
+            "failure_kind": failureClassification.kind.rawValue,
+            "processing_duration_seconds": Int(Date().timeIntervalSince(processingStartTime)),
+            "llm_provider": primaryProviderID.analyticsName,
+            "llm_provider_label": primaryProviderLabel,
+            "provider_id": primaryProviderID.rawValue,
+            "backup_provider": configuredBackupProviderName as Any,
+            "backup_provider_label": configuredBackupProviderLabel as Any,
+            "backup_provider_id": configuredBackup?.rawValue as Any,
+            "backup_configured": backupConfigured,
+          ])
+
+        emitTimelineFailureToast(
+          classification: failureClassification,
+          operation: lastProcessingStep,
+          error: error,
+          primaryProvider: primaryProviderID.analyticsName,
+          primaryProviderLabel: primaryProviderLabel,
+          backupProvider: configuredBackupProviderName,
+          backupProviderLabel: configuredBackupProviderLabel,
+          backupConfigured: backupConfigured,
+          batchId: batchId
+        )
+
+        // Mark batch as failed
+        StorageManager.shared.updateBatch(
+          batchId, status: "failed", reason: error.localizedDescription)
+
+        // Create an error card for the failed time period
+        let batchStartDate = Date(timeIntervalSince1970: TimeInterval(batchStartTs))
+        let batchEndDate = Date(timeIntervalSince1970: TimeInterval(batchEndTs))
+
+        let errorCard = createErrorCard(
+          batchId: batchId,
+          batchStartTime: batchStartDate,
+          batchEndTime: batchEndDate,
+          error: error
+        )
+
+        // Replace any existing cards in this time range with the error card
+        // This matches the happy path behavior and prevents duplicates
+        let (insertedCardIds, deletedVideoPaths) = StorageManager.shared
+          .replaceTimelineCardsInRange(
+            from: batchStartDate,
+            to: batchEndDate,
+            with: [errorCard],
+            batchId: batchId
+          )
+
+        // Clean up any deleted video files (if there were existing cards)
+        for path in deletedVideoPaths {
+          let url = URL(fileURLWithPath: path)
+          do {
+            try FileManager.default.removeItem(at: url)
+            print("🗑️ Deleted timelapse for replaced card: \(path)")
+          } catch {
+            print("❌ Failed to delete timelapse: \(path) - \(error)")
+          }
+        }
+
+        if !insertedCardIds.isEmpty {
+          print(
+            "✅ Created error card (ID: \(insertedCardIds.first ?? -1)) for failed batch \(batchId), replacing \(deletedVideoPaths.count) existing cards"
+          )
+        }
+
+        // Still return failure but with the error card created
+        completion(.failure(error))
+      }
+    }
+  }
+
+  private func createErrorCard(
+    batchId: Int64, batchStartTime: Date, batchEndTime: Date, error: Error
+  ) -> TimelineCardShell {
+    let formatter = DateFormatter()
+    formatter.dateFormat = "h:mm a"
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.timeZone = TimeZone.current
+
+    let startTimeStr = formatter.string(from: batchStartTime)
+    let endTimeStr = formatter.string(from: batchEndTime)
+
+    // Calculate duration in minutes
+    let duration = Int(batchEndTime.timeIntervalSince(batchStartTime) / 60)
+
+    // Get human-readable error message
+    let humanError = getHumanReadableError(error)
+
+    // Create the error card
+    return TimelineCardShell(
+      startTimestamp: startTimeStr,
+      endTimestamp: endTimeStr,
+      category: "System",
+      subcategory: "Error",
+      title: "Processing failed",
+      summary:
+        "Failed to process \(duration) minutes of recording from \(startTimeStr) to \(endTimeStr). \(humanError) Your recording is safe and can be reprocessed.",
+      detailedSummary:
+        "Error details: \(error.localizedDescription)\n\nThis recording batch (ID: \(batchId)) failed during AI processing. The original video files are preserved and can be reprocessed by retrying from Settings. Common causes include network issues, API rate limits, or temporary service outages.",
+      distractions: nil,
+      appSites: nil
+    )
+  }
+
+  private func getHumanReadableError(_ error: Error) -> String {
+    // First check if it's an NSError with a domain and code we recognize
+    if let nsError = error as NSError? {
+      // For HTTP errors, check if we have a specific error message in userInfo
+      if nsError.domain == "GeminiError" && nsError.code >= 400 && nsError.code < 600 {
+        // Check for specific known API error messages
+        let errorMessage = nsError.localizedDescription.lowercased()
+        if errorMessage.contains("api key not found") {
+          return "Invalid API key. Please check your Gemini API key in Settings."
+        } else if errorMessage.contains("rate limit") || errorMessage.contains("quota") {
+          return "Rate limited. Too many requests to Gemini. Please wait a few minutes."
+        } else if errorMessage.contains("unauthorized") {
+          return "Unauthorized. Your Gemini API key may be invalid or expired."
+        } else if errorMessage.contains("timeout") {
+          return "Request timed out. The video may be too large or the connection is slow."
+        }
+        // Fall through to switch statement for generic HTTP error messages
+      }
+
+      // Check specific error domains and codes
+      switch nsError.domain {
+      case "LLMService":
+        switch nsError.code {
+        case 1: return "No AI provider is configured. Please set one up in Settings."
+        case 2: return "The recording batch couldn't be found."
+        case 3: return "No video recordings found in this time period."
+        case 4: return "Failed to create the video for processing."
+        case 5: return "Failed to combine video chunks."
+        case 6: return "Failed to prepare video for processing."
+        default: break
+        }
+
+      case "GeminiError", "GeminiProvider":
+        switch nsError.code {
+        case 1: return "Failed to upload the video to Gemini."
+        case 2: return "Gemini took too long to process the video."
+        case 3, 5: return "Failed to parse Gemini's response."
+        case 4: return "Failed to start video upload to Gemini."
+        case 6: return "Invalid video file."
+        case 7, 9: return "Gemini returned an unexpected response format."
+        case 8, 10: return "Failed to connect to Gemini after multiple attempts."
+        case 100: return "The AI generated timestamps beyond the video duration."
+        case 101: return "The AI couldn't identify any activities in the video."
+        // HTTP status codes
+        case 400: return "Invalid API key. Please check your Gemini API key in Settings."
+        case 401: return "Unauthorized. Your Gemini API key may be invalid or expired."
+        case 403: return "Access forbidden. Check your Gemini API permissions."
+        case 429: return "Rate limited. Too many requests to Gemini. Please wait a few minutes."
+        case 503:
+          return
+            "Google's Gemini servers returned a 503 error. Google's AI services may be temporarily down. If you see many of these in a row, please wait at least a few hours before retrying. Check the [Google AI Studio status](https://aistudio.google.com/status) page for updates."
+        case 500...599: return "Gemini service error. The service may be temporarily down."
+        default:
+          // For other HTTP errors, provide context
+          if nsError.code >= 400 && nsError.code < 600 {
+            return "Gemini returned HTTP error \(nsError.code). Check your API settings."
+          }
+          break
+        }
+
+      case "OllamaProvider":
+        switch nsError.code {
+        case 1: return "Invalid video duration."
+        case 2: return "Failed to process video frame."
+        case 4: return "Failed to connect to local AI model."
+        case 8, 9, 10: return "The local AI returned an unexpected response."
+        case 11: return "The local AI couldn't identify any activities."
+        case 12: return "The local AI didn't analyze enough of the video."
+        case 13: return "The local AI generated too many segments."
+        default: break
+        }
+
+      case "AnalysisManager":
+        switch nsError.code {
+        case 1: return "The analysis system was interrupted."
+        case 2: return "Failed to reprocess some recordings."
+        case 3: return "Couldn't find the recording information."
+        default: break
+        }
+
+      default:
+        break
+      }
+    }
+
+    // Fallback to checking the error description for common patterns
+    let errorDescription = error.localizedDescription.lowercased()
+
+    switch true {
+    case errorDescription.contains("rate limit") || errorDescription.contains("429"):
+      return
+        "The AI service is temporarily overwhelmed. This usually resolves itself in a few minutes."
+
+    case errorDescription.contains("network") || errorDescription.contains("connection"):
+      return "Couldn't connect to the AI service. Check your internet connection."
+
+    case errorDescription.contains("api key") || errorDescription.contains("unauthorized")
+      || errorDescription.contains("401"):
+      return "There's an issue with your API key. Please check your settings."
+
+    case errorDescription.contains("503"):
+      return
+        "Google's Gemini servers returned a 503 error. Google's AI services may be temporarily down. If you see many of these in a row, please wait at least a few hours before retrying. Check the [Google AI Studio status](https://aistudio.google.com/status) page for updates."
+
+    case errorDescription.contains("timeout"):
+      return
+        "The AI took too long to respond. This might be due to a long recording or slow connection."
+
+    case errorDescription.contains("no observations"):
+      return "The AI couldn't understand what was happening in this recording."
+
+    case errorDescription.contains("exceed") || errorDescription.contains("duration"):
+      return "The AI got confused about the video timing."
+
+    case errorDescription.contains("no llm provider")
+      || errorDescription.contains("not configured"):
+      return "No AI provider is configured. Please set one up in Settings."
+
+    case errorDescription.contains("failed to upload"):
+      return "Failed to upload the video for processing."
+
+    case errorDescription.contains("invalid response") || errorDescription.contains("json"):
+      return "The AI returned an unexpected response format."
+
+    case errorDescription.contains("failed after") && errorDescription.contains("attempts"):
+      return "Couldn't connect to the AI service after multiple attempts."
+
+    default:
+      // For unknown errors, keep it simple
+      return "An unexpected error occurred."
+    }
+  }
+
+  // MARK: - Text Generation
+
+  func generateText(prompt: String) async throws -> String {
+    let textProvider = try makeTextProvider()
+    let (text, _) = try await textProvider.generateText(prompt)
+    return text
+  }
+
+  // MARK: - Streaming Text Generation
+
+  func generateTextStreaming(prompt: String) -> AsyncThrowingStream<String, Error> {
+    do {
+      let textProvider = try makeTextProvider()
+      if let streaming = textProvider.generateTextStreaming {
+        return streaming(prompt)
+      }
+      return makeFallbackTextStream { try await textProvider.generateText(prompt).text }
+    } catch {
+      return makeErrorStream(error)
+    }
+  }
+
+  // MARK: - Rich Chat Streaming
+
+  func generateChatStreaming(request: DashboardChatRequest) -> AsyncThrowingStream<
+    ChatStreamEvent, Error
+  > {
+    switch request.provider {
+    case .gemini:
+      guard let gemini = makeGeminiProvider() else {
+        return AsyncThrowingStream { continuation in
+          continuation.yield(
+            .error("Gemini is not configured. Add your Gemini API key in Settings > Providers."))
+          continuation.finish(
+            throwing: NSError(
+              domain: "LLMService",
+              code: 1101,
+              userInfo: [
+                NSLocalizedDescriptionKey:
+                  "Gemini is not configured. Add your Gemini API key in Settings > Providers."
+              ]))
+        }
+      }
+      return gemini.generateDashboardChatStreaming(
+        systemInstruction: request.systemInstruction ?? "",
+        history: request.history
+      )
+    case .codex:
+      return CodexProvider().generateChatStreaming(
+        prompt: request.prompt,
+        sessionId: request.sessionId
+      )
+    case .claude:
+      return ClaudeProvider().generateChatStreaming(
+        prompt: request.prompt,
+        sessionId: request.sessionId
+      )
+    }
+  }
+}

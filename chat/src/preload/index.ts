@@ -1,0 +1,163 @@
+import { electronAPI } from "@electron-toolkit/preload";
+import { contextBridge, ipcRenderer } from "electron";
+import type { StudioApi } from "../shared/ipc";
+
+/**
+ * The only bridge. Tokens live in the main process and never reach the
+ * renderer — web content gets answers, not credentials.
+ */
+const studio: StudioApi = {
+  portalWorkspaces: () => ipcRenderer.invoke("studio:portalWorkspaces"),
+  selectPortalWorkspace: (id) => ipcRenderer.invoke("studio:selectPortalWorkspace", id),
+  controlPlanes: () => ipcRenderer.invoke("studio:controlPlanes"),
+  activateControlPlane: (id) => ipcRenderer.invoke("studio:activateControlPlane", id),
+  addControlPlane: (input) => ipcRenderer.invoke("studio:addControlPlane", input),
+  removeControlPlane: (id) => ipcRenderer.invoke("studio:removeControlPlane", id),
+  session: () => ipcRenderer.invoke("studio:session"),
+  signIn: () => ipcRenderer.invoke("studio:signIn"),
+  cancelSignIn: () => ipcRenderer.invoke("studio:cancelSignIn"),
+  awaitSignIn: () => ipcRenderer.invoke("studio:awaitSignIn"),
+  signOut: () => ipcRenderer.invoke("studio:signOut"),
+  listAgents: (opts?: { refreshSession?: boolean }) => ipcRenderer.invoke("studio:listAgents", opts),
+  listRooms: () => ipcRenderer.invoke("studio:listRooms"),
+  saveRoom: (input) => ipcRenderer.invoke("studio:saveRoom", input),
+  saveAgentProfile: (input) => ipcRenderer.invoke("studio:saveAgentProfile", input),
+  send: (input) => ipcRenderer.invoke("studio:send", input),
+  fileExists: (path) => ipcRenderer.invoke("studio:fileExists", path),
+  dictationAvailable: () => ipcRenderer.invoke("studio:dictationAvailable"),
+  transcribe: (samples) => ipcRenderer.invoke("studio:transcribe", samples),
+  openLocalFile: (path) => ipcRenderer.invoke("studio:openLocalFile", path),
+  revealLocalFile: (path) => ipcRenderer.invoke("studio:revealLocalFile", path),
+  saveRemoteFile: (input) => ipcRenderer.invoke("studio:saveRemoteFile", input),
+  openRemoteFile: (input) => ipcRenderer.invoke("studio:openRemoteFile", input),
+  agentInfo: (agentId) => ipcRenderer.invoke("studio:agentInfo", agentId),
+  codexAccess: (input) => ipcRenderer.invoke("studio:codexAccess", input),
+  agentHealth: (agentId) => ipcRenderer.invoke("studio:agentHealth", agentId),
+  localAnswer: (input) => ipcRenderer.invoke("studio:localAnswer", input),
+  localPermissions: () => ipcRenderer.invoke("studio:localPermissions"),
+  listSessions: (agent) => ipcRenderer.invoke("studio:listSessions", agent),
+  recordSession: (entry) => ipcRenderer.invoke("studio:recordSession", entry),
+  replaySession: (input) => ipcRenderer.invoke("studio:replaySession", input),
+  loadState: (name) => ipcRenderer.invoke("studio:loadState", name),
+  saveState: (input) => ipcRenderer.invoke("studio:saveState", input),
+  pickFolder: () => ipcRenderer.invoke("studio:pickFolder"),
+  manage: (input) => ipcRenderer.invoke("studio:manage", input),
+  setLocalPermission: (input) => ipcRenderer.invoke("studio:setLocalPermission", input),
+  toggleOrb: (input) => ipcRenderer.invoke("studio:toggleOrb", input),
+  closeOrb: () => ipcRenderer.invoke("studio:closeOrb"),
+  voiceConnect: (input) => ipcRenderer.invoke("studio:voiceConnect", input),
+  voiceManifest: (agentId) => ipcRenderer.invoke("studio:voiceManifest", agentId),
+  moveOrb: (delta) => ipcRenderer.send("studio:moveOrb", delta),
+  voiceContext: () => ipcRenderer.invoke("studio:voiceContext"),
+  voiceAsk: (input) => ipcRenderer.invoke("studio:voiceAsk", input),
+  onVoiceActivity: (handler) => {
+    const listener = (_e: unknown, label: string | null): void => handler(label);
+    ipcRenderer.on("studio:voice-activity", listener);
+    return () => ipcRenderer.off("studio:voice-activity", listener);
+  },
+  onLocalAsk: (handler) => {
+    const listener = (_e: unknown, ask: Parameters<typeof handler>[0]): void => handler(ask);
+    ipcRenderer.on("studio:local-ask", listener);
+    return () => ipcRenderer.off("studio:local-ask", listener);
+  },
+  onLocalDone: (handler) => {
+    const listener = (_e: unknown, p: { id: string }): void => handler(p);
+    ipcRenderer.on("studio:local-done", listener);
+    return () => ipcRenderer.off("studio:local-done", listener);
+  },
+  onCursor: (handler) => {
+    const listener = (_e: unknown, payload: { streamId: string; index: number }): void => handler(payload);
+    ipcRenderer.on("studio:cursor", listener);
+    return () => ipcRenderer.off("studio:cursor", listener);
+  },
+  provisionLocal: (input) => ipcRenderer.invoke("studio:provisionLocal", input),
+  localAccess: (agent) => ipcRenderer.invoke("studio:localAccess", agent),
+  revokeLocal: (agent) => ipcRenderer.invoke("studio:revokeLocal", agent),
+  cancelTurn: (input) => ipcRenderer.invoke("studio:cancelTurn", input),
+  resetSession: (input) => ipcRenderer.invoke("studio:resetSession", input),
+  onTurn: (handler) => {
+    const listener = (_e: unknown, payload: Parameters<typeof handler>[0]): void => handler(payload);
+    ipcRenderer.on("studio:turn", listener);
+    return () => ipcRenderer.off("studio:turn", listener);
+  },
+  connectors: (agent) => ipcRenderer.invoke("studio:connectors", agent),
+  connectService: (input) => ipcRenderer.invoke("studio:connectService", input),
+  disconnectService: (input) => ipcRenderer.invoke("studio:disconnectService", input),
+  addCustomConnector: (input) => ipcRenderer.invoke("studio:addCustomConnector", input),
+  startMcpSignIn: (input) => ipcRenderer.invoke("studio:startMcpSignIn", input),
+  connectMcpServer: (id) => ipcRenderer.invoke("studio:connectMcpServer", id),
+  testRemoteMcp: (slug) => ipcRenderer.invoke("studio:testRemoteMcp", slug),
+  testMcpServer: (id) => ipcRenderer.invoke("studio:testMcpServer", id),
+  mcpServers: () => ipcRenderer.invoke("studio:mcpServers"),
+  saveMcpServers: (servers) => ipcRenderer.invoke("studio:saveMcpServers", servers),
+  updaterState: () => ipcRenderer.invoke("studio:updaterState"),
+  updaterCheck: () => ipcRenderer.invoke("studio:updaterCheck"),
+  updaterDownload: () => ipcRenderer.invoke("studio:updaterDownload"),
+  updaterInstall: () => ipcRenderer.invoke("studio:updaterInstall"),
+  onUpdater: (handler) => {
+    const listener = (_e: unknown, state: Parameters<typeof handler>[0]): void => handler(state);
+    ipcRenderer.on("studio:updater", listener);
+    return () => ipcRenderer.off("studio:updater", listener);
+  },
+  openExternal: (url) => ipcRenderer.invoke("studio:openExternal", url),
+  onAuthorization: (handler) => {
+    const listener = (_e: unknown, payload: Parameters<typeof handler>[0]): void => handler(payload);
+    ipcRenderer.on("studio:authorization", listener);
+    return () => ipcRenderer.off("studio:authorization", listener);
+  },
+  onPeer: (handler) => {
+    const listener = (_e: unknown, payload: Parameters<typeof handler>[0]): void => handler(payload);
+    ipcRenderer.on('studio:peer', listener);
+    return () => ipcRenderer.off('studio:peer', listener);
+  },
+  notify: (input) => ipcRenderer.invoke("studio:notify", input),
+  onOpenAgent: (handler) => {
+    const listener = (_e: unknown, payload: Parameters<typeof handler>[0]): void => handler(payload);
+    ipcRenderer.on("studio:open-agent", listener);
+    return () => ipcRenderer.off("studio:open-agent", listener);
+  },
+  claimDriver: (sessionId) => ipcRenderer.invoke("studio:claimDriver", sessionId),
+  watch: (input) => ipcRenderer.invoke("studio:watch", input),
+  unwatch: (streamId) => ipcRenderer.invoke("studio:unwatch", streamId),
+  onLive: (handler) => {
+    const listener = (_e: unknown, payload: Parameters<typeof handler>[0]): void => handler(payload);
+    ipcRenderer.on("studio:live", listener);
+    return () => ipcRenderer.off("studio:live", listener);
+  },
+  onQuestion: (handler) => {
+    const listener = (_e: unknown, payload: Parameters<typeof handler>[0]): void => handler(payload);
+    ipcRenderer.on("studio:question", listener);
+    return () => ipcRenderer.off("studio:question", listener);
+  },
+  onReset: (handler) => {
+    const listener = (_e: unknown, payload: Parameters<typeof handler>[0]): void => handler(payload);
+    ipcRenderer.on("studio:reset", listener);
+    return () => ipcRenderer.off("studio:reset", listener);
+  },
+  onActivity: (handler) => {
+    const listener = (_e: unknown, payload: { streamId: string; label: string | null }): void =>
+      handler(payload);
+    ipcRenderer.on("studio:activity", listener);
+    return () => ipcRenderer.off("studio:activity", listener);
+  },
+  onDelta: (handler) => {
+    const listener = (_e: unknown, payload: { streamId: string; text: string }): void =>
+      handler(payload);
+    ipcRenderer.on("studio:delta", listener);
+    return () => ipcRenderer.off("studio:delta", listener);
+  },
+};
+
+if (process.contextIsolated) {
+  try {
+    contextBridge.exposeInMainWorld("electron", electronAPI);
+    contextBridge.exposeInMainWorld("studio", studio);
+  } catch (error) {
+    console.error(error);
+  }
+} else {
+  // @ts-expect-error -- contextIsolation disabled
+  window.electron = electronAPI;
+  // @ts-expect-error -- contextIsolation disabled
+  window.studio = studio;
+}

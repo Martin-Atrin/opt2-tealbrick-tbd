@@ -1,0 +1,2244 @@
+import { selectedPortalWorkspace, resetPortalWorkspace } from "./portalWorkspaces";
+import { Client, ClientError, type MessageResponse } from "eve/client";
+import type { Attachment } from "../shared/ipc";
+import { buildMessage } from "../shared/message";
+import { randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { app, safeStorage, shell } from "electron";
+import type { RemoteAgent, RemoteRoom } from "@shared/ipc";
+import { type AuthSession as Session, legacyPortalExecutionEnabled, CUSTOMER_EXECUTION_REQUIRED, debugStreamEnabled, streamDiagnostic } from "./portalPrivacy";
+
+import { currentControlPlane } from "./controlPlanes";
+import { readPeerEvents, type PeerState } from "./peerEvents";
+import { NOT_GRANTED_MESSAGE, retryAfterGrantRefresh } from "./agentGrant";
+import {
+  CREDENTIALS_WITHHELD,
+  createAgentAuth,
+  credentialDecision,
+  chatTokensEnabled,
+  resolveRemoteAgent,
+  sessionUserId,
+  type ResolvedAgent,
+} from "./agentCredentials";
+
+/**
+ * Control-plane identity for KYBER Studio.
+ *
+ * Studio never holds an agent's own credentials. The user signs in to the
+ * Kybernesis control plane with RFC 8628 device flow, and the resulting
+ * identity token is what every agent's HTTP door verifies — the same governance
+ * path as Slack and iMessage, so revoking a grant revokes the desktop too.
+ *
+ * The token is encrypted at rest with Electron's safeStorage (Keychain on
+ * macOS). If the OS refuses encryption we do NOT silently fall back to
+ * plaintext: a token on disk in the clear is exactly the failure a customer's
+ * security review would find, so we keep it in memory and make them sign in
+ * again next launch.
+ */
+
+export type { RemoteAgent, RemoteRoom, Session };
+
+export const ISSUER = currentControlPlane().issuer;
+export function issuer(): string { return ISSUER; }
+
+let session: Session | null = null;
+
+function storePath(): string {
+  const dir = app.getPath("userData");
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  return join(dir, "session.bin");
+}
+
+export function deviceId(): string {
+  const p = join(app.getPath("userData"), "device-id");
+  if (existsSync(p)) return readFileSync(p, "utf8").trim();
+  const id = randomUUID();
+  mkdirSync(app.getPath("userData"), { recursive: true });
+  writeFileSync(p, id, { mode: 0o600 });
+  return id;
+}
+
+export function loadSession(): Session | null {
+  if (session) return session;
+  try {
+    const p = storePath();
+    if (!existsSync(p) || !safeStorage.isEncryptionAvailable()) return null;
+    const decrypted = safeStorage.decryptString(readFileSync(p));
+    const parsed = JSON.parse(decrypted) as Session;
+    // An expired ACCESS token is not a signed-out user. The refresh token
+    // stored beside it exists for exactly this moment, and throwing the whole
+    // session away here meant refreshSession had nothing to read on a cold
+    // start — so every relaunch more than an hour after signing in demanded a
+    // new sign-in while a perfectly good refresh token sat on disk unused.
+    //
+    // Only a session with no way back is no session.
+    if (parsed.expiresAt < Date.now() + 30_000 && !parsed.refreshToken) return null;
+    session = parsed;
+    return session;
+  } catch {
+    return null;
+  }
+}
+
+function saveSession(next: Session | null): void {
+  session = next;
+  if (!next) return;
+  if (!safeStorage.isEncryptionAvailable()) {
+    console.warn("[auth] OS encryption unavailable — keeping the session in memory only.");
+    return;
+  }
+  writeFileSync(storePath(), safeStorage.encryptString(JSON.stringify(next)), { mode: 0o600 });
+}
+
+/**
+ * When the policy bundle dies, which is not when the token does.
+ *
+ * Both are verified by every agent, so the pair is only as good as its earlier
+ * half. Tracking the token alone is how a session that looked healthy for
+ * another fifty minutes was already being refused — and why signing out was the
+ * only thing that fixed it, because that is the one path that mints both.
+ */
+function bundleExpiry(bundle: string | undefined): number {
+  if (!bundle) return Number.POSITIVE_INFINITY;
+  const exp = readClaims(bundle).exp;
+  return exp ? exp * 1000 : Number.POSITIVE_INFINITY;
+}
+
+/**
+ * The headers for one authenticated request TO PORTAL — and the one place the
+ * bundle decision is written down.
+ *
+ * Portal only. Agent-bound requests use {@link agentAuthHeaders}, which decides
+ * whether the agent may see any credential at all (F4-1). A static test fails
+ * the build if this is used for a URL that does not start at `issuer()`.
+ *
+ * The policy bundle is what an agent checks for a grant: a request without it
+ * is treated as an agent-to-agent call and refused. So every agent-facing route
+ * needs `bundle`, as do the control-plane routes that act on an agent's behalf
+ * (connectors, local-exec grants). Plain "who am I" routes do not. That choice
+ * used to be made independently at twenty-three call sites, which is how one of
+ * them eventually ends up wrong.
+ */
+export function authHeaders(
+  s: Session,
+  opts: { bundle?: boolean; json?: boolean } = {},
+): Record<string, string> {
+  const headers: Record<string, string> = { authorization: `Bearer ${s.token}` };
+  if (opts.json) headers["content-type"] = "application/json";
+  if (opts.bundle) {
+    if (!s.bundle) {
+      throw new Error(
+        "Your session has no policy bundle, so no agent can check your grants. Sign out and sign in again.",
+      );
+    }
+    headers["x-kybernesis-bundle"] = s.bundle;
+  }
+  return headers;
+}
+
+/** Claims are display-only; enforcement happens at the agent. Decode, never trust. */
+function readClaims(jwt: string): { email?: string; org_name?: string; exp?: number } {
+  try {
+    const [, payload] = jwt.split(".");
+    if (!payload) return {};
+    return JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+  } catch {
+    return {};
+  }
+}
+
+export interface DeviceStart {
+  deviceCode: string;
+  userCode: string;
+  verificationUri: string;
+  interval: number;
+  expiresIn: number;
+}
+
+export async function startDeviceAuth(): Promise<DeviceStart> {
+  const res = await fetch(`${issuer()}/api/oauth/device`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ deviceId: deviceId(), deviceLabel: "TBD Chat" }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!res.ok) {
+    throw new Error(`Control plane refused the device request (HTTP ${res.status}) at ${issuer()}.`);
+  }
+  const body = (await res.json()) as Record<string, unknown>;
+  const start: DeviceStart = {
+    deviceCode: String(body.device_code),
+    userCode: String(body.user_code),
+    verificationUri: String(body.verification_uri_complete ?? body.verification_uri),
+    interval: Number(body.interval ?? 5),
+    expiresIn: Number(body.expires_in ?? 600),
+  };
+  // Opening the browser is best effort; a failed open must not crash the helper.
+  void shell.openExternal(start.verificationUri).catch(() => undefined);
+  return start;
+}
+
+/** Poll until the user approves in the browser, the code expires, or we are told to stop. */
+/**
+ * Abandon a sign-in that is still waiting.
+ *
+ * The code is valid for ten minutes, and until now those ten minutes were
+ * unconditional: open the wrong browser profile and there was nothing to do but
+ * watch a screen that could not succeed. Cancelling has to reach the POLL, not
+ * just the window — a loop left running would go on holding the old code and
+ * could sign the app in from an approval the person had already given up on.
+ */
+let deviceAbort: AbortController | null = null;
+export function cancelDeviceAuth(): void {
+  deviceAbort?.abort();
+  deviceAbort = null;
+}
+
+/** Thrown when the person asked to start again; not a failure worth reporting. */
+export const SIGN_IN_CANCELLED = "sign-in cancelled";
+
+export async function pollDeviceAuth(start: DeviceStart): Promise<Session> {
+  const deadline = Date.now() + start.expiresIn * 1000;
+  let interval = start.interval * 1000;
+  const abort = new AbortController();
+  deviceAbort = abort;
+
+  while (Date.now() < deadline) {
+    if (abort.signal.aborted) throw new Error(SIGN_IN_CANCELLED);
+    // Wake early when cancelled, rather than finishing a five-second sleep the
+    // person is watching.
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, interval);
+      abort.signal.addEventListener("abort", () => {
+        clearTimeout(timer);
+        resolve();
+      }, { once: true });
+    });
+    if (abort.signal.aborted) throw new Error(SIGN_IN_CANCELLED);
+    const res = await fetch(`${issuer()}/api/oauth/token`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ device_code: start.deviceCode }),
+      signal: AbortSignal.timeout(20_000),
+    });
+    const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+
+    if (res.ok && typeof body.token === "string") {
+      const claims = readClaims(body.token);
+      const next: Session = {
+        token: body.token,
+        bundle: typeof body.bundle === "string" ? body.bundle : undefined,
+        refreshToken: typeof body.refresh_token === "string" ? body.refresh_token : undefined,
+        expiresAt: claims.exp ? claims.exp * 1000 : Date.now() + 3_600_000,
+        email: claims.email,
+        orgName: claims.org_name,
+      };
+      console.log(
+        `[auth] pair: token ${Math.round((next.expiresAt - Date.now()) / 1000)}s, bundle ${Math.round((bundleExpiry(next.bundle) - Date.now()) / 1000)}s`,
+      );
+      saveSession(next);
+      return next;
+    }
+
+    const error = String(body.error ?? "");
+    if (error === "slow_down") {
+      interval += 5_000;
+      continue;
+    }
+    if (error === "authorization_pending" || res.status === 428 || res.status === 202) continue;
+    if (error) throw new Error(`Sign-in failed: ${error}`);
+  }
+  throw new Error("Sign-in timed out. Start again and approve the code in your browser.");
+}
+
+/**
+ * Keep the session alive without asking the user to sign in again.
+ *
+ * Identity tokens last an hour by design — that is the revocation SLA, not an
+ * inconvenience to work around by issuing longer ones. The control plane mints a
+ * refresh token alongside, and re-checks the user is still active on every
+ * refresh, so a suspended user drops out within one interval. Studio simply
+ * never used it, which is why an hour of work ended at a sign-in screen.
+ */
+let refreshing: Promise<Session | null> | null = null;
+
+async function refreshSession(): Promise<Session | null> {
+  const current = session ?? loadSession();
+  if (!current?.refreshToken) return null;
+
+  // One refresh at a time: a stream, a poll, and a turn can all notice the
+  // expiry at once, and three parallel refreshes rotate the token out from
+  // under each other.
+  if (refreshing) return refreshing;
+
+  refreshing = (async () => {
+    try {
+      const res = await fetch(`${issuer()}/api/oauth/refresh`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ refresh_token: current.refreshToken }),
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (!res.ok) {
+        // Logged because a silent refresh that silently fails is the hardest
+        // kind of session bug to see: everything downstream reports a 401 from
+        // somewhere else, and nothing says the refresh was the thing that went.
+        console.log(`[auth] refresh failed ${res.status}`);
+        // 401 means the refresh token itself is done; 403 means the user was
+        // suspended. Both are real sign-outs, not retryable.
+        if (res.status === 401 || res.status === 403) signOut();
+        return null;
+      }
+      console.log("[auth] refreshed");
+      const body = (await res.json()) as Record<string, unknown>;
+      if (typeof body.token !== "string") return null;
+      const claims = readClaims(body.token);
+      const next: Session = {
+        token: body.token,
+        // Carried forward like every sibling below. Dropping it on a response
+        // that omits it left a session with no bundle at all — and since
+        // bundleExpiry(undefined) is +Infinity, that session then looks healthy
+        // forever while every agent call fails on "no policy bundle", which
+        // only a manual sign-out could clear.
+        bundle: typeof body.bundle === "string" ? body.bundle : current.bundle,
+        refreshToken:
+          typeof body.refresh_token === "string" ? body.refresh_token : current.refreshToken,
+        expiresAt: claims.exp ? claims.exp * 1000 : Date.now() + 3_600_000,
+        email: claims.email ?? current.email,
+        orgName: claims.org_name ?? current.orgName,
+      };
+      saveSession(next);
+      return next;
+    } catch {
+      return null;
+    } finally {
+      refreshing = null;
+    }
+  })();
+
+  return refreshing;
+}
+
+/**
+ * The session to use right now, refreshed if it is close to expiring.
+ *
+ * Every outbound call goes through this rather than reading the stored session
+ * directly, so expiry is handled in one place instead of surfacing as a 401 in
+ * whichever feature happened to be in use.
+ */
+/**
+ * Refresh regardless of what the clock says.
+ *
+ * The stored expiry is a claim, not a fact: a token can be rejected while it
+ * still looks valid here — a rotated signing key, a clock a minute out, a
+ * bundle that aged separately. When the agent says the credential is bad, the
+ * agent is right, and the only useful response is to get a new one rather than
+ * to argue from an expiry we computed ourselves.
+ */
+export async function forceRefresh(): Promise<Session | null> {
+  return await refreshSession();
+}
+
+export async function activeSession(): Promise<Session | null> {
+  const current = loadSession();
+  // The earlier of the two: a credential is a pair, and the pair expires when
+  // its first half does.
+  const good =
+    current &&
+    Math.min(current.expiresAt, bundleExpiry(current.bundle)) > Date.now() + 120_000;
+  if (current && good) return current;
+
+  const refreshed = await refreshSession();
+  if (refreshed) return refreshed;
+
+  // Refresh failed. Handing back an expired token would only produce 401s that
+  // read as a broken agent, so that is a real sign-out; a token with life left
+  // is still usable and the refresh can be retried on the next call.
+  return current && Math.min(current.expiresAt, bundleExpiry(current.bundle)) > Date.now() + 30_000
+    ? current
+    : null;
+}
+
+export function signOut(): void {
+  resetPortalWorkspace();
+  agentAuth.clear();
+  clients.clear();
+  directory.agents = new Map();
+  directory.scope = "";
+  saveSession(null);
+  session = null;
+  try {
+    const p = storePath();
+    if (existsSync(p)) writeFileSync(p, Buffer.alloc(0));
+  } catch {
+    /* best effort */
+  }
+}
+
+export async function listAgents(opts?: { refreshSession?: boolean }): Promise<RemoteAgent[]> {
+  // An explicit "Refresh agents" re-issues the session bundle first, so agents
+  // created since sign-in are in its grants by the time one is opened. If the
+  // refresh cannot happen, fall through to the session we already have.
+  if (opts?.refreshSession) await forceRefresh();
+  const s = await activeSession();
+  if (!s) throw new Error("Not signed in.");
+  const res = await fetch(`${issuer()}/api/me/agents?workspaceId=${encodeURIComponent(selectedPortalWorkspace())}`, {
+    headers: authHeaders(s),
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (res.status === 401) throw new Error("Session expired. Sign in again.");
+  if (!res.ok) throw new Error(`Could not list agents (HTTP ${res.status}).`);
+  const body = (await res.json()) as { agents?: RemoteAgent[]; workspaceId?: string };
+  if (body.workspaceId !== selectedPortalWorkspace()) throw new Error("The portal did not confirm the selected workspace. Update its desktop API.");
+  const agents = body.agents ?? [];
+  rememberAgents(agents);
+  return agents.map((agent) => ({ ...agent, connection: connectionFor(agent, s) }));
+}
+
+/**
+ * The main process's own copy of Portal's agent records (F4-1).
+ *
+ * The renderer names agents by id; every address a credential travels to comes
+ * from here, never from IPC. Scoped to control plane + workspace, so a switch
+ * cannot resolve an id against the previous workspace's rows.
+ */
+const directory: { scope: string; agents: Map<string, ResolvedAgent> } = { scope: "", agents: new Map() };
+
+function directoryScope(): string | null {
+  try {
+    return `${issuer()}\n${selectedPortalWorkspace()}`;
+  } catch {
+    return null;
+  }
+}
+
+function rememberAgents(agents: RemoteAgent[]): void {
+  const next = new Map<string, ResolvedAgent>();
+  for (const agent of agents) {
+    const resolved = resolveRemoteAgent(agent);
+    if (resolved) next.set(resolved.id, resolved);
+  }
+  directory.scope = directoryScope() ?? "";
+  directory.agents = next;
+}
+
+/** The freshest record for an agent in the current scope, or null. */
+function currentRecord(agentId: string): ResolvedAgent | null {
+  const scope = directoryScope();
+  if (!scope || directory.scope !== scope) return null;
+  return directory.agents.get(agentId) ?? null;
+}
+
+/**
+ * An agent id from the renderer, resolved against Portal's records.
+ *
+ * A miss refreshes the directory once (an agent created since the last list),
+ * then fails: an id Portal does not list for this workspace has no address.
+ */
+export async function resolveAgent(agentId: unknown): Promise<ResolvedAgent> {
+  if (typeof agentId !== "string" || !agentId) throw new Error("No agent was named.");
+  const cached = currentRecord(agentId);
+  if (cached) return cached;
+  await listAgents();
+  const fresh = currentRecord(agentId);
+  if (!fresh) {
+    throw new Error("That agent is not in this workspace, or it has no address. Refresh agents and try again.");
+  }
+  return fresh;
+}
+
+const agentAuth = createAgentAuth({
+  session: activeSession,
+  record: currentRecord,
+  mintChatToken,
+  // Plain http to localhost/127.0.0.1 only in development builds.
+  allowLoopbackHttp: () => !app.isPackaged,
+});
+
+/**
+ * The headers for one request to an agent, and the single choke point for
+ * agent-bound credentials. See agentCredentials.ts for the policy.
+ */
+export const agentAuthHeaders = agentAuth.agentAuthHeaders;
+
+/** The per-agent chat token (feature-flagged); exported for tests and diagnostics. */
+export const agentToken = agentAuth.agentToken;
+
+/**
+ * POST /api/agents/chat-token {agentId} → {token, expiresAt, audience}.
+ * Portal-bound, so it carries the session; the token it returns is the only
+ * thing an agent then sees.
+ */
+async function mintChatToken(agent: ResolvedAgent): Promise<{ status: number; body: unknown } | null> {
+  const s = await activeSession();
+  if (!s) return null;
+  try {
+    const res = await fetch(`${issuer()}/api/agents/chat-token`, {
+      method: "POST",
+      headers: authHeaders(s, { json: true }),
+      body: JSON.stringify({ agentId: agent.id }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    // 404: not the user's agent. 409 agent_origin_not_allowed: owned, but off
+    // a Teal Brick origin — "needs an updated connection". Neither is retried.
+    if (!res.ok) console.log(`[auth] chat token refused (${res.status})`);
+    return { status: res.status, body: await res.json().catch(() => null) };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * One request to an agent with whatever credential policy allows, retried
+ * once with a re-minted chat token when the agent answers 401. Null headers
+ * (nothing may be sent) short-circuit to `null` so callers can say why.
+ */
+export async function agentFetch(
+  agent: ResolvedAgent,
+  url: string,
+  init: Omit<RequestInit, "headers">,
+  opts: { json?: boolean } = {},
+): Promise<Response | null> {
+  const headers = await agentAuthHeaders(agent, url, opts);
+  if (!headers.authorization) return null;
+  const res = await fetch(url, { redirect: "manual", ...init, headers });
+  if (res.status !== 401 || !chatTokensEnabled()) return res;
+  agentAuth.invalidate(agent.id);
+  const renewed = await agentAuthHeaders(agent, url, opts);
+  if (!renewed.authorization) return res;
+  return await fetch(url, { redirect: "manual", ...init, headers: renewed });
+}
+
+function connectionFor(agent: RemoteAgent, s: Session): RemoteAgent["connection"] {
+  const record = resolveRemoteAgent(agent);
+  if (!record) return { mode: "withheld", note: "This agent has no address yet." };
+  const chatTokens = chatTokensEnabled();
+  // Portal mints chat tokens for owned agents only (Core #128), so the hint
+  // applies the owner rule in both modes; the mint itself stays authoritative.
+  const decision = credentialDecision({
+    agent: record,
+    record,
+    requestUrl: record.url,
+    userId: sessionUserId(s.token),
+    chatTokens: false,
+    allowLoopbackHttp: !app.isPackaged,
+  });
+  if (decision.mode === "none") return { mode: "withheld", note: CREDENTIALS_WITHHELD };
+  return { mode: chatTokens ? "chat-token" : "owner-session" };
+}
+
+/**
+ * Fail before the agent sees anything when TBD will not send it a credential,
+ * with the sentence that says why instead of a 401 from the far side.
+ */
+async function requireAgentCredentials(agent: ResolvedAgent, requestUrl: string): Promise<void> {
+  const decision = await agentAuth.decide(agent, requestUrl);
+  if (decision.mode !== "none") return;
+  if (decision.reason === "signed-out") throw new Error("Not signed in.");
+  if (decision.reason === "no-bundle") {
+    throw new Error(
+      "Your session has no policy bundle, so no agent can check your grants. Sign out and sign in again.",
+    );
+  }
+  throw new Error(CREDENTIALS_WITHHELD);
+}
+
+/** After an agent refused a credential: drop its chat token and renew the session. */
+async function renewAgentCredentials(agent: ResolvedAgent): Promise<boolean> {
+  agentAuth.invalidate(agent.id);
+  return Boolean(await forceRefresh());
+}
+
+export async function listRooms(): Promise<RemoteRoom[]> {
+  const s = await activeSession();
+  if (!s) return [];
+  try {
+    const res = await fetch(`${issuer()}/api/rooms?workspaceId=${encodeURIComponent(selectedPortalWorkspace())}`, {
+      headers: authHeaders(s),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) return [];
+    const body = await res.json() as { rooms?: RemoteRoom[]; workspaceId?: string };
+    return body.workspaceId === selectedPortalWorkspace() ? body.rooms ?? [] : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Best effort: the room exists here already; the account learns of it on the next try if not now. */
+export async function saveRoom(input: {
+  id: string;
+  name?: string | null;
+  members?: string[];
+  policy?: "all" | "lead" | "silent";
+  pinned?: boolean | null;
+  archived?: boolean;
+}): Promise<void> {
+  const s = await activeSession();
+  if (!s) return;
+  try {
+    await fetch(`${issuer()}/api/rooms?workspaceId=${encodeURIComponent(selectedPortalWorkspace())}`, {
+      method: "POST",
+      headers: authHeaders(s, { json: true }),
+      body: JSON.stringify(input),
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch {
+    /* best effort */
+  }
+}
+
+/**
+ * Best effort, and quiet about it: a picture that did not reach the control
+ * plane is still on this machine, and the next change will carry it again.
+ */
+export async function saveAgentProfile(input: {
+  agent: string;
+  displayName?: string | null;
+  accent?: string | null;
+  avatar?: string | null;
+  pinned?: boolean | null;
+  hidden?: boolean | null;
+  voice?: string | null;
+}): Promise<void> {
+  const s = await activeSession();
+  if (!s) return;
+  try {
+    await fetch(`${issuer()}/api/me/agents/profile`, {
+      method: "POST",
+      headers: authHeaders(s, { json: true }),
+      body: JSON.stringify(input),
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch {
+    /* best effort */
+  }
+}
+
+
+/**
+ * Turn an HTTP failure into a sentence that names the actual cause.
+ *
+ * "The agent rejected your identity" is a guess, and a wrong one for most 401s
+ * here: a Vercel-protected deployment answers 401 with an SSO web page before
+ * eve ever sees the request, and an issuer mismatch fails for reasons the user
+ * cannot act on by signing in again. Read the body and say which it is —
+ * telling someone to re-authenticate when the deployment is gated wastes their
+ * afternoon.
+ */
+/**
+ * The agent could not fetch the control plane's signing keys, so it never got
+ * to judge the token at all. It reports that with a 401 like any other refusal,
+ * but the meaning is the opposite: nothing is wrong with the user's session.
+ */
+const UNVERIFIABLE = "verification_unavailable";
+
+/**
+ * Whether a failed POST is worth trying again rather than reporting.
+ *
+ * The agent restarts whenever a routine or plugin is applied, including on the
+ * very turn that asked for it, and a restart lands as a 502/503 on whatever is
+ * in flight. A 401 is normally final — but not the one an agent returns when it
+ * could not reach the control plane to check the token, which is an outage on
+ * its side and clears on its own.
+ */
+async function isTransient(res: Response): Promise<boolean> {
+  if (res.status === 502 || res.status === 503 || res.status === 504) return true;
+  if (res.status !== 401) return false;
+  // clone(), so describeFailure can still read the body if the retries fail.
+  const peek = await res
+    .clone()
+    .text()
+    .catch(() => "");
+  return peek.includes(UNVERIFIABLE);
+}
+
+async function describeFailure(res: Response, base: string): Promise<Error> {
+  const body = await res.text().catch(() => "");
+  const isHtml = /^\s*<(!doctype|html)/i.test(body);
+  const snippet = body.replace(/\s+/g, " ").slice(0, 220);
+
+  // An HTML body means something other than eve answered — but WHAT depends
+  // entirely on the status. Blaming Vercel SSO for a 503 is wrong on a host
+  // that has nothing to do with Vercel, and it sends the user hunting through
+  // deployment settings while their agent is simply restarting.
+  if (isHtml && (res.status === 401 || res.status === 403)) {
+    return new Error(
+      `${base} answered ${res.status} with a sign-in page rather than the eve API — deployment ` +
+        `protection (such as Vercel SSO) is in front of it, so Studio's token never reached the agent.`,
+    );
+  }
+  if (isHtml && res.status >= 500) {
+    return new Error(
+      `${base} is not answering right now (${res.status}). The agent is usually restarting — ` +
+        `applying a new routine or capability does that — so this normally clears in a few seconds.`,
+    );
+  }
+  if (isHtml) {
+    return new Error(
+      `${base} answered ${res.status} with a web page, not the eve API. The registered URL may ` +
+        `point at a site rather than at the agent.`,
+    );
+  }
+
+  switch (res.status) {
+    case 401:
+      // Told apart deliberately: one of these is about the user's sign-in and
+      // the other is about the agent's network. Sending someone to check their
+      // issuer config when their credentials were never even read is the kind
+      // of message that costs an hour.
+      if (body.includes(UNVERIFIABLE)) {
+        return new Error(
+          `${base} could not reach the control plane to check your sign-in, so it kept ` +
+            `refusing the turn. Your session is fine — this clears once the agent can reach the ` +
+            `control plane again.`,
+        );
+      }
+      return new Error(
+        `The agent refused Studio's identity token (401). Check that it trusts the control plane ` +
+          `you signed in to, and that it can fetch that control plane's signing keys. ${snippet}`,
+      );
+    case 403:
+      return new Error(NOT_GRANTED_MESSAGE);
+    case 404:
+      return new Error(
+        `No eve API at ${base} (404). The registered URL may be wrong, or the deployment is not ` +
+          `serving /eve/v1/session.`,
+      );
+    case 410:
+      return new Error(`That conversation no longer exists on ${base}.`);
+    case 502:
+    case 503:
+    case 504:
+      return new Error(`${base} is not responding (${res.status}). The agent may be down.`);
+    default:
+      // An agent still on the pre-0.31 runtime answers a modern send with a
+      // complaint about continuationToken — a field this client stopped
+      // sending when sessions became id-addressed. Left raw, that error sends
+      // people looking for a bug in Studio, or in their own agent's code,
+      // when the whole story is that the agent is running an older framework.
+      if (/continuationToken/i.test(snippet)) {
+        return new Error(
+          `${base} is running a framework older than this app supports (pre-0.31). ` +
+            `Conversations are addressed by session id now, and that agent still expects a ` +
+            `continuation token. Upgrade the agent (kyb upgrade) and redeploy it.`,
+        );
+      }
+      return new Error(`Agent returned HTTP ${res.status}. ${snippet}`);
+  }
+}
+
+
+/**
+ * Turn one stream event into a short phrase describing what the agent is doing.
+ *
+ * Without this the window shows nothing between "sent" and "answered", which on
+ * a long turn is indistinguishable from a hang. eve's event vocabulary already
+ * says precisely what is happening — reasoning, tool calls, subagent
+ * delegation, compaction — so this reports it rather than animating a generic
+ * "working…" that would be true even when the agent is stuck.
+ *
+ * Returns null for events that say nothing about activity.
+ */
+/**
+ * The agent changing ITSELF, named while it happens.
+ *
+ * A routine is a file in agent/schedules; a channel is one in agent/channels.
+ * Writing one means @kybernesis/manage restarts the agent about twenty seconds
+ * later to pick it up, and it stops answering while it does. Saying so at the
+ * moment of the write is the difference between "it is restarting, wait a
+ * minute" and "it broke" — and the person asked for the routine, so the wait is
+ * expected rather than alarming.
+ */
+function selfChangeLabel(named: string | null, input: unknown): string | null {
+  if (!named || !/write|edit|create|apply/i.test(named)) return null;
+  const fields = (input ?? {}) as Record<string, unknown>;
+  const raw = [fields.path, fields.file, fields.filePath, fields.target, fields.file_path].find(
+    (v) => typeof v === "string" && v,
+  ) as string | undefined;
+  if (!raw) return null;
+  const path = `/${raw.replace(/^\.?\//, "")}`;
+  const wait = " — it restarts to pick this up, about a minute";
+  // Matching "/agent/" anywhere is too loose: it claims a restart for a write to
+  // something like notes/agent/todo.md. The agent's source is a known set of
+  // directories, so require one of them.
+  if (/\/agent\/schedules\//.test(path)) return `Adding a routine${wait}`;
+  if (/\/agent\/channels\//.test(path)) return `Adding a channel${wait}`;
+  if (/\/agent\/skills\//.test(path)) return `Adding a skill${wait}`;
+  if (/\/agent\/tools\//.test(path)) return `Adding a tool${wait}`;
+  if (/\/agent\/(instructions|hooks|extensions|subagents)\//.test(path) || /^\/agent\/[^/]+$/.test(path)) {
+    return `Changing its own setup${wait}`;
+  }
+  return null;
+}
+
+function activityLabel(
+  type: string,
+  data: Record<string, unknown>,
+  memo: { lastTool: string | null },
+): { label: string; specific: boolean } | null {
+  const actions = Array.isArray(data.actions) ? (data.actions as Record<string, unknown>[]) : [];
+  // Field names differ by action kind, verified against a real stream:
+  // tool-call carries toolName, subagent-call and remote-agent-call carry name.
+  // Reading only `name` silently loses every tool call, which is most of them.
+  const first = actions[0];
+  const named =
+    typeof first?.toolName === "string"
+      ? first.toolName
+      : typeof first?.name === "string"
+        ? first.name
+        : null;
+  const kind = typeof first?.kind === "string" ? first.kind : null;
+
+  switch (type) {
+    case "turn.started":
+    case "step.started":
+      // Generic harness milestones. They fire repeatedly through a turn —
+      // including AFTER a tool result — so they must never overwrite a specific
+      // label, or a tool call flashes past and the line reads "Working" for a
+      // turn that plainly did something nameable.
+      return { label: "Working", specific: false };
+    case "message.received":
+      return { label: "Reading your message", specific: false };
+    case "reasoning.appended":
+    case "reasoning.completed":
+      return { label: "Thinking", specific: true };
+    case "actions.requested": {
+      // Before anything else: a write into the agent's own source is a restart
+      // the person should be told about while it is happening.
+      const change = selfChangeLabel(named, first?.input);
+      if (change) {
+        if (named) memo.lastTool = named;
+        return { label: change, specific: true };
+      }
+      if (named) memo.lastTool = named;
+      if (!named) return { label: "Taking an action", specific: true };
+      switch (kind) {
+        case "load-skill":
+          return { label: `Loading skill ${named}`, specific: true };
+        case "subagent-call":
+          return { label: `Delegating to ${named}`, specific: true };
+        case "remote-agent-call":
+          return { label: `Asking ${named}`, specific: true };
+        default:
+          return { label: `Using ${named}`, specific: true };
+      }
+    }
+    case "action.partial":
+      return named ? { label: `Using ${named}`, specific: true } : null;
+    case "action.result":
+      return {
+        label: memo.lastTool ? `Reading ${memo.lastTool} result` : "Reading the result",
+        specific: true,
+      };
+    case "subagent.started":
+    case "subagent.called":
+      return typeof data.subagentName === "string"
+        ? { label: `Delegating to ${data.subagentName}`, specific: true }
+        : { label: "Delegating", specific: true };
+    case "subagent.completed":
+      return { label: "Subagent finished", specific: true };
+    case "compaction.requested":
+      return { label: "Compacting context", specific: true };
+    case "authorization.required":
+      return { label: "Waiting for authorization", specific: true };
+    case "input.requested":
+      return { label: "Waiting for your input", specific: true };
+    default:
+      return null;
+  }
+}
+
+/** What the agent reports about itself — model, name, description. */
+/**
+ * Ask an agent, directly, whether it is answering.
+ *
+ * @remarks
+ * The control plane cannot answer this. Its `hasUrl` says only that a
+ * registration holds an address — and a registration outlives the machine it
+ * names, so an agent whose VM was deleted months ago looked exactly as healthy
+ * here as one serving traffic. This app read that field as liveness and
+ * reported such agents as "online".
+ *
+ * Unauthenticated on purpose: `/eve/v1/health` answers without a token, so
+ * checking costs no credential, and a 401 is itself an answer — something is
+ * listening there, but it is not this agent.
+ */
+export async function agentHealth(agentId: string): Promise<boolean> {
+  try {
+    const agent = await resolveAgent(agentId);
+    const target = `${agent.url}/eve/v1/health`;
+    // Unauthenticated probe: carries nothing, so redirects may be followed.
+    let res = await fetch(target, {
+      signal: AbortSignal.timeout(6_000),
+    });
+    // Customer adapters protect health with the same owner policy as chat.
+    // The retry carries a credential only when agentAuthHeaders allows one.
+    if (res.status === 401) {
+      const headers = await agentAuthHeaders(agent, target);
+      if (!headers.authorization) return false;
+      res = await fetch(target, {
+        headers, redirect: "manual",
+        signal: AbortSignal.timeout(6_000),
+      });
+    }
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Mirrors the renderer's isNativeManifest: a flat `/tealbrick/v1/info` manifest, not eve. */
+function isNativeAdapterInfo(info: Record<string, unknown>): boolean {
+  return typeof info.harness === "string" && typeof info.protocol === "string" && info.agent === undefined;
+}
+
+export async function agentInfo(agentId: string): Promise<Record<string, unknown> | null> {
+  try {
+    return await readAgentInfo(await resolveAgent(agentId));
+  } catch {
+    return null;
+  }
+}
+
+async function readAgentInfo(agent: ResolvedAgent): Promise<Record<string, unknown> | null> {
+  try {
+    let res = await agentFetch(agent, `${agent.url}/eve/v1/info`, { signal: AbortSignal.timeout(20_000) });
+    if (res?.status === 404) {
+      res = await agentFetch(agent, `${agent.url}/tealbrick/v1/info`, { signal: AbortSignal.timeout(20_000) });
+    }
+    if (!res?.ok) return null;
+    return (await res.json()) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * One eve Client per agent host.
+ *
+ * `eve/client` is the framework's own implementation of the session protocol,
+ * and using it is not a refactor — it is the fix. Studio used to hand-roll the
+ * POST and the NDJSON loop, which meant re-deriving three rules by inference:
+ *
+ *   - A turn ends at `session.waiting`, NOT at `turn.completed`. The two are
+ *     different events and there is real time between them. Treating the first
+ *     as the end let Studio release the composer while the session was still
+ *     settling, so the next message raced the runtime that had not parked yet.
+ *   - `session.waiting` carries the CURRENT continuation token. A session has
+ *     one active continuation and rejects a stale one, so a client that never
+ *     reads that event is holding a handle that expires under it.
+ *   - The stream cursor, reconnects, and credential refresh all have to move
+ *     together, or a reconnect resumes at the wrong index with a dead token.
+ *
+ * Every one of those was wrong here, in ways that surfaced as "sometimes it
+ * answers and sometimes it doesn't". The framework already gets them right.
+ */
+const clients = new Map<string, Client>();
+
+function clientFor(agent: ResolvedAgent): Client {
+  // Keyed by id AND address: a record that moves gets a new client, and the old
+  // one's requests stop carrying credentials (its origin no longer matches).
+  const key = `${agent.id}\n${agent.url}`;
+  const existing = clients.get(key);
+  if (existing) return existing;
+  const client = new Client({
+    host: agent.url,
+    // Resolved before every request INCLUDING stream reconnects, so a long turn
+    // that outlives the access token it started with refreshes mid-flight
+    // instead of dying at the first reconnect. No `auth`: the credential, if
+    // any, comes only from agentAuthHeaders.
+    headers: async (): Promise<Record<string, string>> => await agentAuthHeaders(agent, agent.url),
+    // Credential-bearing client: never let fetch forward these headers to
+    // another origin behind a redirect.
+    redirect: "manual",
+  });
+  clients.set(key, client);
+  return client;
+}
+
+/**
+ * The absolute index of the last event durably recorded for a session.
+ *
+ * eve answers this from a header when a catch-up read asks for it, so it costs
+ * one request and no body. Null means we could not find out — the caller then
+ * falls back to its remembered cursor rather than guessing at zero, which would
+ * replay the entire conversation.
+ */
+async function tailIndex(agent: ResolvedAgent, sessionId: string, from: number): Promise<number | null> {
+  const url = new URL(`${agent.url}/eve/v1/session/${encodeURIComponent(sessionId)}/stream`);
+  // Start from the cursor we already hold rather than 0: includeTailIndex makes
+  // this a catch-up read that stops at the tail instead of following the live
+  // stream, so an accurate cursor means an empty body and an immediate close.
+  url.searchParams.set("startIndex", String(Math.max(0, from)));
+  url.searchParams.set("includeTailIndex", "1");
+  const headers = await agentAuthHeaders(agent, url.href);
+  if (!headers.authorization) return null;
+  const controller = new AbortController();
+  try {
+    const res = await fetch(url, {
+      headers,
+      // Both signals: the controller stops the body once the header is read, and
+      // the timeout stops US. Every fetch on the way to sending a turn needs a
+      // deadline — this one had none, so an agent that accepted the connection
+      // and then said nothing hung the send before a single stream event, which
+      // left the composer queueing behind a turn that had not begun.
+      signal: AbortSignal.any([controller.signal, AbortSignal.timeout(12_000)]),
+    });
+    const header = res.headers.get("x-eve-stream-tail-index");
+    // The body is a full replay of the session; we only ever wanted the header.
+    controller.abort();
+    if (!res.ok || header === null) return null;
+    const tail = Number.parseInt(header, 10);
+    if (!Number.isFinite(tail)) return null;
+    // The header is the index of the LAST recorded event; resuming means the
+    // one after it. -1 (nothing recorded yet) correctly becomes 0.
+    return tail + 1;
+  } catch {
+    controller.abort();
+    return null;
+  }
+}
+
+/** Turn a ClientError into something that says what to do about it. */
+function describeClientError(error: unknown, base: string): Error {
+  if (!(error instanceof ClientError)) {
+    return error instanceof Error ? error : new Error(String(error));
+  }
+  const body = typeof error.body === "string" ? error.body : JSON.stringify(error.body ?? "");
+  const snippet = body.replace(/\s+/g, " ").slice(0, 220);
+
+  switch (error.status) {
+    case 401:
+      if (body.includes(UNVERIFIABLE)) {
+        return new Error(
+          `${base} could not reach the control plane to check your sign-in. Your ` +
+            `session is fine — this clears once the agent can reach the control plane again.`,
+        );
+      }
+      if (/^\s*<(!doctype|html)/i.test(body)) {
+        return new Error(
+          `${base} answered with a sign-in page rather than the eve API — deployment protection ` +
+            `(such as Vercel SSO) is in front of it, so Studio's token never reached the agent.`,
+        );
+      }
+      return new Error(
+        `The agent refused Studio's identity token (401). Check that it trusts the control plane ` +
+          `you signed in to, and that it can fetch that control plane's signing keys. ${snippet}`,
+      );
+    case 403:
+      return new Error(NOT_GRANTED_MESSAGE);
+    case 404:
+      return new Error(
+        `No eve API at ${base} (404). The registered URL may be wrong, or the deployment is not ` +
+          `serving /eve/v1/session.`,
+      );
+    case 409:
+      // Reached only when starting a FRESH session also came back 409, since a
+      // 409 on a session we hold is retried as a new conversation. So this is
+      // the agent itself refusing to open one, not a stuck thread of ours.
+      return new Error(
+        `${base} would not start a conversation (409). The agent is usually mid-restart — wait a ` +
+          `few seconds and send it again.`,
+      );
+    default:
+      if (error.status >= 500) {
+        return new Error(
+          `${base} is not answering right now (${error.status}). The agent is usually restarting — ` +
+            `applying a new routine or capability does that — so this normally clears in a few seconds.`,
+        );
+      }
+      return new Error(`Agent returned HTTP ${error.status}. ${snippet}`);
+  }
+}
+
+/**
+ * How long a turn may emit NOTHING before Studio stops believing in it.
+ *
+ * Not a limit on how long the agent may think: every event resets it, so a turn
+ * that streams tool calls for an hour is fine. It catches the turn that is not
+ * running at all — the one whose step died with a restarted process. eve does
+ * not resume a step killed mid-flight, so that turn never emits again, the
+ * session never parks, and every later message queues behind a turn that will
+ * never end. Waiting forever on that is indistinguishable from a hang, which
+ * is exactly what it is.
+ */
+const SILENCE_LIMIT_MS = 150_000;
+/**
+ * How long a turn may run once the agent has started it.
+ *
+ * eve's stream is quiet while the agent works: a long tool call or a delegated
+ * subagent emits nothing until it returns, and a study of a whole repository
+ * through a subagent has taken twenty minutes on a real deployment. Reading
+ * that quiet as silence killed every such turn at 150 seconds and reported a
+ * restart that never happened. So the short bound applies only before the
+ * first event of the turn, where silence really is a hang; after that the
+ * gap between events is allowed this much, and running out of it stops Studio
+ * watching but never cancels the agent's work.
+ */
+const WORK_LIMIT_MS = 60 * 60_000;
+/** While the agent is quiet and working, say so this often. */
+const WORKING_NOTE_MS = 30_000;
+const isTurnBoundary = (type: string): boolean =>
+  type === "session.waiting" || type === "session.completed" || type === "session.failed";
+
+/**
+ * Send one turn to an agent and stream the reply back.
+ *
+ * Deltas are pushed to the renderer as they arrive, because a chat window that
+ * sits blank for thirty seconds reads as broken even when it is working.
+ */
+export async function sendTurn(input: {
+  /** Resolved main-side; the renderer never supplies an address. */
+  agentId: string;
+  text: string;
+  /** Files the user attached to this message. */
+  attachments?: Attachment[];
+  sessionId?: string;
+  /** Events already consumed on this session; the stream resumes after them. */
+  streamIndex?: number;
+  /** Answers to questions the agent asked, resuming a parked turn. */
+  inputResponses?: { requestId: string; optionId?: string; text?: string }[];
+  clientContext?: Record<string, unknown>;
+  onDelta(text: string): void;
+  /** Clear what has been streamed so far: the block just ended was narration. */
+  onReset?(): void;
+  onActivity(label: string | null): void;
+  /**
+   * The stream position, reported as it advances.
+   *
+   * A turn that throws never returns a result, so a cursor saved only on
+   * success goes stale the moment anything fails — and the next turn resumes
+   * from an old position and REPLAYS history, re-emitting questions the user
+   * already answered as if the agent had just asked them.
+   */
+  onCursor(index: number): void;
+  /** The live turn, as soon as it is known, so the user can stop it. */
+  onTurn?(turn: { sessionId: string; turnId?: string }): void;
+  /**
+   * The agent is asking the user something and will not continue until it is
+   * answered. Dropping this event is why a turn that ended in a question looked
+   * like an empty reply.
+   */
+  /**
+   * A connection needs the user to sign in before the parked turn can continue.
+   *
+   * eve emits this, parks the turn, and resumes after the callback — the whole
+   * OAuth flow is already in the framework. A client that does not render it
+   * shows a turn that simply stopped, which is the exact failure eve's own
+   * troubleshooting table names: "authorization.required appears but no UI".
+   */
+  /**
+   * One side of an agent-to-agent hop: this agent asking a peer, or the peer
+   * answering. Emitted as it happens rather than assembled at the end, so a
+   * slow peer is visible while it is still thinking.
+   */
+  onPeer?(event: { direction: "inbound" | "outbound"; peer: string; text: string }): void;
+  onAuthorization(event: {
+    name: string;
+    description?: string;
+    url?: string;
+    userCode?: string;
+    instructions?: string;
+    expiresAt?: string;
+    /** Present on the completed event: authorized | declined | failed | timed-out. */
+    outcome?: string;
+  }): void;
+  onQuestion(request: {
+    requestId: string;
+    prompt: string;
+    options?: { id: string; label: string; description?: string; style?: string }[];
+    allowFreeform?: boolean;
+  }): void;
+}): Promise<{
+  reply: string;
+  sessionId?: string;
+  streamIndex: number;
+  /** The turn parked on a question; there is no reply because none is due. */
+  askedQuestion: boolean;
+}> {
+  console.log(`[send] start session=${input.sessionId ? "existing" : "new"}`);
+  const agent = await resolveAgent(input.agentId);
+  // Fail here rather than at the agent: without a credential the agent reads
+  // the request as an A2A call and answers "Authorization is required", which
+  // reads like a broken token instead of a credential TBD chose not to send.
+  await requireAgentCredentials(agent, agent.url);
+
+  const base = agent.url;
+
+  /**
+   * Start this turn at the stream's CURRENT tail, not at a remembered cursor.
+   *
+   * A cursor that falls behind never recovers on its own, and it fails in the
+   * most misleading way available: the client resumes at the old position,
+   * reads the previous turn's events, stops at the boundary it finds there, and
+   * hands back that turn's reply. The agent looks like it is answering the
+   * wrong question. Ask three things and you get three answers, each one behind
+   * — and because each turn only advances to the boundary it just replayed, the
+   * lag is self-sustaining.
+   *
+   * Studio renders its own persisted transcript, so it never wants history from
+   * this stream — only the turn it is about to send. The tail is therefore the
+   * only correct starting point, and reading it fresh each time makes any drift
+   * self-correcting rather than permanent.
+   */
+  const resumeAt = input.sessionId
+    ? ((await tailIndex(agent, input.sessionId, input.streamIndex ?? 0)) ?? input.streamIndex ?? 0)
+    : 0;
+
+  console.log(`[send] resume=${resumeAt}`);
+  // Sessions are ID-addressed: attach to one we already have, or let the first
+  // message create it. Nothing is carried between turns except the id and the
+  // cursor, so there is no longer a token that can go stale and make a live
+  // session refuse an otherwise valid turn.
+  let session = input.sessionId
+    ? clientFor(agent).sessions.attach(input.sessionId, { streamIndex: resumeAt })
+    : null;
+
+  let reply = "";
+  let askedQuestion = false;
+  let turnId: string | undefined;
+  const memo = { lastTool: null as string | null };
+  const peerState: PeerState = { pending: new Map(), last: null };
+  let sawSpecific = false;
+
+  /**
+   * Publish the cursor only once the turn is over.
+   *
+   * `ClientSession.state` advances in the stream generator's finally block, so
+   * reading it mid-turn returns the value we passed IN. Publishing that on every
+   * event raced the correct value through IPC and could overwrite it with the
+   * pre-turn position — re-creating the very drift this is meant to avoid.
+   */
+  const publishCursor = (): void => {
+    const at = session?.state.streamIndex;
+    if (typeof at === "number") input.onCursor(at);
+  };
+
+  /**
+   * Abandoning a dead turn, as distinct from asking it to stop.
+   *
+   * Requesting cancellation is a message to a runtime that may not be listening
+   * — the executor that would honour it is exactly the one that died. Without
+   * aborting the read too, `for await` keeps waiting on a stream that will
+   * never yield, this function never returns, and the caller's "a turn is in
+   * flight" flag never clears. The user is then unable to send ANYTHING,
+   * because the client is politely queueing behind a turn that ended long ago.
+   * That is a worse failure than the hang it was meant to report.
+   */
+  const abandon = new AbortController();
+
+  /**
+   * Everything up to the first event has to be bounded too.
+   *
+   * The idle watchdog below only arms once send() has resolved, so anything
+   * that hangs before that — a POST that never answers, a proxy holding the
+   * connection, a resolve that never finishes — was outside every timeout in
+   * this file. That is how a turn could wedge with no stream events at all and
+   * nothing to cancel.
+   */
+  const dispatchGuard = setTimeout(() => abandon.abort(), 45_000);
+
+  // A message and a set of answers are mutually exclusive now: `send` carries
+  // new text, `respond` carries answers to a question the agent already asked.
+  // Serialized clientContext rather than an object: eve JSON-serializes it into
+  // one user-role context message either way, and a string keeps this code free
+  // of the framework's internal JSON types.
+  const options = {
+    signal: abandon.signal,
+    ...(input.clientContext ? { clientContext: JSON.stringify(input.clientContext) } : {}),
+  };
+
+  // Built here rather than inline, so the ordering rule (text before files) is
+  // covered by a test instead of by whoever reads this next.
+  const message = buildMessage(input.text, input.attachments);
+
+  const dispatchRaw = async (): Promise<MessageResponse> => {
+    // A resumed turn may carry only answers, with no new message. That can only
+    // happen on a session we are already attached to — there is nothing to
+    // answer in a conversation that does not exist yet.
+    if (input.inputResponses?.length && session) {
+      return await session.respond(input.inputResponses, options);
+    }
+    if (session) return await session.send(message, options);
+    const created = await clientFor(agent).sessions.create({ message, ...options });
+    session = created.session;
+    return created.response;
+  };
+  // The policy bundle's agent grants are fixed when it is issued, so an agent
+  // created after sign-in is refused (403 agent_not_granted) until the bundle is
+  // re-issued. Refresh once and retry before telling the user anything.
+  const dispatch = (): Promise<MessageResponse> =>
+    retryAfterGrantRefresh(dispatchRaw, forceRefresh, console.log);
+
+  let response: Awaited<ReturnType<typeof dispatch>>;
+  try {
+    try {
+      response = await dispatch();
+    } catch (error) {
+      // A 401 here is not a conversation to have with the user. Refresh and try
+      // once more: sessions are meant to renew silently, and "sign out and back
+      // in" is not an instruction any product should give.
+      if (error instanceof ClientError && error.status === 401) {
+        console.log("[auth] agent refused the credential; renewing and retrying once");
+        const renewed = await renewAgentCredentials(agent);
+        if (!renewed) throw error;
+        response = await dispatch();
+      } else if (
+        error instanceof ClientError &&
+        (error.status === 404 || error.status === 409) &&
+        input.sessionId
+      ) {
+        // Two ways a session we hold can refuse a follow-up, and neither is
+        // worth telling a person about.
+        //
+        // 404: the agent no longer has that session — its durable owner was
+        // retired, or a redeploy took it. The route is obviously present, so
+        // reporting "no eve API here" sends someone to check a URL that was
+        // never wrong.
+        //
+        // 409 (`session_not_active`): the session is there but cannot take a
+        // turn, which is what a restart mid-turn leaves behind — the interrupted
+        // turn never settles, so the session never parks and every later message
+        // queues behind one that will never finish. Studio used to report this
+        // as "that conversation is busy: wait for it", and waiting was precisely
+        // the wrong advice: nothing was going to finish.
+        //
+        // Either way the conversation cannot be resumed, so start a new one. The
+        // transcript is ours and stays on screen; only the agent's thread
+        // restarts, which is what Reset does and does not need to be asked for.
+        const info = await readAgentInfo(agent);
+        if (!info || isNativeAdapterInfo(info)) {
+          throw new Error("This native session could not be resumed. No replacement conversation was created. Reconnect the agent or explicitly start a new chat.");
+        }
+        console.log(`[send] session cannot continue (${error.status}); starting a fresh one`);
+        // A fresh session has no question in it to answer. Re-dispatching answers
+        // into one falls through to sessions.create() with the EMPTY message the
+        // answer rode in on — posting a blank turn and silently discarding what
+        // the person chose. Say so instead.
+        if (input.inputResponses?.length && !input.text.trim()) {
+          throw new Error(
+            "That question belonged to a conversation the agent has since restarted, so it can no longer be answered. Send what you wanted to say as a new message.",
+          );
+        }
+        session = null;
+        response = await dispatch();
+      } else {
+        throw error;
+      }
+    }
+  } catch (error) {
+    clearTimeout(dispatchGuard);
+    if (abandon.signal.aborted) {
+      throw new Error(
+        `${base} accepted the connection but never started the turn. Nothing was sent — try again.`,
+      );
+    }
+    throw describeClientError(error, base);
+  } finally {
+    clearTimeout(dispatchGuard);
+  }
+
+  console.log(`[send] dispatched session=${session?.state.sessionId ?? "?"}`);
+  if (session?.state.sessionId) {
+    input.onTurn?.({ sessionId: session.state.sessionId });
+  }
+
+  /**
+   * A watchdog over the gap BETWEEN events rather than over the turn.
+   *
+   * `for await` on a silent stream simply never yields, so without this the UI
+   * spins on a dead turn until something else gives up. Each event rearms it.
+   */
+  let silenceTimer: NodeJS.Timeout | undefined;
+  let workingNote: NodeJS.Timeout | undefined;
+  let silent = false;
+  let stoppedWatching = false;
+  let started = false;
+  const startedAt = Date.now();
+  let lastEventAt = Date.now();
+  const rearm = (): void => {
+    if (silenceTimer) clearTimeout(silenceTimer);
+    lastEventAt = Date.now();
+    if (!started) {
+      silenceTimer = setTimeout(() => {
+        silent = true;
+        // Nothing has come back at all: the turn never started. Ask the agent
+        // to stop, then stop listening regardless of the answer.
+        void session?.cancel({ ...(turnId ? { turnId } : {}) }).catch(() => undefined);
+        abandon.abort();
+      }, SILENCE_LIMIT_MS);
+      return;
+    }
+    silenceTimer = setTimeout(() => {
+      // The agent is still working after the ceiling. Stop watching, but do
+      // not cancel: the work is real and the answer lands in the conversation.
+      silent = true;
+      stoppedWatching = true;
+      abandon.abort();
+    }, WORK_LIMIT_MS);
+  };
+
+  /**
+   * Which turn these events belong to.
+   *
+   * The client ends a send's stream at the first session boundary after the
+   * cursor. When this message ends an earlier turn that was still running (a
+   * person asks again during a long delegation), that earlier turn's
+   * `session.waiting` is the first event on the wire, before this turn's
+   * `turn.started`. Read as ours it produced "(the agent returned no text)",
+   * and the abandoned stream then closed the request, which cancelled the real
+   * turn minutes into its work. So a boundary that arrives first is the
+   * earlier turn's, and Studio keeps following the session until its own turn
+   * ends.
+   */
+  let seen = 0;
+  let sawTurnStart = false;
+  let staleBoundaryFirst = false;
+  let endedAtOwnBoundary = false;
+
+  const handle = (event: { type?: unknown; data?: unknown }): boolean => {
+      rearm();
+      seen += 1;
+      const type = String(event.type ?? "");
+      if (seen === 1 && isTurnBoundary(type) && !sawTurnStart) staleBoundaryFirst = true;
+      if (type === "turn.started") {
+        sawTurnStart = true;
+        if (!started) {
+          started = true;
+          rearm();
+        }
+        if (staleBoundaryFirst) {
+          reply = "";
+          input.onReset?.();
+        }
+      } else if (!started) {
+        started = true;
+        rearm();
+      }
+      const data = ((event as { data?: unknown }).data ?? {}) as Record<string, unknown>;
+
+      if (debugStreamEnabled()) {
+        console.log(streamDiagnostic(type));
+      }
+
+      if (typeof data.turnId === "string" && data.turnId !== turnId) {
+        turnId = data.turnId;
+        if (session?.state.sessionId) {
+          input.onTurn?.({ sessionId: session.state.sessionId, turnId });
+        }
+      }
+
+      const nextLabel = activityLabel(type, data, memo);
+      if (nextLabel) {
+        if (nextLabel.specific) {
+          sawSpecific = true;
+          input.onActivity(nextLabel.label);
+        } else if (!sawSpecific) {
+          input.onActivity(nextLabel.label);
+        }
+      }
+
+      for (const peerEvent of readPeerEvents(type, data, peerState)) {
+        input.onPeer?.(peerEvent);
+      }
+
+      if (type === "authorization.required" || type === "authorization.completed") {
+        const challenge = (data.authorization ?? {}) as Record<string, unknown>;
+        const name =
+          (typeof data.name === "string" && data.name) ||
+          (typeof data.connection === "string" && data.connection) ||
+          "a connection";
+        input.onAuthorization({
+          name,
+          description: typeof data.description === "string" ? data.description : undefined,
+          url: typeof challenge.url === "string" ? challenge.url : undefined,
+          userCode: typeof challenge.userCode === "string" ? challenge.userCode : undefined,
+          instructions:
+            typeof challenge.instructions === "string" ? challenge.instructions : undefined,
+          expiresAt: typeof challenge.expiresAt === "string" ? challenge.expiresAt : undefined,
+          outcome: typeof data.outcome === "string" ? data.outcome : undefined,
+        });
+      }
+
+      if (type === "input.requested") {
+        if (debugStreamEnabled()) {
+          console.log("[question] input requested (content omitted)");
+        }
+        for (const raw of Array.isArray(data.requests) ? data.requests : []) {
+          const r = raw as Record<string, unknown>;
+          // The request carries its fields at the top level, and the tool call
+          // that produced it carries the same shape under action.input. Read
+          // both: a question the user never sees because one field sat a level
+          // deeper is indistinguishable from a broken agent.
+          const action = (r.action ?? {}) as Record<string, unknown>;
+          const inner = (action.input ?? {}) as Record<string, unknown>;
+          const requestId =
+            (typeof r.requestId === "string" && r.requestId) ||
+            (typeof action.callId === "string" && action.callId) ||
+            "";
+          const prompt =
+            (typeof r.prompt === "string" && r.prompt) ||
+            (typeof inner.prompt === "string" && inner.prompt) ||
+            (typeof inner.question === "string" && inner.question) ||
+            "";
+          if (!requestId || !prompt) continue;
+          const options = Array.isArray(r.options)
+            ? r.options
+            : Array.isArray(inner.options)
+              ? inner.options
+              : undefined;
+          askedQuestion = true;
+          input.onQuestion({
+            requestId,
+            prompt,
+            options: options as
+              | { id: string; label: string; description?: string; style?: string }[]
+              | undefined,
+            allowFreeform: r.allowFreeform === true || inner.allowFreeform === true,
+          });
+        }
+      } else if (type === "message.appended" && typeof data.messageDelta === "string") {
+        sawSpecific = false;
+        memo.lastTool = null;
+        input.onActivity(null);
+        reply += data.messageDelta;
+        input.onDelta(data.messageDelta);
+      } else if (type === "message.completed" && typeof data.message === "string") {
+        /**
+         * An agent narrates before it acts: "I'll pull your recordings and
+         * check memory." eve emits each of those as its own completed message
+         * with finishReason "tool-calls", and only the last block — finishing
+         * on "stop" — is the answer.
+         *
+         * Treating them all as one reply concatenates a dozen intentions into a
+         * wall of text where the actual answer arrives last and unannounced. It
+         * reads like the model thinking out loud into the transcript, which is
+         * precisely what it is.
+         *
+         * So narration becomes the activity line, where a running commentary
+         * belongs, and the bubble is cleared for the real reply.
+         */
+        if (data.finishReason === "tool-calls") {
+          const narration = data.message.trim();
+          if (narration) input.onActivity(narration.slice(0, 120));
+          reply = "";
+          input.onReset?.();
+        } else {
+          reply = data.message;
+          input.onReset?.();
+          input.onDelta(data.message);
+        }
+      } else if (type === "turn.failed" || type === "session.failed" || type === "step.failed") {
+        const message = typeof data.message === "string" ? data.message : "the turn failed";
+        throw new Error(`Agent error: ${message}`);
+      }
+      if (isTurnBoundary(type) && (!staleBoundaryFirst || sawTurnStart)) {
+        endedAtOwnBoundary = true;
+        return true;
+      }
+      return false;
+  };
+
+  try {
+    rearm();
+    workingNote = setInterval(() => {
+      if (!started) return;
+      const quietFor = Date.now() - lastEventAt;
+      if (quietFor < WORKING_NOTE_MS) return;
+      const minutes = Math.max(1, Math.round((Date.now() - startedAt) / 60_000));
+      input.onActivity(`still working (${minutes} min, a long tool call or delegation produces nothing until it returns)`);
+    }, WORKING_NOTE_MS);
+    for await (const event of response) {
+      if (handle(event as { type?: unknown; data?: unknown })) break;
+    }
+    if (staleBoundaryFirst && !endedAtOwnBoundary && session) {
+      console.log("[send] the stream ended on an earlier turn's boundary before this turn started; following the session");
+      for await (const event of session.stream({
+        follow: true,
+        startIndex: session.state.streamIndex,
+        signal: abandon.signal,
+      })) {
+        if (handle(event as { type?: unknown; data?: unknown })) break;
+      }
+    }
+  } catch (error) {
+    if (!silent) throw describeClientError(error, base);
+  } finally {
+    if (silenceTimer) clearTimeout(silenceTimer);
+    if (workingNote) clearInterval(workingNote);
+    input.onActivity(null);
+    publishCursor();
+  }
+
+  if (stoppedWatching && !reply) {
+    throw new Error(
+      `The agent has been working on this for ${Math.round(WORK_LIMIT_MS / 60_000)} minutes and ` +
+        `Studio stopped watching. The turn is still running on the agent; its answer lands in this ` +
+        `conversation when it finishes. Do not send the message again: a new message cancels the running turn.`,
+    );
+  }
+  if (silent && !reply) {
+    throw new Error(
+      `The agent accepted this message and then produced nothing for ${Math.round(
+        SILENCE_LIMIT_MS / 1000,
+      )} seconds: the turn never started. Studio asked it to stop, so you can send the message again.`,
+    );
+  }
+
+  return {
+    reply: reply.trim(),
+    sessionId: session?.state.sessionId,
+    streamIndex: session?.state.streamIndex ?? 0,
+    askedQuestion,
+  };
+}
+
+/**
+ * Stop the turn a session is currently running.
+ *
+ * Both outcomes are success: `accepted` means the turn took the signal, and
+ * `no_active_turn` means it had already settled.
+ */
+/**
+ * Follow a session that something ELSE is driving — the phone, a workspace,
+ * a schedule — and report it through the same callbacks a turn of our own
+ * uses, so the renderer draws it with the same code.
+ *
+ * Without this the desktop learned about a message sent from the phone on
+ * its next thirty-second tick, while the phone saw the desktop's the moment
+ * it landed. Starts at the index after the last event this window consumed;
+ * ends only when the caller stops it or the connection is given up on. A
+ * turn boundary is reported so the caller can re-read the transcript from
+ * the agent, which is the one copy that cannot drift.
+ */
+export async function watchSession(input: {
+  agentId: string;
+  sessionId: string;
+  startIndex: number;
+  signal: AbortSignal;
+  onDelta: (text: string) => void;
+  onReset: () => void;
+  onActivity: (label: string | null) => void;
+  onCursor: (index: number) => void;
+  onPeer: (event: { direction: "inbound" | "outbound"; peer: string; text: string }) => void;
+  onAuthorization: (event: { name: string; description?: string; url?: string; userCode?: string; instructions?: string; expiresAt?: string; outcome?: string }) => void;
+  onQuestion: (request: { requestId: string; prompt: string; options?: { id: string; label: string; description?: string; style?: string }[]; allowFreeform?: boolean }) => void;
+  /** The other device's message landed, or its turn ended: time to re-read the thread. */
+  onLive: (kind: "received" | "boundary") => void;
+}): Promise<void> {
+  const agent = await resolveAgent(input.agentId);
+  await requireAgentCredentials(agent, agent.url);
+  const base = agent.url;
+  const session = clientFor(agent).sessions.attach(input.sessionId, { streamIndex: input.startIndex });
+  let index = input.startIndex;
+  const memo = { lastTool: null as string | null };
+  const peerState: PeerState = { pending: new Map(), last: null };
+  let sawSpecific = false;
+  let seen = 0;
+  console.log(`[watch] start ${input.sessionId.slice(0, 18)} at ${input.startIndex}`);
+  try {
+    for await (const raw of session.stream({ follow: true, startIndex: input.startIndex, signal: input.signal })) {
+      const type = String((raw as { type?: unknown }).type ?? "");
+      const data = ((raw as { data?: unknown }).data ?? {}) as Record<string, unknown>;
+      index += 1;
+      seen += 1;
+      input.onCursor(index);
+
+      const nextLabel = activityLabel(type, data, memo);
+      if (nextLabel) {
+        if (nextLabel.specific) {
+          sawSpecific = true;
+          input.onActivity(nextLabel.label);
+        } else if (!sawSpecific) {
+          input.onActivity(nextLabel.label);
+        }
+      }
+      for (const peerEvent of readPeerEvents(type, data, peerState)) input.onPeer(peerEvent);
+
+      if (type === "message.received") {
+        input.onLive("received");
+      } else if (type === "message.appended" && typeof data.messageDelta === "string") {
+        sawSpecific = false;
+        memo.lastTool = null;
+        input.onActivity(null);
+        input.onDelta(data.messageDelta);
+      } else if (type === "message.completed" && typeof data.message === "string") {
+        if (data.finishReason === "tool-calls") {
+          const narration = data.message.trim();
+          if (narration) input.onActivity(narration.slice(0, 120));
+          input.onReset();
+        } else {
+          input.onReset();
+          input.onDelta(data.message);
+        }
+      } else if (type === "authorization.required" || type === "authorization.completed") {
+        const challenge = (data.authorization ?? {}) as Record<string, unknown>;
+        input.onAuthorization({
+          name: (typeof data.name === "string" && data.name) || (typeof data.connection === "string" && data.connection) || "a connection",
+          description: typeof data.description === "string" ? data.description : undefined,
+          url: typeof challenge.url === "string" ? challenge.url : undefined,
+          userCode: typeof challenge.userCode === "string" ? challenge.userCode : undefined,
+          instructions: typeof challenge.instructions === "string" ? challenge.instructions : undefined,
+          expiresAt: typeof challenge.expiresAt === "string" ? challenge.expiresAt : undefined,
+          outcome: typeof data.outcome === "string" ? data.outcome : undefined,
+        });
+      } else if (type === "input.requested") {
+        for (const r0 of Array.isArray(data.requests) ? data.requests : []) {
+          // Both shapes, as the turn reader reads them.
+          const r = r0 as Record<string, unknown>;
+          const action = (r.action ?? {}) as Record<string, unknown>;
+          const inner = (action.input ?? {}) as Record<string, unknown>;
+          const requestId = (typeof r.requestId === "string" && r.requestId) || (typeof action.callId === "string" && action.callId) || "";
+          const prompt = (typeof r.prompt === "string" && r.prompt) || (typeof inner.prompt === "string" && inner.prompt) || (typeof inner.question === "string" && inner.question) || "";
+          if (!requestId || !prompt) continue;
+          const options = Array.isArray(r.options) ? r.options : Array.isArray(inner.options) ? inner.options : undefined;
+          input.onQuestion({ requestId, prompt, options: options as never, allowFreeform: r.allowFreeform === true || inner.allowFreeform === true });
+        }
+      } else if (type === "session.waiting" || type === "session.completed" || type === "session.failed" || type === "turn.failed") {
+        input.onActivity(null);
+        input.onLive("boundary");
+      }
+    }
+  } catch (error) {
+    if (!input.signal.aborted) throw describeClientError(error, base);
+  } finally {
+    console.log(`[watch] end ${input.sessionId.slice(0, 18)} after ${seen} event(s)${input.signal.aborted ? " (stopped)" : " (stream closed)"}`);
+  }
+}
+
+/**
+ * "This desktop is driving this session." Sent as a turn begins so the control
+ * plane rings no phone for it: the device that asked owns the notification,
+ * and this one tells its own screen. Best effort; a missed claim costs one
+ * extra buzz, not a turn.
+ */
+export async function claimDriver(sessionId: string): Promise<void> {
+  const s = await activeSession();
+  if (!s) return;
+  try {
+    await fetch(`${issuer()}/api/sessions/driver`, {
+      method: "POST",
+      headers: authHeaders(s, { json: true }),
+      body: JSON.stringify({ sessionId, deviceId: deviceId(), platform: "desktop" }),
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch {
+    /* best effort */
+  }
+}
+
+export async function cancelTurn(input: {
+  agentId: string;
+  sessionId: string;
+  turnId?: string;
+}): Promise<string> {
+  const agent = await resolveAgent(input.agentId);
+  await requireAgentCredentials(agent, agent.url);
+  const base = agent.url;
+  const session = clientFor(agent).sessions.attach(input.sessionId, { streamIndex: 0 });
+  try {
+    const result = await session.cancel({ ...(input.turnId ? { turnId: input.turnId } : {}) });
+    return result.status;
+  } catch (error) {
+    throw describeClientError(error, base);
+  }
+}
+
+/**
+ * Retire a session so the next message starts a fresh one.
+ *
+ * The escape hatch for a conversation that cannot move: a turn interrupted by a
+ * restart never settles, so the session never parks, and every later message
+ * queues behind it forever. Cancelling a turn whose executor is gone does not
+ * always land — reset releases the durable owner regardless.
+ */
+export async function resetSession(input: { agentId: string; sessionId?: string }): Promise<void> {
+  // Nothing to retire: with ID-addressed sessions there is no handle to a
+  // conversation that was never started, and the next message opens a fresh one
+  // anyway. Returning quietly beats a 404 the user cannot act on.
+  if (!input.sessionId) return;
+  const agent = await resolveAgent(input.agentId);
+  await requireAgentCredentials(agent, agent.url);
+  const base = agent.url;
+  const session = clientFor(agent).sessions.attach(input.sessionId, { streamIndex: 0 });
+  try {
+    await session.reset();
+  } catch (error) {
+    throw describeClientError(error, base);
+  }
+}
+
+export function currentSession(): Session | null {
+  return loadSession();
+}
+
+/**
+ * Management calls against an agent's own /eve/v1/kyb routes.
+ *
+ * These carry the SAME identity and policy bundle as every other call to the
+ * agent. Installing software on an agent is governed by the same grant as
+ * talking to it — there is no separate key, because a credential a user has to
+ * copy out of a server's env file is not authentication.
+ */
+/** Where a management path lands on the agent. Native adapters report Portal-granted apps read-only. */
+export function manageEndpoint(url: string, path: string, write: boolean): string | null {
+  const base = url.replace(/\/$/, "");
+  if (path === "/tealbrick/capabilities") return write ? null : `${base}/tealbrick/v1/capabilities`;
+  if (path === "/tealbrick/management") return `${base}/eve/v1/tealbrick/management`;
+  return `${base}/eve/v1/kyb${path}`;
+}
+
+export async function manageCall(input: {
+  agentId: string;
+  path: string;
+  body?: unknown;
+}): Promise<{ ok: boolean; status: number; data: unknown }> {
+  let agent: ResolvedAgent;
+  try {
+    agent = await resolveAgent(input.agentId);
+  } catch (error) {
+    return { ok: false, status: 404, data: { error: error instanceof Error ? error.message : String(error) } };
+  }
+  if (typeof input.path !== "string" || !input.path.startsWith("/")) {
+    return { ok: false, status: 400, data: { error: "invalid_path" } };
+  }
+  const endpoint = manageEndpoint(agent.url, input.path, input.body !== undefined);
+  if (!endpoint) return { ok: false, status: 405, data: { error: "read_only" } };
+  const decision = await agentAuth.decide(agent, endpoint);
+  if (decision.mode === "none") {
+    // 440, not 401: the agent never saw this request. Reporting it as the
+    // agent's refusal sends someone to check grants for a session that expired
+    // on this side. 428: TBD kept its credentials back (F4-1).
+    return decision.reason === "signed-out" || decision.reason === "no-bundle"
+      ? { ok: false, status: 440, data: { error: "Your sign-in has expired." } }
+      : { ok: false, status: 428, data: { error: CREDENTIALS_WITHHELD, code: "credentials_withheld" } };
+  }
+  const res = await agentFetch(agent, endpoint, {
+    method: input.body === undefined ? "GET" : "POST",
+    body: input.body === undefined ? undefined : JSON.stringify(input.body),
+    // Installs run npm and a full rebuild; a short timeout here would report a
+    // failure for work that is actually still going.
+    signal: AbortSignal.timeout(input.body === undefined ? 15_000 : 420_000),
+  }, { json: input.body !== undefined });
+  if (!res) {
+    return { ok: false, status: 428, data: { error: CREDENTIALS_WITHHELD, code: "credentials_withheld" } };
+  }
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    // Which kind of credential went, never its value.
+    console.log(`[manage] credential mode=${decision.mode}`);
+    // The agent's own words, not our summary. A 401 from a manage route can be
+    // an expired token, a bundle that does not match, or a missing grant, and
+    // those need three different fixes.
+    console.log(`[manage] request failed HTTP ${res.status} (response body omitted)`);
+  }
+  return { ok: res.ok, status: res.status, data };
+}
+
+/**
+ * Ask an agent whether it is voice-capable (has @kybernesis/voice mounted), and
+ * how it should sound. Same control-plane identity as every other door; null
+ * when the agent has no voice route or the grant/sign-in does not allow it, so
+ * the caller simply shows no orb.
+ */
+export async function voiceManifest(
+  agentId: string,
+): Promise<{ enabled: boolean; voice?: string; displayName?: string } | null> {
+  try {
+    const agent = await resolveAgent(agentId);
+    const res = await agentFetch(agent, `${agent.url}/eve/v1/voice/manifest`, {
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res?.ok) return null;
+    const data = (await res.json().catch(() => null)) as
+      | { enabled?: boolean; voice?: string; displayName?: string }
+      | null;
+    if (!data?.enabled) return null;
+    return { enabled: true, voice: data.voice, displayName: data.displayName };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Mint a realtime voice session on the agent, which uses ITS OWN OpenAI key. We
+ * relay only the browser's SDP offer and get the answer back — the key never
+ * reaches this app. Authenticated with the same token + bundle as manageCall.
+ */
+export async function voiceSession(input: {
+  agentId: string;
+  sdp: string;
+  voice?: string;
+}): Promise<{ sdp: string }> {
+  const agent = await resolveAgent(input.agentId);
+  const target = `${agent.url}/eve/v1/voice/session`;
+  await requireAgentCredentials(agent, target);
+  const res = await agentFetch(agent, target, {
+    method: "POST",
+    body: JSON.stringify({ sdp: input.sdp, ...(input.voice ? { voice: input.voice } : {}) }),
+    signal: AbortSignal.timeout(30_000),
+  }, { json: true });
+  if (!res) throw new Error(CREDENTIALS_WITHHELD);
+  const data = (await res.json().catch(() => null)) as
+    | { ok?: boolean; sdp?: string; error?: string }
+    | null;
+  if (!res.ok || !data?.ok || !data.sdp) {
+    throw new Error(data?.error ?? `The agent's voice route answered ${res.status}.`);
+  }
+  return { sdp: data.sdp };
+}
+
+/**
+ * Give an agent what it needs to reach this machine, without anyone touching a
+ * credential.
+ *
+ * Three things have to be true before an agent can work on someone's files: it
+ * must be able to prove which agent it is, the person must have allowed it on
+ * this machine, and the desktop must be reachable. Only the middle one is a
+ * decision — the other two are plumbing, and plumbing is not something to hand
+ * a user as a setup checklist.
+ *
+ * Studio is the one place where all three are already available: it is signed
+ * in as the owner, so it can mint from the control plane; it talks to the agent
+ * over an authenticated channel, so it can install; and it IS the device, so it
+ * knows what it is granting. The credential passes between two pieces of
+ * software and is never displayed, logged, or persisted here.
+ */
+export async function provisionLocalAccess(input: {
+  agentId: string;
+}): Promise<{ ok: boolean; error?: string; restarted?: boolean }> {
+  if (!legacyPortalExecutionEnabled(issuer())) return { ok: false, error: CUSTOMER_EXECUTION_REQUIRED };
+  const s = await activeSession();
+  if (!s?.bundle) return { ok: false, error: "Not signed in." };
+  let agent: ResolvedAgent;
+  try {
+    agent = await resolveAgent(input.agentId);
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
+  const name = agent.name;
+  // Check BEFORE minting: a credential minted for an agent we will not talk to
+  // is a credential with nowhere safe to go.
+  const installTarget = `${agent.url}/eve/v1/kyb/credential`;
+  const agentHeaders = await agentAuthHeaders(agent, installTarget, { json: true });
+  if (!agentHeaders.authorization) return { ok: false, error: CREDENTIALS_WITHHELD };
+
+  // 1. Mint. Owner-or-manage only, enforced at the control plane.
+  const minted = await fetch(`${issuer()}/api/agents/credential`, {
+    method: "POST",
+    headers: authHeaders(s, { bundle: true, json: true }),
+    body: JSON.stringify({ agent: name }),
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!minted.ok) {
+    const detail = await minted.text().catch(() => "");
+    return {
+      ok: false,
+      error:
+        minted.status === 403
+          ? `You need manage access to "${name}" to connect it to this computer.`
+          : `The control plane would not issue a credential for "${name}" (${minted.status}). ${detail.slice(0, 160)}`,
+    };
+  }
+  const { credential } = (await minted.json()) as { credential?: string };
+  if (!credential) return { ok: false, error: "The control plane returned no credential." };
+
+  // 2. Install it on the agent, over the channel it already authenticates.
+  const installed = await fetch(installTarget, {
+    method: "POST",
+    headers: agentHeaders,
+    redirect: "manual",
+    body: JSON.stringify({ key: "KYBERNESIS_AGENT_CREDENTIAL", value: credential }),
+    signal: AbortSignal.timeout(60_000),
+  });
+  if (!installed.ok) {
+    const detail = await installed.text().catch(() => "");
+    return {
+      ok: false,
+      error:
+        installed.status === 404
+          ? `${name} has no management routes — @kybernesis/manage is not installed ` +
+            `or not deployed. On the agent: npx eve add @kybernesis/manage, then redeploy.`
+          : `${name} refused the credential (${installed.status}). ${detail.slice(0, 160)}`,
+    };
+  }
+  const result = (await installed.json().catch(() => ({}))) as { restarted?: boolean };
+
+  // 3. Record the standing permission. Deliberately last: an agent that is
+  // allowed but cannot identify itself is a grant that does nothing, and a
+  // half-finished setup should look unfinished rather than allowed.
+  const granted = await fetch(`${issuer()}/api/local-exec/grant`, {
+    method: "POST",
+    headers: authHeaders(s, { bundle: true, json: true }),
+    body: JSON.stringify({ agent: name, deviceId: deviceId() }),
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!granted.ok) {
+    return { ok: false, error: `Could not record the permission (${granted.status}).` };
+  }
+
+  return { ok: true, restarted: result.restarted };
+}
+
+/** Whether this agent is already allowed to work on this machine. */
+export async function localAccessGranted(agent: string): Promise<boolean> {
+  const s = await activeSession();
+  if (!s?.bundle) return false;
+  try {
+    const res = await fetch(
+      `${issuer()}/api/local-exec/grant?deviceId=${encodeURIComponent(deviceId())}`,
+      {
+        headers: authHeaders(s, { bundle: true }),
+        signal: AbortSignal.timeout(20_000),
+      },
+    );
+    if (!res.ok) return false;
+    const body = (await res.json()) as { grants?: { agent: string }[] };
+    return (body.grants ?? []).some((g) => g.agent === agent);
+  } catch {
+    return false;
+  }
+}
+
+/** Withdraw it. The agent keeps its credential; what it loses is permission. */
+export async function revokeLocalAccess(agent: string): Promise<boolean> {
+  const s = await activeSession();
+  if (!s?.bundle) return false;
+  const res = await fetch(`${issuer()}/api/local-exec/grant`, {
+    method: "POST",
+    headers: authHeaders(s, { bundle: true, json: true }),
+    body: JSON.stringify({ agent, deviceId: deviceId(), revoke: true }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  return res.ok;
+}
+
+export interface ConnectorCard {
+  slug: string;
+  name: string;
+  description?: string;
+  provider: string;
+  /** "user" — acts as you; "app" — acts as the company and can run unattended. */
+  scope: string;
+  needsAdmin: boolean;
+  mark?: string;
+  /** Real logo from the broker catalog; the mark is the fallback. */
+  logo?: string;
+  connected: boolean;
+}
+
+/**
+ * The connector library, as this person sees it.
+ *
+ * The catalog is the org's approved shelf; the connected flags come from the
+ * broker, live. Reading state from our own table instead would let a card claim
+ * "connected" after someone revoked access at Google, which is the one lie a
+ * connections screen must never tell.
+ */
+/**
+ * Logos, fetched here and handed over as data URLs.
+ *
+ * The renderer's CSP is `img-src 'self' data:` and stays that way. Loosening it
+ * to https: so a chat window can load images from wherever a catalog points is
+ * the kind of small concession that makes the next one easier, and it would
+ * have every user's machine announcing itself to a third party each time the
+ * library opens. The main process already does the network; it can do this too.
+ *
+ * Failures are silent on purpose: a card without a logo falls back to its mark,
+ * which is a cosmetic loss, where a thrown error would cost the whole library.
+ */
+const logoCache = new Map<string, string>();
+
+async function asDataUrl(url: string): Promise<string | undefined> {
+  const cached = logoCache.get(url);
+  if (cached) return cached;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return undefined;
+    const type = res.headers.get('content-type') ?? 'image/png';
+    const body = Buffer.from(await res.arrayBuffer());
+    // A logo that large is not a logo; something else is at that URL.
+    if (body.byteLength > 512_000) return undefined;
+    const data = `data:${type};base64,${body.toString('base64')}`;
+    logoCache.set(url, data);
+    return data;
+  } catch {
+    return undefined;
+  }
+}
+
+export async function listConnectors(
+  agent: string,
+): Promise<{ configured: boolean; connectors: ConnectorCard[] }> {
+  const s = await activeSession();
+  if (!s?.bundle) return { configured: false, connectors: [] };
+  try {
+    const res = await fetch(`${issuer()}/api/connectors?agent=${encodeURIComponent(agent)}`, {
+      headers: authHeaders(s, { bundle: true }),
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!res.ok) return { configured: false, connectors: [] };
+    const body = (await res.json()) as { configured: boolean; connectors: ConnectorCard[] };
+    const connectors = await Promise.all(
+      body.connectors.map(async (c) =>
+        c.logo?.startsWith('http') ? { ...c, logo: await asDataUrl(c.logo) } : c,
+      ),
+    );
+    return { ...body, connectors };
+  } catch {
+    return { configured: false, connectors: [] };
+  }
+}
+
+/**
+ * Begin connecting a service: opens the user's own browser and reports back.
+ *
+ * Sign-in happens where their sessions and password manager already are. An
+ * in-app window asking for a Google password is indistinguishable from the
+ * thing every security training tells people not to trust, and we are not going
+ * to teach customers to ignore that instinct.
+ */
+export async function connectService(input: {
+  agent: string;
+  slug: string;
+  /**
+   * What to call this account when the person already has one of this service.
+   * It becomes the suffix on the tool names, so an agent can be told which
+   * mailbox to send from rather than picking whichever the broker defaults to.
+   */
+  label?: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  if (!legacyPortalExecutionEnabled(issuer())) return { ok: false, error: CUSTOMER_EXECUTION_REQUIRED };
+  const s = await activeSession();
+  if (!s?.bundle) return { ok: false, error: "Not signed in." };
+
+  const res = await fetch(`${issuer()}/api/connectors/link`, {
+    method: "POST",
+    headers: authHeaders(s, { bundle: true, json: true }),
+    body: JSON.stringify(input),
+    signal: AbortSignal.timeout(30_000),
+  });
+  const body = (await res.json().catch(() => ({}))) as { redirectUrl?: string; error?: string };
+  if (!res.ok) return { ok: false, error: body.error ?? `The control plane refused (${res.status}).` };
+  if (!body.redirectUrl) {
+    return { ok: false, error: "No sign-in URL came back for that service." };
+  }
+  await shell.openExternal(body.redirectUrl);
+  return { ok: true };
+}
+
+export async function disconnectService(input: {
+  agent: string;
+  slug: string;
+  shared?: boolean;
+  /** One account, when the service has more than one connected. */
+  account?: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const s = await activeSession();
+  if (!s?.bundle) return { ok: false, error: "Not signed in." };
+  const res = await fetch(`${issuer()}/api/connectors/disconnect`, {
+    method: "POST",
+    headers: authHeaders(s, { bundle: true, json: true }),
+    body: JSON.stringify(input),
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!res.ok) return { ok: false, error: `Could not disconnect (${res.status}).` };
+  return { ok: true };
+}
+
+/** Add a remote MCP server the user pasted, and connect it in one step. */
+export async function addCustomConnector(input: {
+  agent: string;
+  name: string;
+  url: string;
+  token?: string;
+  shared?: boolean;
+}): Promise<{ ok: boolean; error?: string; slug?: string; needsSignIn?: boolean }> {
+  if (!legacyPortalExecutionEnabled(issuer())) return { ok: false, error: CUSTOMER_EXECUTION_REQUIRED };
+  const s = await activeSession();
+  if (!s?.bundle) return { ok: false, error: "Not signed in." };
+  const res = await fetch(`${issuer()}/api/connectors/custom`, {
+    method: "POST",
+    headers: authHeaders(s, { bundle: true, json: true }),
+    body: JSON.stringify(input),
+    signal: AbortSignal.timeout(30_000),
+  });
+  const body = (await res.json().catch(() => ({}))) as { error?: string };
+  if (!res.ok) return { ok: false, error: body.error ?? `The control plane refused (${res.status}).` };
+  return { ok: true };
+}
+
+/**
+ * Sign in to a remote MCP server that asks for OAuth.
+ *
+ * @remarks
+ * The server-side half discovers everything from the URL — where to register,
+ * where to send the person, where to redeem the code — so this only has to open
+ * a browser and get out of the way. The tokens never come here: they are held
+ * and refreshed by the control plane, which is what lets the agent use the
+ * server from Slack or a workspace at a time when this app is not running.
+ */
+export async function startMcpSignIn(input: {
+  slug: string;
+  agent: string;
+  shared?: boolean;
+}): Promise<{ ok: boolean; error?: string }> {
+  if (!legacyPortalExecutionEnabled(issuer())) return { ok: false, error: CUSTOMER_EXECUTION_REQUIRED };
+  const s = await activeSession();
+  if (!s?.bundle) return { ok: false, error: "Not signed in." };
+  const res = await fetch(`${issuer()}/api/connectors/mcp/oauth/start`, {
+    method: "POST",
+    headers: authHeaders(s, { bundle: true, json: true }),
+    body: JSON.stringify(input),
+    signal: AbortSignal.timeout(30_000),
+  });
+  const body = (await res.json().catch(() => ({}))) as { authorizeUrl?: string; error?: string };
+  if (!res.ok || !body.authorizeUrl) {
+    return { ok: false, error: body.error ?? `The control plane refused (${res.status}).` };
+  }
+  await shell.openExternal(body.authorizeUrl);
+  return { ok: true };
+}
+
+/** Ask the control plane whether a remote MCP server actually answers. */
+export async function testRemoteMcp(
+  slug: string,
+): Promise<{ ok: boolean; tools?: string[]; error?: string }> {
+  if (!legacyPortalExecutionEnabled(issuer())) return { ok: false, error: CUSTOMER_EXECUTION_REQUIRED };
+  const s = await activeSession();
+  if (!s?.bundle) return { ok: false, error: "Not signed in." };
+  try {
+    const res = await fetch(`${issuer()}/api/connectors/mcp/test`, {
+      method: "POST",
+      headers: authHeaders(s, { bundle: true, json: true }),
+      body: JSON.stringify({ slug }),
+      signal: AbortSignal.timeout(40_000),
+    });
+    const body = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      tools?: string[];
+      error?: string;
+    };
+    if (!res.ok) return { ok: false, error: body.error ?? `The control plane answered ${res.status}.` };
+    return { ok: Boolean(body.ok), tools: body.tools, error: body.error };
+  } catch {
+    return { ok: false, error: "Could not reach the control plane." };
+  }
+}
+/** Fixed, owner-authenticated Codex route; credentials never enter the renderer. */
+export async function codexAccess(input: {agentId:string;sessionId:string;mode?:'restricted'|'native'|'full';revision?:number;confirmed?:boolean}):Promise<import('../shared/ipc').CodexAccessState>{
+ const agent=await resolveAgent(input.agentId);
+ if(typeof input.sessionId!=='string'||! /^[a-zA-Z0-9-]{1,100}$/.test(input.sessionId))throw Error('Invalid agent endpoint or session');
+ const target=`${agent.url}/eve/v1/session/${encodeURIComponent(input.sessionId)}/access`;
+ await requireAgentCredentials(agent,target);
+ const res=await agentFetch(agent,target,{
+  method:input.mode?'POST':'GET',redirect:'error',
+  body:input.mode?JSON.stringify({mode:input.mode,revision:input.revision,confirmed:input.confirmed}):undefined,signal:AbortSignal.timeout(180000)
+ },{json:!!input.mode});
+ if(!res)throw Error(CREDENTIALS_WITHHELD);
+ const data=await res.json() as import('../shared/ipc').CodexAccessState & {error?:string};
+ if(!res.ok)throw Error(data.error??`Access settings unavailable (${res.status})`);
+ return data;
+}

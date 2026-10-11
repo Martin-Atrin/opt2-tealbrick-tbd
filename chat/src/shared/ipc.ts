@@ -1,0 +1,435 @@
+import type { Replayed } from "./sessionReplay";
+
+/**
+ * One of this person's threads, as the control-plane directory knows it.
+ *
+ * A pointer, not a conversation: the transcript stays on the agent, and this
+ * carries only enough to list a thread and open it on a device that has never
+ * seen it.
+ */
+export interface IndexedSession {
+  agent: string;
+  sessionId: string;
+  label?: string | null;
+  title?: string | null;
+  lastMessageAt?: string | null;
+  lastMessagePreview?: string | null;
+}
+
+export interface UpdateState {
+  status: "idle" | "checking" | "available" | "downloading" | "downloaded" | "error";
+  version: string | null;
+  percent?: number;
+  error?: string;
+}
+
+export interface LocalMcpServer {
+  id: string;
+  name: string;
+  command: string;
+  args: string[];
+  env?: Record<string, string>;
+  cwd?: string;
+  enabled: boolean;
+}
+
+/**
+ * The renderer's whole view of the outside world.
+ *
+ * These types live in `shared`, not `main`, so the dependency points one way:
+ * main imports from shared. The reverse makes the renderer's typecheck pull in
+ * Electron main-process code, which then fails to compile for the web target.
+ */
+
+export interface Session {
+  /** Public account view only; credentials remain in the trusted main process. */
+  expiresAt: number;
+  email?: string;
+  orgName?: string;
+}
+
+export interface RemoteAgent {
+  id: string;
+  name: string;
+  runtime: string;
+  url: string | null;
+  accessMode: string;
+  audience: string | null;
+  /**
+   * The Portal user who owns this agent. TBD sends the owner's session only to
+   * an agent whose owner is the signed-in user (F4-1); absent means not owned.
+   */
+  ownerUserId?: string | null;
+  /**
+   * Added by the main process, never by Portal: whether TBD will send this
+   * agent a credential, and the sentence to show when it will not.
+   */
+  connection?: { mode: "owner-session" | "chat-token" | "withheld"; note?: string };
+  /**
+   * Whether the control plane holds an address for this agent — NOT whether it
+   * answers. Probe with `agentHealth` for the second thing.
+   */
+  hasUrl?: boolean;
+  /** @deprecated Use `hasUrl`. Kept for control planes not yet redeployed. */
+  reachable: boolean;
+  daemonLabel: string | null;
+  /**
+   * The agents this one is allowed to call, from the control plane.
+   *
+   * Governance state, not a claim by the agent about itself: these are the same
+   * rows the admin edits, so revoking an edge there empties this here.
+   */
+  peers?: { id: string; name: string; purpose?: string }[];
+  /**
+   * How THIS person shows the agent, kept with the account so the phone and
+   * the desktop draw the same picture. Null when they have never chosen.
+   */
+  profile?: AgentProfile | null;
+}
+
+/** A room as the control plane holds it: members by registered name. */
+export interface RemoteRoom {
+  id: string;
+  name: string | null;
+  members: string[];
+  policy: "all" | "lead" | "silent";
+  pinned: boolean | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AgentProfile {
+  displayName: string | null;
+  accent: string | null;
+  /** A small data URL, or null for the lettered mark. */
+  avatar: string | null;
+  /** Where it sits in the person's list. Null means never chosen. */
+  pinned?: boolean | null;
+  hidden?: boolean | null;
+  /** Spoken voice for the orb (an OpenAI Live voice name), chosen per agent. */
+  voice?: string | null;
+  updatedAt: string;
+}
+
+// Must match LOCAL_ACTIONS in main/localExec.ts, which is the enforcement side.
+// "local-mcp" was missing here, so the renderer's type claimed an action it can
+// actually receive was impossible — a lie directly under a permission boundary.
+export type LocalAction = "run-command" | "read-file" | "write-file" | "list-directory" | "local-mcp";
+export type LocalPermission = "always" | "ask" | "never";
+
+/** One pending request for something on this machine, awaiting the user. */
+export interface LocalAsk {
+  id: string;
+  agent: string;
+  action: LocalAction;
+  label: string;
+  detail: string;
+}
+
+/**
+ * A file the user is handing to the agent.
+ *
+ * @remarks
+ * Bytes travel with the message rather than a path. A path would be smaller,
+ * but it would mean the agent reaching into the filesystem to fetch something —
+ * which is a different act, governed by local access and its own consent, and
+ * not what a person means when they drag a file into a conversation. Attaching
+ * is a deliberate handover of this file and nothing else.
+ */
+export interface Attachment {
+  /** What to call it in the conversation and to the model. */
+  name: string;
+  /** Sniffed from the file, since a model needs it to decode the bytes. */
+  mediaType: string;
+  /** Kept so the UI can show a size without re-reading the file. */
+  size: number;
+  bytes: Uint8Array;
+}
+
+/** What came of taking delivery of a file. */
+export interface DeliveryResult {
+  ok: boolean;
+  /** Where it ended up, when it was saved. */
+  path?: string;
+  error?: string;
+  /** The user closed the save dialog. Not a failure worth reporting loudly. */
+  cancelled?: boolean;
+}
+
+/** The agent + live session the voice orb is bridged to. */
+export interface VoiceContext {
+  /** Main resolves the address itself; the renderer never names a URL. */
+  agentId: string;
+  agentName: string;
+  sessionId?: string;
+  /** The spoken voice for this agent (OpenAI Live voice name). */
+  voice?: string;
+}
+
+export interface StudioApi {
+  portalWorkspaces(): Promise<import("./portalWorkspaces").WorkspaceSelection>;
+  selectPortalWorkspace(id: string): Promise<void>;
+  controlPlanes(): Promise<import("./controlPlanes").ControlPlaneState>;
+  activateControlPlane(id: string): Promise<void>;
+  addControlPlane(input: { name: string; issuer: string }): Promise<void>;
+  removeControlPlane(id: string): Promise<import("./controlPlanes").ControlPlaneState>;
+  session(): Promise<Session | null>;
+  signIn(): Promise<{ userCode: string; verificationUri: string }>;
+  /** Abandon a sign-in that is still waiting, so a new code can be requested. */
+  cancelSignIn(): Promise<void>;
+  awaitSignIn(): Promise<Session>;
+  signOut(): Promise<void>;
+  /** `refreshSession` re-issues the policy bundle first so newly created agents are granted. */
+  listAgents(opts?: { refreshSession?: boolean }): Promise<RemoteAgent[]>;
+  /** This person's rooms, from the account. */
+  listRooms(): Promise<RemoteRoom[]>;
+  /** Create or update a room on the account; `archived` hides it. */
+  saveRoom(input: { id: string; name?: string | null; members?: string[]; policy?: "all" | "lead" | "silent"; pinned?: boolean | null; archived?: boolean }): Promise<void>;
+  /** Save how this person shows an agent, for every device they sign in to. Absent leaves a field alone; null clears it. */
+  saveAgentProfile(input: { agent: string; displayName?: string | null; accent?: string | null; avatar?: string | null; pinned?: boolean | null; hidden?: boolean | null; voice?: string | null }): Promise<void>;
+  send(input: {
+    agentId: string;
+    text: string;
+    /** Files handed over with this message. */
+    attachments?: Attachment[];
+    sessionId?: string;
+    streamIndex?: number;
+    inputResponses?: { requestId: string; optionId?: string; text?: string }[];
+    clientContext?: Record<string, unknown>;
+    streamId: string;
+  }): Promise<{
+    reply: string;
+    sessionId?: string;
+    streamIndex: number;
+    askedQuestion: boolean;
+  }>;
+  /** Whether this build carries the speech model. */
+  dictationAvailable(): Promise<boolean>;
+  /** Mono 16 kHz PCM in, text out. Runs on this machine; no audio is sent anywhere. */
+  transcribe(samples: Float32Array): Promise<{ text?: string; error?: string }>;
+  /** Whether a file the agent named is actually on this machine. */
+  fileExists(path: string): Promise<boolean>;
+  openLocalFile(path: string): Promise<DeliveryResult>;
+  revealLocalFile(path: string): Promise<DeliveryResult>;
+  /** Ask where to keep a published file, then fetch it there. */
+  saveRemoteFile(input: { url: string; suggestedName: string }): Promise<DeliveryResult>;
+  /** Fetch a published file to a temporary place and open it. */
+  openRemoteFile(input: { url: string; suggestedName: string }): Promise<DeliveryResult>;
+  /** Subscribe to streaming deltas. Returns an unsubscribe function. */
+  onDelta(handler: (payload: { streamId: string; text: string }) => void): () => void;
+  /** Subscribe to "what the agent is doing" updates. null clears the line. */
+  provisionLocal(input: { agentId: string }): Promise<{ ok: boolean; error?: string; restarted?: boolean }>;
+  localAccess(agent: string): Promise<boolean>;
+  revokeLocal(agent: string): Promise<boolean>;
+  connectors(agent: string): Promise<{
+    configured: boolean;
+    connectors: {
+      slug: string;
+      name: string;
+      description?: string;
+      provider: string;
+      /** none | bearer | oauth — whether this server signs people in. */
+      authMode?: string;
+      /** Added to THIS agent, and waiting on a person to approve it. */
+      awaitingSignIn?: boolean;
+      /** This agent has this server, whatever state its sign-in is in. */
+      present?: boolean;
+      scope: string;
+      /** The endpoint of a server added by URL, so a card can be changed rather than re-added. */
+      url?: string;
+      needsAdmin: boolean;
+      mark?: string;
+      logo?: string;
+      connected: boolean;
+    }[];
+  }>;
+  connectService(input: {
+    agent: string;
+    slug: string;
+    /** Names a SECOND account of a service, so its tools can be told apart. */
+    label?: string;
+  }): Promise<{ ok: boolean; error?: string }>;
+  disconnectService(input: {
+    /** One account, when the service has more than one connected. */
+    account?: string;
+    agent: string;
+    slug: string;
+    shared?: boolean;
+  }): Promise<{ ok: boolean; error?: string }>;
+  addCustomConnector(input: {
+    agent: string;
+    name: string;
+    url: string;
+    token?: string;
+    shared?: boolean;
+  }): Promise<{ ok: boolean; error?: string; slug?: string; needsSignIn?: boolean }>;
+  /** Open the browser to approve a remote MCP server that asks for OAuth. */
+  startMcpSignIn(input: {
+    slug: string;
+    agent: string;
+    shared?: boolean;
+  }): Promise<{ ok: boolean; error?: string }>;
+  connectMcpServer(id: string): Promise<{ ok: boolean; message: string; signInUrl?: string }>;
+  testRemoteMcp(slug: string): Promise<{ ok: boolean; tools?: string[]; error?: string }>;
+  testMcpServer(id: string): Promise<{
+    ok: boolean;
+    tools?: string[];
+    error?: string;
+    signInUrl?: string;
+  }>;
+  mcpServers(): Promise<LocalMcpServer[]>;
+  saveMcpServers(servers: LocalMcpServer[]): Promise<LocalMcpServer[]>;
+  updaterState(): Promise<UpdateState>;
+  updaterCheck(): Promise<{ ok: boolean; error?: string }>;
+  updaterDownload(): Promise<{ ok: boolean; error?: string }>;
+  updaterInstall(): Promise<void>;
+  onUpdater(handler: (state: UpdateState) => void): () => void;
+  openExternal(url: string): Promise<void>;
+  cancelTurn(input: { agentId: string; sessionId: string; turnId?: string }): Promise<string>;
+  resetSession(input: {
+    agentId: string;
+    sessionId?: string;
+  }): Promise<void>;
+  onTurn(
+    handler: (payload: { streamId: string; sessionId: string; turnId?: string }) => void,
+  ): () => void;
+  onReset(handler: (payload: { streamId: string }) => void): () => void;
+  onActivity(
+    handler: (payload: { streamId: string; label: string | null }) => void,
+  ): () => void;
+  onCursor(handler: (payload: { streamId: string; index: number }) => void): () => void;
+  onAuthorization(
+    handler: (payload: {
+      streamId: string;
+      event: {
+        name: string;
+        description?: string;
+        url?: string;
+        userCode?: string;
+        instructions?: string;
+        expiresAt?: string;
+        outcome?: string;
+      };
+    }) => void,
+  ): () => void;
+  /** One side of an agent-to-agent hop, as it happens. */
+  onPeer(
+    handler: (payload: {
+      streamId: string;
+      event: { direction: 'inbound' | 'outbound'; peer: string; text: string };
+    }) => void,
+  ): () => void;
+  onQuestion(
+    handler: (payload: {
+      streamId: string;
+      request: {
+        requestId: string;
+        prompt: string;
+        options?: { id: string; label: string; description?: string; style?: string }[];
+        allowFreeform?: boolean;
+      };
+    }) => void,
+  ): () => void;
+  /**
+   * Follow a thread something else is driving. Events arrive on the same
+   * channels a turn's do, under this streamId; `onLive` marks the other
+   * device's message landing and its turn ending.
+   */
+  /** A native notification; clicking it brings the window forward and opens the agent. */
+  notify(input: { title: string; body: string; agentId: string }): Promise<void>;
+  onOpenAgent(handler: (payload: { agentId: string }) => void): () => void;
+  /** This desktop is driving this session: the control plane rings no phone for it. */
+  claimDriver(sessionId: string): Promise<void>;
+  watch(input: { agentId: string; sessionId: string; streamIndex: number; streamId: string }): Promise<void>;
+  unwatch(streamId: string): Promise<void>;
+  onLive(handler: (payload: { streamId: string; kind: "received" | "boundary" | "ended" }) => void): () => void;
+  agentInfo(agentId: string): Promise<AgentInfo | null>;
+  codexAccess(input: {agentId:string;sessionId:string;mode?:CodexAccessState['mode'];revision?:number;confirmed?:boolean}):Promise<CodexAccessState>;
+  /** Whether the agent itself answers right now. See `agentHealth` in main. */
+  agentHealth(agentId: string): Promise<boolean>;
+
+  /** A remote agent wants to do something on this machine. */
+  onLocalAsk(handler: (ask: LocalAsk) => void): () => void;
+  /** The request finished (or was refused) — dismiss its card. */
+  onLocalDone(handler: (payload: { id: string }) => void): () => void;
+  localAnswer(input: { id: string; allow: boolean; remember: boolean }): Promise<void>;
+  localPermissions(): Promise<Record<LocalAction, LocalPermission>>;
+
+  /** This person's threads from the control-plane directory, newest first. */
+  listSessions(agent?: string): Promise<IndexedSession[]>;
+  /** Record or update one thread so the account's other devices can find it. */
+  recordSession(entry: {
+    agent: string;
+    sessionId: string;
+    label?: string;
+    title?: string;
+    lastMessageAt?: number;
+    lastMessagePreview?: string;
+    archived?: boolean;
+  }): Promise<void>;
+  /** Rebuild a conversation this device has never seen from the agent's stream. */
+  replaySession(input: { agentId: string; sessionId: string; limit?: number }): Promise<Replayed | null>;
+  loadState<T>(name: string): Promise<T | null>;
+  saveState(input: { name: string; value: unknown }): Promise<void>;
+  /** Native folder picker; null when cancelled. */
+  pickFolder(): Promise<string | null>;
+  manage(input: { agentId: string; path: string; body?: unknown }): Promise<{ ok: boolean; status: number; data: unknown }>;
+  setLocalPermission(input: {
+    action: LocalAction;
+    value: LocalPermission;
+  }): Promise<Record<LocalAction, LocalPermission>>;
+
+  /** The control plane this app signs in to, and the default it falls back to. */
+  /**
+   * Point the app at a different control plane. Null restores the default.
+   * The session belongs to the old one, so this signs out.
+   */
+
+  // --- Realtime voice ("orb") ---
+  /** Toggle the orb from the composer: open when closed, close when open. */
+  toggleOrb(input: VoiceContext): Promise<boolean>;
+  /** Close the floating voice orb. */
+  closeOrb(): Promise<void>;
+  /** Complete the Live WebRTC handshake via the agent's own voice route: offer in, answer out. */
+  voiceConnect(input: { sdp: string }): Promise<{ sdp: string }>;
+  /** Whether an agent is voice-capable (@kybernesis/voice mounted); null if not. */
+  voiceManifest(agentId: string): Promise<{ enabled: boolean; voice?: string; displayName?: string } | null>;
+  /** Move the floating orb window by a screen-space delta (drag-the-orb). */
+  moveOrb(delta: { dx: number; dy: number }): void;
+  /** Which agent/session the orb is bridged to. */
+  voiceContext(): Promise<VoiceContext | null>;
+  /** The orb's one tool: run a turn on the bound agent session, get its reply. */
+  voiceAsk(input: { text: string }): Promise<{ reply: string; sessionId?: string; askedQuestion: boolean }>;
+  /** Agent activity labels, forwarded to the orb while it waits on a turn. */
+  onVoiceActivity(handler: (label: string | null) => void): () => void;
+}
+
+/**
+ * A flat, safe view of what an agent reports at `/eve/v1/info`.
+ *
+ * eve's own payload nests and groups: tools arrive as
+ * { authored, available, framework, … }, skills as { static, dynamic },
+ * channels as { authored, available, … }, subagents as { local, total }, and
+ * the model under an `agent` object. Consuming that shape directly in five
+ * components is how one wrong assumption crashed the window — so it is
+ * normalized once, defensively, and the UI only ever sees arrays.
+ */
+export interface AgentSummary {
+  harness?: string;
+  /** Set when the agent answered with a Teal Brick native adapter manifest (`/tealbrick/v1/info`) instead of eve's. */
+  native?: boolean;
+  protocol?: string;
+  capabilities?: string[];
+  name?: string;
+  model?: string;
+  schedules: { name: string; cron?: string; hasRun?: boolean; markdown?: string; dynamic?: boolean; revision?: number; enabled?: boolean; wake?: boolean; nextRunAt?: number; lastRun?: {status:string;updatedAt:number} }[];
+  connections: { name: string; description?: string }[];
+  channels: { name: string; urlPath?: string; /** Set for a surface beside the agent, which has a heartbeat; absent for an eve route. */ live?: boolean }[];
+  skills: { name: string; description?: string }[];
+  tools: { name: string; description?: string }[];
+  subagents: { name: string; description?: string }[];
+}
+
+/** Raw payload, deliberately loose: a remote agent may run a different eve. */
+export type AgentInfo = Record<string, unknown>;
+export type CodexAccessState = {sessionId:string;mode:'restricted'|'native'|'full';sandbox:string;shell:boolean;approvalPolicy:string;revision:number};

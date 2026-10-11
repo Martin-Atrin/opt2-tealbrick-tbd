@@ -1,0 +1,175 @@
+import MacParakeet
+import SwiftUI
+
+/// Presentation only. Tokens, refresh and issuer/workspace isolation stay in Chat's transport.
+@MainActor
+final class TBDAccountCoordinator: ObservableObject {
+  static let shared = TBDAccountCoordinator()
+  @Published private(set) var email = ""
+  @Published private(set) var signedIn = false
+  @Published private(set) var hasCheckedSession = false
+  @Published private(set) var status = "Connecting to Portal session…"
+  @Published private(set) var error = ""
+  @Published private(set) var busy = false
+  @Published private(set) var code = ""
+  @Published private(set) var profiles: [PortalChoice] = []
+  @Published private(set) var workspaces: [PortalChoice] = []
+  @Published private(set) var activeProfile = ""
+  @Published private(set) var activeWorkspace = ""
+  private var refreshing = false
+  private var revision = 0
+
+  struct PortalChoice: Identifiable {
+    let id: String
+    let name: String
+    var issuer = ""
+  }
+  private func call(_ name: String, _ args: [Any] = []) async throws -> Any {
+    try await TBDChatRuntime.shared.accountCall(name, args: args)
+  }
+  func refresh(workspace: Bool = false) async {
+    guard !refreshing, !busy else { return }
+    refreshing = true
+    let epoch = revision
+    defer { refreshing = false }
+    do {
+      let registry = try await call("controlPlanes") as? [String: Any] ?? [:]
+      let session = try await call("session") as? [String: Any]
+      guard epoch == revision else { return }
+      let nextProfile = registry["activeId"] as? String ?? ""
+      let profileChanged = activeProfile != nextProfile
+      activeProfile = nextProfile
+      profiles = (registry["profiles"] as? [[String: Any]] ?? []).compactMap {
+        guard let id = $0["id"] as? String, let name = $0["name"] as? String else { return nil }
+        return PortalChoice(id: id, name: name, issuer: $0["issuer"] as? String ?? "")
+      }
+      let changed = email != (session?["email"] as? String ?? "") || signedIn != (session != nil)
+      signedIn = session != nil
+      hasCheckedSession = true
+      email = session?["email"] as? String ?? ""
+      let expired = (session?["expiresAt"] as? Double ?? 0) < Date().timeIntervalSince1970 * 1000
+      status = signedIn ? (expired ? "Session saved · refresh needed" : "Signed in") : "Signed out"
+      error = ""
+      if !signedIn { workspaces = []; activeWorkspace = "" }
+      else if workspace || changed || profileChanged {
+        workspaces = []; activeWorkspace = ""
+        let directory = try await call("portalWorkspaces") as? [String: Any] ?? [:]
+        guard epoch == revision else { return }
+        workspaces = (directory["workspaces"] as? [[String: String]] ?? []).compactMap {
+          guard let id = $0["id"], let name = $0["name"] else { return nil }
+          return PortalChoice(id: id, name: name)
+        }
+        activeWorkspace = directory["selectedId"] as? String ?? ""
+      }
+    } catch {
+      guard epoch == revision else { return }
+      self.error = error.localizedDescription
+      status = "Portal status unavailable · retry"
+    }
+  }
+  func perform(_ name: String, args: [Any] = []) async {
+    guard !busy else { return }
+    revision += 1
+    busy = true; error = ""
+    do { _ = try await call(name, args) }
+    catch { self.error = error.localizedDescription }
+    let actionError = error
+    busy = false
+    await refresh(workspace: true)
+    if !actionError.isEmpty { error = actionError }
+  }
+  func signIn() async {
+    guard !busy else { return }
+    revision += 1; let epoch = revision
+    busy = true; error = ""
+    do {
+      let started = try await call("signIn") as? [String: Any] ?? [:]
+      guard epoch == revision else { return }
+      code = started["userCode"] as? String ?? ""
+      _ = try await call("awaitSignIn")
+      guard epoch == revision else { return }
+      TBDChatRuntime.shared.reloadAccountUI()
+    } catch {
+      guard epoch == revision else { return }
+      self.error = error.localizedDescription
+    }
+    let actionError = error
+    code = ""; busy = false
+    await refresh(workspace: true)
+    if !actionError.isEmpty { error = actionError }
+  }
+  func cancel() async {
+    revision += 1
+    _ = try? await call("cancelSignIn")
+    code = ""; busy = false
+    await refresh()
+  }
+}
+
+struct SettingsAccountSection: View {
+  @ObservedObject private var account = TBDAccountCoordinator.shared
+  @State private var portalName = ""
+  @State private var portalURL = ""
+  var body: some View {
+    VStack(alignment: .leading, spacing: 16) {
+      Text("Account & Workspace").font(.title2)
+      Text(account.status)
+      if !account.email.isEmpty { Text(account.email).textSelection(.enabled) }
+      Picker("Portal", selection: Binding(get: { account.activeProfile }, set: { id in
+        Task { await account.perform("activateControlPlane", args: [id]) }
+      })) {
+        ForEach(account.profiles) { Text($0.name).tag($0.id) }
+      }.disabled(account.signedIn || account.busy)
+      if let profile = account.profiles.first(where: { $0.id == account.activeProfile }) {
+        Text(profile.issuer).font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
+      }
+      if account.signedIn {
+        Picker("Workspace", selection: Binding(get: { account.activeWorkspace }, set: { id in
+          guard !id.isEmpty else { return }
+          Task { await account.perform("selectPortalWorkspace", args: [id]) }
+        })) {
+          Text("Select workspace").tag("")
+          ForEach(account.workspaces) { Text($0.name).tag($0.id) }
+        }.disabled(account.busy)
+        Button("Sign out") { Task { await account.perform("signOut") } }
+          .buttonStyle(TBDButtonStyle(.secondary))
+          .disabled(account.busy)
+        Text("Sign out before changing Portal.").font(.caption).foregroundStyle(.secondary)
+      } else if account.busy {
+        if !account.code.isEmpty {
+          Text(account.code).font(.title.monospaced()).textSelection(.enabled)
+          Button("Cancel sign-in") { Task { await account.cancel() } }
+            .buttonStyle(TBDButtonStyle(.secondary))
+        } else { ProgressView() }
+      } else {
+        Button("Sign in") { Task { await account.signIn() } }
+          .buttonStyle(TBDButtonStyle(.primary))
+        DisclosureGroup("Self-hosted Portal") {
+          VStack(alignment: .leading, spacing: 10) {
+            TextField("Name", text: $portalName).tbdField()
+            TextField("https://portal.example.com", text: $portalURL).tbdField()
+            Button("Add Portal") {
+              Task { await account.perform("addControlPlane", args: [["name": portalName, "issuer": portalURL]]) }
+            }
+            .buttonStyle(TBDButtonStyle(.secondary))
+            .disabled(portalName.trimmingCharacters(in: .whitespaces).isEmpty || portalURL.isEmpty)
+          }.padding(.top, 8)
+        }
+      }
+      Button("Refresh status") { Task { await account.refresh(workspace: true) } }
+        .buttonStyle(TBDButtonStyle(.quiet))
+        .disabled(account.busy)
+      if !account.error.isEmpty { Text(account.error).foregroundStyle(.red).textSelection(.enabled) }
+      Divider()
+      Text("Portal sign-in enables Chat and remote agents. Companion and Listening work without an account. macOS permissions are managed separately in Access.")
+        .font(.callout).foregroundStyle(.secondary)
+    }
+    .task {
+      await account.refresh(workspace: true)
+      while !Task.isCancelled {
+        do { try await Task.sleep(for: .seconds(5)) } catch { return }
+        await account.refresh()
+      }
+    }
+  }
+}

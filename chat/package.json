@@ -1,0 +1,129 @@
+{
+  "name": "tbd-chat",
+  "version": "0.6.6",
+  "description": "TBD Chat — the Chat component of TBD. Your Teal Brick agents, connected.",
+  "main": "./out/main/index.js",
+  "author": "Kybernesis",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bash scripts/dev.sh",
+    "start": "electron-vite preview",
+    "build": "npm run typecheck && npm run test && electron-vite build",
+    "typecheck:node": "tsc -p tsconfig.node.json --noEmit",
+    "typecheck:web": "tsc -p tsconfig.web.json --noEmit",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "package": "npm run build && electron-builder",
+    "release:mac": "node scripts/release-unavailable.mjs",
+    "release": "node scripts/release-unavailable.mjs",
+    "release:minor": "node scripts/release-unavailable.mjs",
+    "test": "node --experimental-strip-types --test \"test/**/*.test.mjs\" \"test/**/*.test.ts\"",
+    "fetch:speech": "node scripts/fetch-speech-model.mjs",
+    "prepackage": "node scripts/fetch-speech-model.mjs",
+    "verify:package": "node scripts/verify-package.mjs",
+    "package:teal-test": "npm run build && electron-builder --mac --dir --publish never -c.productName=\"Teal Brick Test\" -c.mac.identity=null -c.mac.notarize=false -c.directories.output=dist/teal-brick-test",
+    "package:linux": "npm run build && electron-builder --linux"
+  },
+  "dependencies": {
+    "@electron-toolkit/preload": "^3.0.1",
+    "@electron-toolkit/utils": "^3.0.0",
+    "@huggingface/transformers": "^4.2.0",
+    "@opentelemetry/api": "^1.9.0",
+    "ai": "7.0.105",
+    "electron-updater": "^6.3.9",
+    "eve": "0.58.1",
+    "zod": "^4.0.0",
+    "zustand": "^5.0.2"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^34.2.0",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^3.0.0",
+    "esbuild": "0.25.12",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.1.0"
+  },
+  "build": {
+    "appId": "ai.kybernesis.kyberstudio",
+    "productName": "TBD Chat",
+    "directories": {
+      "buildResources": "build"
+    },
+    "files": [
+      "out/**/*"
+    ],
+    "mac": {
+      "icon": "build/teal-brick-colour.icns",
+      "category": "public.app-category.productivity",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "notarize": true,
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ]
+    },
+    "win": {
+      "icon": "build/teal-brick-colour.png"
+    },
+    "linux": {
+      "icon": "build/teal-brick-colour.png",
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "maintainer": "Kybernesis <support@kybernesis.ai>",
+      "category": "Development",
+      "synopsis": "Desktop client for Kybernesis agents",
+      "desktop": {
+        "StartupWMClass": "tbd-chat"
+      },
+      "files": [
+        "out/**/*",
+        "!**/node_modules/onnxruntime-node/bin/napi-v6/darwin/**",
+        "!**/node_modules/onnxruntime-node/bin/napi-v6/win32/**",
+        "!**/node_modules/onnxruntime-node/bin/napi-v6/linux/arm64/**",
+        "!**/node_modules/onnxruntime-node/bin/napi-v6/linux/x64/libonnxruntime_providers_cuda.so",
+        "!**/node_modules/onnxruntime-node/bin/napi-v6/linux/x64/libonnxruntime_providers_tensorrt.so",
+        "!**/node_modules/@img/sharp-linuxmusl-*/**",
+        "!**/node_modules/@img/sharp-libvips-linuxmusl-*/**"
+      ]
+    },
+    "extraResources": [
+      {
+        "from": "resources/models",
+        "to": "models"
+      }
+    ],
+    "asarUnpack": [
+      "**/node_modules/@img/**"
+    ]
+  }
+}

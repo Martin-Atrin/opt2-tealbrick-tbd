@@ -1,0 +1,1070 @@
+/*
+ * KYBER Studio visual language.
+ *
+ * Proportions, weights, and spacing are matched to the reference app because
+ * that calm, mail-client density is the point — a customer should feel like
+ * they are texting a colleague, not operating a console. The palette is
+ * Kybernesis: near-black ink, a single teal accent, and grey surfaces that stay
+ * out of the way.
+ */
+
+:root {
+  --ink: #16181d;
+  --ink-secondary: #5c6270;
+  --ink-tertiary: #8b91a0;
+  --ink-inverse: #ffffff;
+
+  --accent: #2ec4a6;
+  --accent-deep: #1b8f78;
+  --danger: #e5484d;
+
+  --surface: #ffffff;
+  --surface-sidebar: #f6f6f7;
+  --surface-raised: #ffffff;
+  --bubble-agent: #eeeef0;
+  --bubble-user: #16181d;
+  --hover: rgba(22, 24, 29, 0.045);
+  --selected: rgba(22, 24, 29, 0.075);
+
+  --stroke: rgba(22, 24, 29, 0.09);
+  --stroke-strong: rgba(22, 24, 29, 0.16);
+
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 16px;
+  --radius-bubble: 18px;
+
+  /* Type scale. Four sizes and their line heights, not sixteen ad-hoc values.
+     Half-pixel sizes (13.5, 12.5, 11.5) were the loudest of the small wrongs:
+     they land between the hinting grid, so text renders a shade blurrier than
+     its neighbours and nothing quite lines up. This is the scale macOS itself
+     is drawn on. */
+  /* One pixel up the whole scale (2026-09-06): the sidebar and the chat read
+     a touch small. Line heights follow so nothing gets cramped. */
+  --fs-xs: 12px;    --lh-xs: 15px;
+  --fs-sm: 13px;    --lh-sm: 17px;
+  --fs-base: 14px;  --lh-base: 19px;
+  --fs-lg: 15px;    --lh-lg: 23px;
+  --fs-xl: 18px;    --lh-xl: 25px;
+
+  /* Spacing. Everything vertical is a multiple of 4, so sections stack on one
+     rhythm instead of each choosing its own. */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px;
+  --sp-4: 16px; --sp-5: 20px; --sp-6: 28px;
+
+  --sidebar-w: 288px;
+  --panel-w: 340px;
+
+  --shadow-menu: 0 10px 34px rgba(16, 18, 24, 0.18), 0 0 0 0.5px rgba(16, 18, 24, 0.1);
+  --shadow-modal: 0 24px 70px rgba(16, 18, 24, 0.28), 0 0 0 0.5px rgba(16, 18, 24, 0.08);
+
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #f2f3f5;
+    --ink-secondary: #a2a8b6;
+    --ink-tertiary: #767d8c;
+    --ink-inverse: #16181d;
+    --surface: #1b1d22;
+    --surface-sidebar: #16181d;
+    --surface-raised: #23262c;
+    --bubble-agent: #2a2e35;
+    --bubble-user: #f2f3f5;
+    --hover: rgba(255, 255, 255, 0.06);
+    --selected: rgba(255, 255, 255, 0.1);
+    --stroke: rgba(255, 255, 255, 0.1);
+    --stroke-strong: rgba(255, 255, 255, 0.18);
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; margin: 0; }
+
+body {
+  font-family: var(--font);
+  font-size: var(--fs-base);
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--surface);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
+input, textarea { font: inherit; color: inherit; }
+::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+
+/* ── App shell ─────────────────────────────────────────────────────── */
+
+.app { display: flex; height: 100%; }
+
+/* ── Sidebar ───────────────────────────────────────────────────────── */
+
+.sidebar {
+  width: var(--sidebar-w);
+  flex: 0 0 var(--sidebar-w);
+  background: var(--surface-sidebar);
+  border-right: 0.5px solid var(--stroke);
+  display: flex;
+  flex-direction: column;
+  -webkit-app-region: drag;
+}
+
+.sidebar__top {
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 12px;
+}
+
+.sidebar__search { padding: 0 12px 8px; -webkit-app-region: no-drag; }
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 9px;
+  border-radius: var(--radius-sm);
+  background: var(--hover);
+  color: var(--ink-tertiary);
+}
+.search input {
+  border: 0; background: none; outline: none; width: 100%;
+  font-size: var(--fs-base); color: var(--ink);
+}
+.search input::placeholder { color: var(--ink-tertiary); }
+
+.sidebar__list { flex: 1; overflow-y: auto; padding: 4px 8px; -webkit-app-region: no-drag; }
+.sidebar__list::-webkit-scrollbar { width: 0; }
+
+.section-head {
+  display: flex; align-items: center; gap: 5px;
+  padding: 10px 6px 4px;
+  font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0.03em;
+  color: var(--ink-tertiary); text-transform: uppercase;
+  user-select: none; cursor: pointer;
+}
+.row {
+  display: flex; gap: 10px; align-items: center;
+  padding: 8px; border-radius: var(--radius);
+  cursor: default; user-select: none; position: relative;
+}
+.row:hover { background: var(--hover); }
+.row--active { background: var(--selected); }
+.row__body { min-width: 0; flex: 1; }
+.row__line { display: flex; align-items: baseline; gap: 8px; }
+/* Agent names at body size, medium weight: the old 590 read too big after the scale bump, 400 too light. */
+.row__name { font-weight: 500; font-size: var(--fs-base); flex: 1; min-width: 0; }
+.row__name, .row__preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row__time { font-size: var(--fs-xs); color: var(--ink-tertiary); flex: none; }
+.row__preview { font-size: var(--fs-sm); color: var(--ink-secondary); margin-top: 0; line-height: var(--lh-sm); }
+.row__unread {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--accent); flex: none; align-self: center;
+}
+.row__pin { color: var(--ink-tertiary); flex: none; }
+/* An agent that was asked and did not answer. Muted rather than alarming: it is
+   often a VM that is simply off, not an incident. */
+.row__down { color: var(--danger, #e5484d); flex: none; font-size: 11px; line-height: 1; }
+
+.sidebar__foot { padding: 4px 8px 6px; border-top: 0.5px solid var(--stroke); -webkit-app-region: no-drag; }
+.foot-row {
+  /* The same inset and radius as .row above it: the footer is the bottom of
+     the same list, so its highlight has to be the same shape as an agent's. */
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 8px; border-radius: var(--radius);
+  font-size: var(--fs-base); min-height: 36px;
+}
+.foot-row:hover { background: var(--hover); }
+.foot-row__label { flex: 1; text-align: left; }
+
+/* ── Avatar ────────────────────────────────────────────────────────── */
+
+.avatar {
+  flex: none; display: grid; place-items: center;
+  color: #fff; font-weight: 600;
+  border-radius: 30%;
+}
+
+/* ── Conversation ──────────────────────────────────────────────────── */
+
+/* min-height: 0 is load-bearing. A flex item defaults to min-height: auto, so
+   it refuses to shrink below its content — the thread grows the column past the
+   window and carries the composer off the bottom of the screen with it. The
+   composer is not "unpinned"; it is being pushed. Same reason on .thread: only
+   an item that may shrink can scroll its own overflow. */
+.main {
+  flex: 1; display: flex; flex-direction: column;
+  min-width: 0; min-height: 0; background: var(--surface);
+}
+
+.topbar {
+  height: 52px; flex: none;
+  display: flex; align-items: center; gap: 9px;
+  padding: 0 14px;
+  -webkit-app-region: drag;
+}
+.topbar__title { font-weight: 500; font-size: var(--fs-lg); }
+.topbar__spacer { flex: 1; }
+.topbar__btn {
+  -webkit-app-region: no-drag;
+  width: 28px; height: 28px; border-radius: var(--radius-sm);
+  display: grid; place-items: center; color: var(--ink-secondary);
+}
+.topbar__btn:hover { background: var(--hover); }
+.topbar__btn--on { background: var(--selected); color: var(--ink); }
+
+/* The bottom padding is clearance, not decoration. The composer grew a line
+   under it for the model name, so four pixels left the last message pressed
+   against the input — close enough to read as though it were sliding behind
+   it. */
+.thread { flex: 1; min-height: 0; overflow-y: auto; padding: 6px 0 18px; }
+.thread__inner { max-width: 780px; margin: 0 auto; padding: 0 20px; display: flex; flex-direction: column; gap: 8px; }
+.thread::-webkit-scrollbar { width: 8px; }
+.thread::-webkit-scrollbar-thumb { background: var(--stroke-strong); border-radius: 4px; }
+
+.bubble {
+  max-width: 92%; padding: 9px 14px;
+  border-radius: var(--radius-bubble);
+  white-space: pre-wrap; word-break: break-word;
+}
+.bubble--agent { background: var(--bubble-agent); align-self: flex-start; }
+.bubble--user { background: var(--bubble-user); color: var(--ink-inverse); align-self: flex-end; max-width: 78%; }
+.bubble code {
+  font-family: var(--font-mono); font-size: 0.88em;
+  padding: 1px 5px; border-radius: 5px;
+  background: rgba(127, 127, 127, 0.18); color: #c7254e;
+}
+.bubble--user code { background: rgba(255, 255, 255, 0.16); color: inherit; }
+.bubble a { color: var(--accent-deep); }
+.bubble--user a { color: #7fdccb; }
+
+/* Peer activity — collapsed agent-to-agent traffic. */
+/* A system line, not a message: centred, quiet, and the same weight as a
+   timestamp. What happened between two agents is context for the conversation,
+   not a turn in it. */
+.sysline {
+  align-self: center;
+  display: flex; align-items: center; gap: 6px;
+  font-size: var(--fs-sm); color: var(--ink-tertiary);
+  padding: 2px 0;
+}
+/* Same object as a mention, but clickable: one chip design, not two. */
+.agent-chip {
+  display: inline-flex; align-items: center;
+  line-height: 1; vertical-align: 0.22em;
+  padding: 3px 7px 3px 4px;
+  border: none; border-radius: 6px;
+  background: var(--bubble-agent); color: var(--ink);
+  font: inherit; font-size: var(--fs-sm);
+  cursor: pointer; white-space: nowrap;
+}
+.agent-chip:hover { background: var(--hover); }
+
+/* The exchange, read as its own thing over the conversation it came from. */
+.exchange {
+  position: absolute; inset: 0; z-index: 40;
+  display: flex; flex-direction: column;
+  background: var(--surface);
+}
+.exchange__head {
+  flex: none; display: flex; align-items: center; gap: 8px;
+  padding: 0 16px; height: 46px;
+  border-bottom: 1px solid var(--line);
+  font-weight: 590;
+}
+.exchange__arrow { color: var(--ink-tertiary); }
+.exchange__body {
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding: 18px 20px; display: flex; flex-direction: column; gap: var(--sp-4);
+}
+.exchange__turn { display: flex; gap: 9px; align-items: flex-start; max-width: 780px; }
+.exchange__who { font-size: var(--fs-sm); color: var(--ink-tertiary); margin-bottom: 3px; }
+.exchange__bubble {
+  background: var(--bubble-agent); border-radius: 14px;
+  padding: 8px 12px; font-size: var(--fs-base); white-space: pre-wrap;
+}
+.exchange__foot {
+  flex: none; display: flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 12px; border-top: 1px solid var(--line);
+  font-size: var(--fs-sm); color: var(--ink-tertiary);
+}
+
+/* A chip sitting in running text.
+
+   `vertical-align: baseline` on an inline-flex box aligns the BOX's baseline,
+   which — with an avatar as the first item — is the bottom of that avatar. The
+   chip therefore rode high above the words next to it. `middle` centres it on
+   the text's midline, which is what "inline with the text" actually means, and
+   line-height: 1 stops it opening up the line it sits on. */
+/* A name, marked — not a badge shouting for attention.
+
+   Three things were wrong and all three were mine: bold made it read as a
+   different, larger typeface than the words around it; a 999px pill fought the
+   squircle avatars everywhere else in the app; and `vertical-align: baseline`
+   on an inline-flex box aligns the BOX's baseline, which with an avatar first
+   is the bottom of that avatar, so the chip rode high.
+
+   Now it inherits its type completely — the avatar and the tinted background
+   are the whole signal — takes the same corner radius family as the icons, and
+   is nudged onto the text's optical centre. */
+/* A name, marked — and marked quietly.
+
+   The alignment is structural, not a nudge. An inline-FLEX box takes its
+   baseline from its first flex item, which is the avatar, so the chip hung off
+   the bottom of an icon and no amount of vertical-align tuning fixed it
+   honestly — it just moved the error around. An inline-BLOCK box takes its
+   baseline from its own last line of text, so the name inside the chip sits on
+   exactly the same baseline as the words either side of it, at any font size,
+   with no magic numbers.
+
+   The avatar is then the only thing that needs centring, and it does that
+   against the text it sits next to. */
+.mention {
+  /* The chip keeps its padding. The only thing wrong was that the space inside
+     it was lopsided: 4.08px above the icon and 1.42px below, because the box
+     was sized by the inherited line-height and the icon sat on the text's
+     optical centre rather than in the middle of the box.
+
+     align-items: center centres the icon in the padding box, so the space is
+     even — 3px above and 3px below — and vertical-align: 0.22em places the
+     whole chip so its label sits on the baseline of the words either side. */
+  display: inline-flex; align-items: center;
+  line-height: 1;
+  vertical-align: 0.22em;
+  padding: 3px 6px 3px 4px; margin: 0 1px;
+  border-radius: 6px; background: var(--hover);
+  font-weight: inherit; font-size: inherit;
+  white-space: nowrap;
+}
+/* The icon is centred on the TEXT, not nudged toward it.
+
+   `vertical-align: middle` aligns a box's midpoint with the baseline plus half
+   the parent's x-height — which is the definition of the text's optical centre.
+   So it is exact at any font size, and measures 0.00px off in a 13px bubble and
+   a 14px composer alike.
+
+   Every offset I tried before this was a guess, and one of them was worse than
+   a guess: `-0.16em` on an element whose own font-size is 6px resolves to
+   -0.96px, so it pushed the icon DOWN — the gap above it that kept showing up
+   in every screenshot. em units resolve against the element's own font, not
+   the text beside it. */
+.mention__icon {
+  display: inline-grid; place-items: center;
+  width: 14px; height: 14px;
+  margin-right: 4px;
+  border-radius: 4px;
+  color: #fff; font-size: 6px; font-weight: 600;
+  flex: none;
+}
+.bubble--user .mention { background: rgba(255, 255, 255, 0.18); }
+
+/* ── Composer ──────────────────────────────────────────────────────── */
+
+.composer { flex: none; padding: 10px 20px 18px; }
+.composer__inner {
+  max-width: 780px; margin: 0 auto;
+  display: flex; align-items: flex-end; gap: 10px;
+  background: var(--bubble-agent);
+  border-radius: 24px; padding: 7px 8px 7px 10px;
+}
+/* A contenteditable, not a textarea: a textarea holds a string, and a string
+   cannot hold a chip. It grows on its own as content wraps, so the manual
+   height juggling the textarea needed is gone. */
+.composer__input {
+  flex: 1; border: 0; background: none; outline: none;
+  max-height: 160px; overflow-y: auto;
+  padding: 6px 2px; font-size: var(--fs-lg); line-height: 1.45;
+  white-space: pre-wrap; word-break: break-word;
+  /* Positioning context for the placeholder below, which has to sit OUTSIDE
+     the text flow. */
+  position: relative;
+}
+.composer__input:empty::before {
+  content: attr(data-placeholder);
+  color: var(--ink-tertiary);
+  pointer-events: none;
+  /* Absolute, not inline. Rendered in the flow, the placeholder occupies real
+     space in the editable and the caret lands AFTER it — so an empty composer
+     looks like it holds text that cannot be deleted, because backspace has
+     nothing to delete. */
+  position: absolute;
+  left: 2px;
+  top: 6px;
+}
+/* Firefox/WebKit leave a stray <br> behind after the last delete; without this
+   the placeholder never comes back on an empty composer. */
+.composer__input:has(> br:only-child)::before {
+  content: attr(data-placeholder);
+  color: var(--ink-tertiary);
+  pointer-events: none;
+  /* Absolute, not inline. Rendered in the flow, the placeholder occupies real
+     space in the editable and the caret lands AFTER it — so an empty composer
+     looks like it holds text that cannot be deleted, because backspace has
+     nothing to delete. */
+  position: absolute;
+  left: 2px;
+  top: 6px;
+}
+.icon-btn {
+  width: 30px; height: 30px; border-radius: 50%; flex: none;
+  display: grid; place-items: center; color: var(--ink-secondary);
+}
+.icon-btn:hover { background: var(--hover); }
+.icon-btn--filled { background: var(--bubble-user); color: var(--ink-inverse); }
+.icon-btn--filled:hover { background: var(--bubble-user); opacity: 0.85; }
+
+/* ── Right panel ───────────────────────────────────────────────────── */
+
+.panel {
+  width: var(--panel-w); flex: 0 0 var(--panel-w);
+  border-left: 0.5px solid var(--stroke);
+  background: var(--surface);
+  display: flex; flex-direction: column;
+  /* Slides from the edge it belongs to. Appearing instantly reads as a jump
+     cut: the eye has to re-find where it was, because nothing showed it that
+     the layout moved rather than changed. */
+  animation: panel-in 180ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.panel--closing {
+  animation: panel-out 150ms cubic-bezier(0.55, 0.06, 0.68, 0.19) forwards;
+  /* Out of the flow on the way out, so the conversation reclaims the width in
+     one movement instead of snapping wide after the drawer has gone. */
+  pointer-events: none;
+}
+@keyframes panel-in {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes panel-out {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(100%); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Someone who has asked for less movement is asking for this too. */
+  .panel, .panel--closing { animation: none; }
+}
+.panel__head {
+  height: 52px; flex: none; display: flex; align-items: center; gap: 8px;
+  padding: 0 10px 0 12px; -webkit-app-region: drag;
+}
+.panel__title { flex: 1; text-align: center; font-weight: 600; font-size: var(--fs-base); }
+.panel__body { flex: 1; overflow-y: auto; padding: var(--sp-1) var(--sp-4) var(--sp-5); }
+.panel__section-head {
+  display: flex; align-items: center; margin: 4px 0 8px;
+}
+.panel__section-title { font-weight: 600; font-size: var(--fs-lg); flex: 1; }
+
+.routine-row { display: flex; gap: 10px; align-items: flex-start; padding: 8px; border-radius: var(--radius); width: 100%; text-align: left; }
+.routine-row:hover { background: var(--hover); }
+.routine-row__name { font-size: var(--fs-base); }
+.routine-row__when { font-size: var(--fs-sm); color: var(--ink-tertiary); }
+.routine-row__dot { color: var(--ink-tertiary); margin-top: 2px; }
+
+.field { margin-bottom: var(--sp-4); }
+.field__label { font-size: var(--fs-sm); color: var(--ink-secondary); margin-bottom: var(--sp-2); }
+.input, .textarea {
+  width: 100%; border: 0.5px solid var(--stroke); background: var(--surface-raised);
+  border-radius: 9px; padding: 8px 11px; font-size: var(--fs-base); outline: none;
+}
+.input:focus, .textarea:focus { border-color: var(--accent); }
+.textarea { resize: vertical; min-height: 92px; line-height: 1.5; }
+
+.btn {
+  height: 30px; padding: 0 13px; border-radius: 8px; font-size: var(--fs-base); font-weight: 500;
+  background: var(--hover);
+}
+.btn:hover { background: var(--selected); }
+.btn--primary { background: var(--bubble-user); color: var(--ink-inverse); }
+.btn--primary:hover { opacity: 0.87; }
+
+.toggle {
+  width: 40px; height: 24px; border-radius: 999px; background: var(--stroke-strong);
+  position: relative; transition: background 0.15s ease; flex: none;
+}
+.toggle--on { background: var(--ink); }
+.toggle__knob {
+  position: absolute; top: 2.5px; left: 2.5px; width: 19px; height: 19px;
+  border-radius: 50%; background: #fff; transition: transform 0.15s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28);
+}
+.toggle--on .toggle__knob { transform: translateX(16px); }
+
+.stack-row { display: flex; align-items: center; gap: var(--sp-3); }
+.card {
+  background: var(--bubble-agent); border-radius: var(--radius);
+  padding: var(--sp-3) var(--sp-3);
+}
+/* Consecutive cards are one list, so the space between them is theirs to own.
+   Every caller adding its own marginTop is how a settings page ends up with
+   four different gaps and no explanation for any of them. */
+.card + .card { margin-top: var(--sp-2); }
+.card .muted { margin-top: 2px; }
+.muted { color: var(--ink-tertiary); font-size: var(--fs-sm); line-height: var(--lh-sm); }
+
+/* ── Context menu ──────────────────────────────────────────────────── */
+
+.menu {
+  position: fixed; z-index: 60; min-width: 232px;
+  background: var(--surface-raised); border-radius: var(--radius);
+  box-shadow: var(--shadow-menu); padding: 5px;
+}
+.menu__item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 7px 9px; border-radius: var(--radius-sm); font-size: var(--fs-base); text-align: left;
+}
+.menu__item:hover { background: var(--hover); }
+.menu__item--danger { color: var(--danger); }
+.menu__sep { height: 0.5px; background: var(--stroke); margin: 5px 9px; }
+
+/* ── Modal ─────────────────────────────────────────────────────────── */
+
+.scrim {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(16, 18, 24, 0.28);
+  display: grid; place-items: center;
+}
+.modal {
+  width: min(860px, 88vw); height: min(640px, 84vh);
+  background: var(--surface); border-radius: 18px;
+  box-shadow: var(--shadow-modal); display: flex; flex-direction: column;
+}
+.modal__head { display: flex; align-items: center; padding: 18px 20px 0; }
+.modal__title { font-size: 20px; font-weight: 640; flex: 1; }
+.modal__tabs { display: flex; align-items: center; gap: 4px; padding: 12px 20px 10px; }
+.tab { height: 30px; padding: 0 13px; border-radius: 8px; font-size: var(--fs-base); color: var(--ink-secondary); }
+.tab--on { background: var(--selected); color: var(--ink); font-weight: 550; }
+.modal__body { flex: 1; overflow-y: auto; padding: 6px 20px 20px; }
+.empty { text-align: center; color: var(--ink-tertiary); font-size: var(--fs-base); padding: 40px 20px; }
+
+/* ── Command palette ───────────────────────────────────────────────── */
+
+.scrim--top { align-items: flex-start; padding-top: 12vh; }
+
+.palette {
+  width: min(720px, 84vw); max-height: 66vh;
+  background: var(--surface-raised); border-radius: 16px;
+  box-shadow: var(--shadow-modal); display: flex; flex-direction: column; overflow: hidden;
+}
+.palette__search {
+  display: flex; align-items: center; gap: 11px;
+  padding: 16px 20px; border-bottom: 0.5px solid var(--stroke); color: var(--ink-tertiary);
+}
+.palette__search input {
+  flex: 1; border: 0; background: none; outline: none; font-size: var(--fs-xl); color: var(--ink);
+}
+.palette__scopes { display: flex; gap: 3px; padding: 9px 14px; flex-wrap: wrap; }
+.palette__results { flex: 1; overflow-y: auto; padding: 4px 8px 10px; }
+.palette__row {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  padding: 9px 11px; border-radius: var(--radius); text-align: left;
+}
+.palette__row--on { background: var(--selected); }
+.palette__icon {
+  width: 30px; height: 30px; flex: none; display: grid; place-items: center;
+  border-radius: 8px; background: var(--hover); color: var(--ink-secondary);
+}
+.palette__icon .avatar { border-radius: 30%; }
+.palette__body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.palette__title { font-size: var(--fs-lg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.palette__sub { font-size: var(--fs-sm); color: var(--ink-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.kbd {
+  font-size: var(--fs-xs); color: var(--ink-tertiary); flex: none;
+  padding: 2px 6px; border-radius: 5px; background: var(--hover);
+}
+
+.search--button { width: 100%; justify-content: flex-start; }
+.search__placeholder { flex: 1; text-align: left; font-size: var(--fs-base); }
+
+/* ── Composer autocomplete ─────────────────────────────────────────── */
+
+.composer__ac { max-width: 780px; margin: 0 auto 8px; position: relative; }
+.ac {
+  background: var(--surface-raised); border-radius: 12px;
+  box-shadow: var(--shadow-menu); padding: 5px; overflow: hidden;
+}
+.ac__row {
+  display: flex; align-items: center; gap: 9px; width: 100%;
+  padding: 7px 10px; border-radius: 8px; text-align: left;
+}
+.ac__row--on { background: var(--selected); }
+.ac__icon { width: 18px; display: grid; place-items: center; flex: none; color: var(--ink-secondary); }
+.ac__title { font-size: var(--fs-base); flex: none; }
+.ac__detail {
+  font-size: var(--fs-base); color: var(--ink-tertiary); flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ac__type { font-size: var(--fs-sm); color: var(--ink-tertiary); flex: none; }
+
+/* ── Sign in ───────────────────────────────────────────────────────── */
+
+.signin { height: 100%; overflow-y: auto; padding: 24px; display: grid; place-items: center; -webkit-app-region: drag; background: var(--surface-sidebar); }
+.signin__planes { width: 100%; text-align: left; margin-bottom: 22px; display: grid; gap: 8px; }
+.signin__planes label { font-size: var(--fs-sm); color: var(--ink-secondary); }
+.signin__planes select, .signin__planes input { width: 100%; min-height: 36px; border: 1px solid var(--stroke-strong); border-radius: var(--radius); padding: 8px 10px; background: var(--surface-raised); color: var(--ink); font: inherit; }
+.signin__planes .signin__hint { margin: 0 0 4px; line-height: 1.5; }
+.signin__plane-form { display: grid; gap: 8px; }
+.signin__card {
+  width: 360px; text-align: center; -webkit-app-region: no-drag;
+  display: flex; flex-direction: column; align-items: center;
+}
+.signin__mark {
+  width: 58px; height: 58px; border-radius: 30%; background: var(--accent);
+  color: #fff; display: grid; place-items: center; font-size: 26px; font-weight: 650;
+}
+.signin__title { font-size: 21px; font-weight: 640; margin: 16px 0 6px; }
+.signin__sub { color: var(--ink-secondary); font-size: var(--fs-base); margin: 0 0 22px; line-height: 1.5; }
+.signin__btn { min-width: 150px; height: 34px; }
+/* A button now, because the code is the one thing worth copying — but it must
+   still read as a displayed code rather than an action. */
+.signin__code {
+  font-family: var(--font-mono); font-size: 26px; letter-spacing: 0.1em;
+  padding: 12px 20px; border-radius: 12px; background: var(--bubble-agent);
+  border: 0; color: inherit; cursor: pointer; display: block; width: 100%;
+}
+.signin__code:hover { filter: brightness(0.97); }
+/* Time remaining sits with the hint, quietly: it answers "should I wait?" and
+   should not compete with the code itself. */
+.signin__left { opacity: 0.7; }
+.signin__actions {
+  display: flex; gap: 8px; justify-content: center; margin-top: 14px;
+}
+.signin__actions .btn { height: 30px; padding: 0 14px; border-radius: 999px; }
+.signin__hint { color: var(--ink-tertiary); font-size: var(--fs-sm); margin: 12px 0 0; }
+.signin__error {
+  display: flex; align-items: center; gap: 6px; margin-top: 18px;
+  color: var(--danger); font-size: var(--fs-sm); text-align: left;
+}
+.signin__issuer { margin-top: 30px; font-size: var(--fs-xs); color: var(--ink-tertiary); font-family: var(--font-mono); }
+.signin__issuer-btn {
+  margin-left: 8px; background: none; border: 0; padding: 0;
+  color: var(--accent-deep); font-size: inherit; text-decoration: underline;
+}
+.signin__issuer--editing { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+.signin__issuer-row { display: flex; gap: 6px; justify-content: center; }
+
+.account-menu {
+  margin: 4px 8px 2px; padding: 5px;
+  background: var(--surface-raised); border-radius: var(--radius);
+  box-shadow: var(--shadow-menu);
+}
+.account-menu__issuer {
+  padding: 6px 9px 3px; font-size: var(--fs-xs); color: var(--ink-tertiary); font-family: var(--font-mono);
+}
+
+/* ── Activity ──────────────────────────────────────────────────────── */
+
+.spinner {
+  display: inline-block; user-select: none;
+  font-family: var(--font-mono); line-height: 1; letter-spacing: 1px;
+}
+
+/*
+ * Inside a round button the loader has to fit the circle. Three braille cells
+ * plus letter-spacing overflowed it, which looked like a rendering fault rather
+ * than a spinner. No tracking, smaller cell, and centred on both axes.
+ */
+.icon-btn .spinner,
+.pl__added .spinner {
+  font-size: 10px;
+  letter-spacing: 0;
+  line-height: 1;
+  display: block;
+  transform: translateY(0.5px);
+}
+
+.activity {
+  display: flex; align-items: center; gap: 9px;
+  align-self: flex-start; padding: 4px 4px 2px;
+  color: var(--ink-tertiary);
+}
+.activity__label { font-size: var(--fs-sm); }
+
+.composer__meta {
+  max-width: 780px; margin: 9px auto 0;
+  display: flex; align-items: center; gap: 10px; padding: 0 6px;
+}
+.composer__model {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.06em;
+  color: var(--ink-tertiary); text-transform: lowercase;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.composer__status { font-size: var(--fs-xs); color: var(--ink-tertiary); margin-left: auto; }
+
+/* ── Local execution consent ───────────────────────────────────────── */
+
+.ask {
+  max-width: 780px; margin: 0 auto 10px;
+  background: var(--bubble-agent); border-radius: var(--radius-lg);
+  padding: 13px 15px;
+}
+.ask__head { display: flex; align-items: center; gap: 9px; }
+.ask__warn { color: #d98324; display: grid; place-items: center; }
+.ask__title { flex: 1; font-weight: 600; font-size: var(--fs-base); }
+.ask__detail {
+  margin: 9px 0 0; padding: 8px 10px; border-radius: 8px;
+  background: var(--surface); font-family: var(--font-mono);
+  font-size: var(--fs-sm); word-break: break-all;
+}
+.ask__who { margin-top: 9px; font-size: var(--fs-sm); color: var(--ink-secondary); }
+.ask__actions { display: flex; gap: 8px; margin-top: 12px; }
+.ask__more { margin-top: 9px; font-size: var(--fs-sm); color: var(--ink-tertiary); }
+
+/* ── Markdown in replies ───────────────────────────────────────────── */
+
+.md-p { margin: 0 0 8px; white-space: pre-wrap; }
+.md-p:last-child { margin-bottom: 0; }
+.md-h { font-weight: 640; margin: 12px 0 6px; }
+.md-h:first-child { margin-top: 0; }
+.md-h1 { font-size: var(--fs-xl); }
+.md-h2 { font-size: 15px; }
+.md-h3, .md-h4 { font-size: var(--fs-lg); }
+.md-ul { margin: 0 0 8px; padding-left: 20px; }
+.md-ul li { margin: 2px 0; }
+
+/* Neither side runs the full width of the thread. The ragged edge is what makes
+   a conversation legible at a glance: yours hug the right, the agent's hug the
+   left, and the gap opposite each one says who is speaking before you read a
+   word. Full-width blocks on both sides lose that entirely. */
+.bubble--agent { max-width: 86%; }
+
+.code {
+  margin: 9px 0; border-radius: 10px; overflow: hidden;
+  background: var(--surface); border: 0.5px solid var(--stroke);
+}
+.code__bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 10px; background: var(--hover);
+  font-size: var(--fs-xs); color: var(--ink-tertiary);
+}
+.code__lang { flex: 1; font-family: var(--font-mono); }
+.code__copy {
+  display: flex; align-items: center; gap: 4px;
+  font-size: var(--fs-xs); color: var(--ink-secondary);
+  padding: 2px 6px; border-radius: 5px;
+}
+.code__copy:hover { background: var(--selected); }
+.code__body {
+  margin: 0; padding: 11px 12px; overflow-x: auto;
+  font-family: var(--font-mono); font-size: var(--fs-sm); line-height: 1.55;
+}
+.code__body code { background: none; padding: 0; color: inherit; }
+
+/* ── Project folder ────────────────────────────────────────────────── */
+
+.workspace {
+  -webkit-app-region: no-drag;
+  display: flex; align-items: center; gap: 6px;
+  height: 26px; padding: 0 10px; border-radius: 999px;
+  background: var(--hover); font-size: var(--fs-sm); color: var(--ink-secondary);
+  max-width: 260px; overflow: hidden; white-space: nowrap;
+}
+.workspace:hover { background: var(--selected); }
+.workspace--empty { color: var(--ink-tertiary); }
+
+.workspace-wrap { position: relative; -webkit-app-region: no-drag; }
+.workspace-menu { position: absolute; top: 32px; right: 0; min-width: 210px; }
+
+.crash { height: 100%; display: grid; place-items: center; background: var(--surface-sidebar); }
+.crash__card { width: 420px; text-align: center; display: flex; flex-direction: column; gap: 12px; align-items: center; }
+.crash__title { font-size: 16px; font-weight: 620; }
+.crash__detail { font-family: var(--font-mono); font-size: var(--fs-sm); color: var(--danger); word-break: break-word; }
+.crash__hint { font-size: var(--fs-sm); color: var(--ink-tertiary); }
+
+.modal__banner {
+  margin: 0 20px 4px; padding: 9px 12px; border-radius: 9px;
+  background: var(--hover); font-size: var(--fs-sm); color: var(--ink-secondary);
+}
+.modal__banner--error { color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, transparent); }
+/* ── Plugins ───────────────────────────────────────────────────────── */
+
+.pl__group {
+  font-size: var(--fs-xs); color: var(--ink-tertiary);
+  margin: 16px 6px 6px; letter-spacing: 0.01em;
+}
+.pl__grid {
+  display: grid;
+  /* Two columns when there is room, one when there is not. A fixed 1fr 1fr
+     squeezes descriptions into ellipsis at small widths for no benefit. */
+  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  gap: 2px 20px;
+}
+.pl__row {
+  display: flex; align-items: center; gap: 11px;
+  padding: 9px 8px; border-radius: 10px; min-width: 0;
+  position: relative;
+}
+/* One primary action and a menu, never a row of buttons. Four actions competing
+   for a half-width card is how a name becomes "Pl…" and a command becomes
+   "np…" — the row stops describing the thing it is about. */
+.pl__menu {
+  position: absolute; right: 8px; top: calc(100% - 6px); z-index: 40;
+  min-width: 150px; padding: 5px;
+  background: var(--surface-raised); border-radius: var(--radius);
+  box-shadow: var(--shadow-menu);
+}
+.pl__menu button {
+  display: block; width: 100%; text-align: left;
+  padding: 7px 10px; border-radius: var(--radius-sm); font-size: var(--fs-base);
+}
+.pl__menu button:hover { background: var(--hover); }
+.pl__menu button.danger { color: var(--danger); }
+.pl__row:hover { background: var(--hover); }
+.pl__icon {
+  width: 34px; height: 34px; flex: none; border-radius: 9px;
+  display: grid; place-items: center;
+  color: #fff; font-weight: 600; font-size: 15px;
+}
+.pl__body { flex: 1; min-width: 0; }
+.pl__name {
+  font-weight: 570; font-size: var(--fs-base);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pl__desc {
+  font-size: var(--fs-sm); color: var(--ink-secondary); margin-top: 1px;
+  /* One line, always. A wrapping description turns a tidy grid into a ragged
+     list and pushes the action button out of alignment. */
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pl__added {
+  display: flex; align-items: center; gap: 5px; flex: none;
+  color: var(--accent-deep); font-size: var(--fs-sm);
+}
+.pl__row .btn { flex: none; height: 27px; padding: 0 14px; border-radius: 999px; }
+
+.sched { display: flex; flex-wrap: wrap; gap: 7px; }
+.sched .input { flex: 1; min-width: 132px; height: 32px; padding: 0 9px; }
+.sched__freq { flex: 0 0 100%; }
+
+.ask--done { opacity: 0.75; }
+.ask__answered {
+  display: flex; align-items: center; gap: 6px; margin-top: 7px;
+  color: var(--accent-deep); font-size: var(--fs-sm);
+}
+.ask__options { display: flex; flex-wrap: wrap; gap: 7px; }
+.ask__freeform { display: flex; gap: 7px; margin-top: 10px; }
+.ask__freeform .input { flex: 1; height: 31px; }
+
+/* A time marker between sittings, the way a messages app does it: the gap
+   itself says "you came back later", and the label only has to confirm it.
+   Shown when a conversation resumes after a pause, never between two messages
+   that were part of the same exchange. */
+.thread__when {
+  align-self: center;
+  margin: var(--sp-5) 0 var(--sp-3);
+  font-size: var(--fs-xs);
+  color: var(--ink-tertiary);
+  user-select: none;
+}
+.thread__when:first-child { margin-top: var(--sp-2); }
+
+.ask__code {
+  font-family: var(--font-mono); font-size: var(--fs-lg); letter-spacing: 0.08em;
+  padding: 6px 10px; border-radius: var(--radius-sm); background: var(--surface-raised);
+  border: 0.5px solid var(--stroke); user-select: all;
+}
+
+.pl__meta { font-size: var(--fs-xs); color: var(--ink-tertiary); margin-top: 3px; }
+
+.pl__icon--logo { background: #fff; padding: 5px; border: 0.5px solid var(--stroke); }
+.pl__icon--logo img { width: 100%; height: 100%; object-fit: contain; display: block; }
+
+.foot-row__note { font-size: var(--fs-xs); color: var(--ink-tertiary); font-family: var(--font-mono); }
+.foot-row--accent { color: var(--accent-deep); font-weight: 560; }
+
+/* ── Rooms: more than one agent in a conversation ──────────────────────── */
+
+/* Overlapping avatars, the way a group is shown everywhere else on a desktop:
+   one glance says how many are in it and who. */
+.stack { display: flex; flex: none; }
+.stack .avatar { box-shadow: 0 0 0 2px var(--surface); }
+.stack .avatar + .avatar { margin-left: -10px; }
+.sidebar .stack .avatar { box-shadow: 0 0 0 2px var(--surface-sidebar); }
+
+/* An attributed turn. The name sits above the bubble rather than inside it, so
+   the bubble stays the same object it is in a one-to-one conversation. */
+.said { display: flex; flex-direction: column; gap: 2px; align-self: flex-start; max-width: 92%; }
+.said__who { font-size: var(--fs-sm); color: var(--ink-secondary); padding-left: 32px; }
+/* Avatar beside the bubble, both sitting on the bubble's bottom edge, so a run
+   of turns from one agent reads as a column under its own mark. */
+.said__row { display: flex; align-items: flex-end; gap: 8px; }
+.said__row .bubble { max-width: 100%; }
+
+.newroom {
+  margin: 0 12px 8px; padding: 10px;
+  background: var(--surface-raised); border: 0.5px solid var(--stroke);
+  border-radius: var(--radius); box-shadow: var(--shadow-menu);
+  -webkit-app-region: no-drag;
+}
+.newroom__head { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 8px; }
+.newroom__label { font-size: var(--fs-sm); color: var(--ink-tertiary); padding-top: 3px; }
+.newroom__picked { display: flex; flex-wrap: wrap; gap: 4px; font-size: var(--fs-sm); }
+.newroom__list { max-height: 210px; overflow-y: auto; display: flex; flex-direction: column; }
+.newroom__opt {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 6px 7px; border-radius: var(--radius-sm);
+  font-size: var(--fs-base); text-align: left;
+}
+.newroom__opt:hover { background: var(--hover); }
+.newroom__opt--on { background: var(--selected); }
+.newroom__opt span { flex: 1; }
+.newroom__foot { display: flex; justify-content: flex-end; gap: 6px; margin-top: 8px; }
+.newroom__foot .btn[disabled] { opacity: 0.45; cursor: default; }
+
+/* Who answers an untagged message. A select rather than a menu: three fixed
+   choices, and the current one has to be readable at a glance. */
+.policy {
+  -webkit-app-region: no-drag;
+  border: 0; background: var(--hover); color: var(--ink-secondary);
+  font: inherit; font-size: var(--fs-sm);
+  border-radius: 6px; padding: 3px 6px; margin-left: 8px;
+}
+/* ── One connector, and every account behind it ──────────────────────────────
+   A screen rather than a row: a card could only say "connected", which cannot
+   describe two mailboxes and cannot say which of them failed. */
+.cd { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.cd__back {
+  align-self: flex-start;
+  display: inline-flex; align-items: center; gap: 6px;
+  background: none; border: 0; cursor: pointer;
+  color: var(--muted); font: inherit; font-size: 13px;
+  padding: 4px 6px 4px 0; margin-bottom: 6px;
+}
+.cd__back:hover { color: var(--text); }
+.cd__head { margin-bottom: 10px; }
+.cd__title { font-size: 17px; font-weight: 600; }
+.cd__desc { color: var(--muted); font-size: 13px; margin-top: 2px; }
+
+.cd__list { display: flex; flex-direction: column; gap: 2px; }
+.cd__acct {
+  display: flex; align-items: center; gap: 11px;
+  padding: 9px 8px; border-radius: 10px; min-width: 0;
+}
+.cd__acct:hover { background: var(--hover); }
+.cd__acctName { flex: 1; min-width: 0; font-size: 14px; }
+.cd__acctActions { display: flex; gap: 6px; flex: none; }
+.cd__acct .btn { height: 27px; padding: 0 14px; border-radius: 999px; }
+
+/* Status earns a colour only when it is not the ordinary case: green for every
+   working account is noise, red for a broken one is the whole point. */
+.cd__status {
+  flex: none; font-size: 12px; color: var(--muted);
+  text-transform: lowercase;
+}
+.cd__status--failed, .cd__status--revoked { color: var(--danger, #e5534b); }
+.cd__status--pending { color: var(--warn, #d29922); }
+
+.cd__add { display: flex; gap: 8px; align-items: center; margin-top: 2px; }
+.cd__add .input { flex: 1; min-width: 0; }
+.cd__add .btn { flex: none; height: 30px; padding: 0 16px; border-radius: 999px; }
+.cd__hint { margin-top: 8px; max-width: 62ch; }
+
+/* Attachments ------------------------------------------------------------- */
+
+/* Chips sit ABOVE the input rather than inside it. Inside, a few long
+   filenames push the caret somewhere unpredictable and the composer stops
+   feeling like a text field. */
+.composer__files {
+  max-width: 780px; margin: 0 auto 6px;
+  display: flex; flex-wrap: wrap; gap: 6px;
+}
+.chip-file {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--bubble-agent);
+  border: 1px solid var(--border);
+  border-radius: 14px; padding: 3px 5px 3px 9px;
+  font-size: 12px; max-width: 260px;
+}
+.chip-file__name {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.chip-file__size { color: var(--ink-dim); font-size: 11px; flex: none; }
+.chip-file__x {
+  flex: none; border: 0; background: none; cursor: pointer;
+  color: var(--ink-dim); font-size: 14px; line-height: 1;
+  padding: 0 3px; border-radius: 8px;
+}
+.chip-file__x:hover { background: var(--hover); color: var(--ink); }
+
+/* The drop target is the composer itself, so the thing that lights up is the
+   thing the file is going into. */
+.composer__inner--drop {
+  outline: 2px dashed var(--accent, #6aa9ff);
+  outline-offset: 2px;
+}
+
+.composer__attach-error {
+  max-width: 780px; margin: 0 auto 6px;
+  font-size: 12px; color: var(--danger, #d2544a);
+}
+
+/* Files the agent handed back ------------------------------------------- */
+
+.dfiles { margin-top: 8px; display: flex; flex-direction: column; gap: 5px; }
+.dfile {
+  display: flex; align-items: center; gap: 8px;
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 6px 8px; font-size: 12px;
+  background: var(--bg);
+}
+.dfile__kind {
+  flex: none; font-size: 9.5px; letter-spacing: 0.04em;
+  color: var(--ink-dim); border: 1px solid var(--border);
+  border-radius: 5px; padding: 1px 4px;
+}
+.dfile__name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dfile__status { flex: none; color: var(--ink-dim); font-size: 11px; }
+.dfile__actions { flex: none; display: flex; gap: 4px; }
+.dfile__btn {
+  border: 1px solid var(--border); background: none; cursor: pointer;
+  border-radius: 7px; padding: 2px 8px; font-size: 11px; color: var(--ink);
+}
+.dfile__btn:hover:not(:disabled) { background: var(--hover); }
+.dfile__btn:disabled { opacity: 0.45; cursor: default; }
+
+/* Dictation --------------------------------------------------------------- */
+
+.composer__voice {
+  max-width: 780px; margin: 0 auto 6px;
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--ink-dim);
+}
+.composer__voice-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--danger); flex: none;
+  animation: voice-pulse 1.2s ease-in-out infinite;
+}
+@keyframes voice-pulse { 0%, 100% { opacity: 1 } 50% { opacity: 0.35 } }
+/* The level meter is the part that proves the microphone is live. A muted
+   input and a silent room look identical without it. */
+.composer__voice-level {
+  flex: 1; max-width: 160px; height: 4px;
+  background: var(--hover); border-radius: 2px; overflow: hidden;
+}
+.composer__voice-level > span {
+  display: block; height: 100%; background: var(--accent);
+  transition: width 80ms linear;
+}
+
+/* An uploaded avatar fills the same circle the lettered mark does, so nothing
+   around it has to know which kind it is. */
+/* No border-radius of its own: it inherits the .avatar shape, so a picture and
+   a lettered mark are the same silhouette. Setting a radius here means the two
+   kinds of avatar disagree, and every row holding both looks misaligned. */
+.avatar--image { object-fit: cover; }
+
+/* Agent portrait in settings ---------------------------------------------- */
+
+.agent-portrait {
+  display: grid; place-items: center; gap: 10px; padding: 6px 0 20px;
+}
+.agent-portrait__actions { display: flex; gap: 6px; }
+.agent-portrait__error { font-size: 12px; color: var(--danger); }
+.btn--small { padding: 3px 10px; font-size: 12px; }

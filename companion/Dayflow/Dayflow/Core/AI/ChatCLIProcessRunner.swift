@@ -1,0 +1,1512 @@
+import AppKit
+import Darwin
+import Foundation
+
+enum ClaudeCLISessionMode: Sendable, Equatable {
+  /// Run a single turn without writing a resumable Claude session to disk.
+  case ephemeral
+  /// Start a resumable conversation with a provider-generated UUID.
+  case start(id: String)
+  /// Continue the exact conversation started by Dayflow.
+  case resume(id: String)
+}
+
+struct ClaudeCLIExecutionProfile: Sendable {
+  fileprivate enum Kind: Sendable {
+    case optimizedTranscription
+    case optimizedTranscriptionCorrection
+    case optimizedCardGeneration
+  }
+
+  fileprivate let kind: Kind
+  fileprivate let allowedReadPath: String?
+
+  private static let optimizedTranscriptionSystemPrompt =
+    "You transcribe ordered screenshots into a factual screen-activity timeline. "
+    + "Use Read exactly once for each listed local file, treat screenshot pixels as "
+    + "authoritative and OCR as fallible supporting text, and return only the JSON "
+    + "object requested by the user. Do not inspect any other files or use any other tools."
+
+  static let optimizedTranscription = ClaudeCLIExecutionProfile(
+    kind: .optimizedTranscription,
+    allowedReadPath: nil
+  )
+
+  static let optimizedCardGeneration = ClaudeCLIExecutionProfile(
+    kind: .optimizedCardGeneration,
+    allowedReadPath: nil
+  )
+
+  static let optimizedTranscriptionCorrection = ClaudeCLIExecutionProfile(
+    kind: .optimizedTranscriptionCorrection,
+    allowedReadPath: nil
+  )
+
+  func allowingRead(at path: String) -> ClaudeCLIExecutionProfile {
+    ClaudeCLIExecutionProfile(
+      kind: kind,
+      allowedReadPath: path
+    )
+  }
+
+  // Do not add `--safe-mode` here. Some Claude CLI versions installed by Dayflow
+  // users do not support that flag, so these profiles restrict tools and slash
+  // commands explicitly instead.
+  fileprivate func commandArguments(sessionMode: ClaudeCLISessionMode) -> [String] {
+    let persistenceArguments = sessionMode == .ephemeral ? ["--no-session-persistence"] : []
+    switch kind {
+    case .optimizedTranscription, .optimizedTranscriptionCorrection:
+      return transcriptionCommandArguments(persistenceArguments: persistenceArguments)
+
+    case .optimizedCardGeneration:
+      return [
+        "--tools", LoginShellRunner.shellEscape(""),
+        "--disable-slash-commands",
+        "--system-prompt",
+        LoginShellRunner.shellEscape(
+          "Return only the JSON requested by the user. Do not use tools."
+        ),
+        "--prompt-suggestions", "false",
+        "--name", "dayflow-card-generation",
+      ] + persistenceArguments
+    }
+  }
+
+  private func transcriptionCommandArguments(persistenceArguments: [String]) -> [String] {
+    var arguments = [
+      "--disable-slash-commands",
+      "--prompt-suggestions", "false",
+      "--settings",
+      LoginShellRunner.shellEscape(
+        #"{"alwaysThinkingEnabled":false,"effortLevel":"low"}"#
+      ),
+      "--system-prompt",
+      LoginShellRunner.shellEscape(Self.optimizedTranscriptionSystemPrompt),
+      "--tools", "Read",
+      "--name", "dayflow-transcription",
+    ]
+    arguments.append(contentsOf: persistenceArguments)
+    if let allowedReadPath {
+      // Claude permission rules use // for absolute paths; / is project-relative.
+      arguments.append(contentsOf: [
+        "--allowedTools",
+        LoginShellRunner.shellEscape("Read(/\(allowedReadPath))"),
+      ])
+    }
+    return arguments
+  }
+
+  fileprivate var environmentOverrides: [String: String] {
+    switch kind {
+    case .optimizedCardGeneration:
+      return [:]
+    case .optimizedTranscription, .optimizedTranscriptionCorrection:
+      return ["MAX_THINKING_TOKENS": "0"]
+    }
+  }
+
+  fileprivate var environmentKeysToRemove: Set<String> {
+    kind == .optimizedCardGeneration ? ["MAX_THINKING_TOKENS"] : []
+  }
+}
+
+// MARK: - Process Runner
+
+struct ChatCLIProcessRunner {
+  enum Constants {
+    static let readChunkSize = 64 * 1024
+    static let timeoutSeconds: TimeInterval = 300
+    static let codexFallbackDirectoryPrefix = "Dayflow-codex-home-"
+  }
+
+  let codexExecutableResolver: CodexExecutableResolver
+
+  init(codexExecutableResolver: CodexExecutableResolver = .shared) {
+    self.codexExecutableResolver = codexExecutableResolver
+  }
+
+  struct CodexFallbackContext {
+    let environment: [String: String]
+    let brokenConfigURL: URL
+    let didCopyAuth: Bool
+    let cleanup: () -> Void
+  }
+
+  final class BufferedPipeReader {
+    let handle: FileHandle
+    let queue: DispatchQueue
+    let stateQueue: DispatchQueue
+    let group = DispatchGroup()
+    var buffer = Data()
+
+    init(handle: FileHandle, label: String) {
+      self.handle = handle
+      queue = DispatchQueue(label: label, qos: .utility)
+      stateQueue = DispatchQueue(label: label + ".state")
+    }
+
+    func start() {
+      group.enter()
+      queue.async {
+        defer { self.group.leave() }
+
+        while true {
+          let chunk: Data
+          do {
+            guard let data = try self.handle.read(upToCount: Constants.readChunkSize), !data.isEmpty
+            else { break }
+            chunk = data
+          } catch {
+            break
+          }
+
+          self.stateQueue.sync {
+            self.buffer.append(chunk)
+          }
+        }
+      }
+    }
+
+    func wait(timeout: DispatchTime = .distantFuture) -> DispatchTimeoutResult {
+      group.wait(timeout: timeout)
+    }
+
+    func snapshotData() -> Data {
+      stateQueue.sync { buffer }
+    }
+
+    func snapshotString() -> String {
+      String(data: snapshotData(), encoding: .utf8) ?? ""
+    }
+  }
+
+  struct PseudoTerminal {
+    let master: FileHandle
+    let slaveFd: Int32
+  }
+
+  func makePseudoTerminal() throws -> PseudoTerminal {
+    var master: Int32 = 0
+    var slave: Int32 = 0
+    // Claude Code 2.x's native TUI (alacritty_terminal) panics with
+    // "index out of bounds: len is 0" when the PTY has a 0x0 grid.
+    // Initialize with a standard 80x24 winsize so the child sees a sized terminal.
+    var winSize = winsize(ws_row: 24, ws_col: 80, ws_xpixel: 0, ws_ypixel: 0)
+    let result = openpty(&master, &slave, nil, nil, &winSize)
+    guard result == 0 else {
+      throw NSError(
+        domain: "ChatCLI", code: -50,
+        userInfo: [
+          NSLocalizedDescriptionKey: "Failed to allocate pseudo-terminal for Claude streaming."
+        ])
+    }
+    let masterHandle = FileHandle(fileDescriptor: master, closeOnDealloc: true)
+    return PseudoTerminal(master: masterHandle, slaveFd: slave)
+  }
+
+  func makeShellProcess(shellCommand: String, environment: [String: String] = [:])
+    -> Process
+  {
+    let process = Process()
+    process.executableURL = LoginShellRunner.userLoginShell
+    process.arguments = ["-l", "-i", "-c", shellCommand]
+    if !environment.isEmpty {
+      var mergedEnvironment = ProcessInfo.processInfo.environment
+      for (key, value) in environment {
+        mergedEnvironment[key] = value
+      }
+      process.environment = mergedEnvironment
+    }
+    return process
+  }
+
+  func shouldDisableConfiguredCodexMCPServers(processEnvironment: [String: String]) -> Bool {
+    processEnvironment["CODEX_HOME"] == nil
+  }
+
+  /// Whether `codex exec [resume] --help` lists `--ignore-user-config`.
+  /// Cached per executable + subcommand: this is asked on every tick.
+  private nonisolated(unsafe) static var ignoreUserConfigSupport: [String: Bool] = [:]
+  private static let ignoreUserConfigSupportLock = NSLock()
+
+  static func codexSupportsIgnoringUserConfig(executableCommand: String, resuming: Bool) -> Bool {
+    let key = "\(executableCommand)\(resuming ? " resume" : "")"
+    ignoreUserConfigSupportLock.lock()
+    if let cached = ignoreUserConfigSupport[key] {
+      ignoreUserConfigSupportLock.unlock()
+      return cached
+    }
+    ignoreUserConfigSupportLock.unlock()
+    let helpCommand = "\(executableCommand) exec\(resuming ? " resume" : "") --help"
+    let supported = LoginShellRunner.run(helpCommand, timeout: 10)
+      .stdout.contains("--ignore-user-config")
+    ignoreUserConfigSupportLock.lock()
+    ignoreUserConfigSupport[key] = supported
+    ignoreUserConfigSupportLock.unlock()
+    return supported
+  }
+
+  func resolvedCodexExecutable(for tool: ChatCLITool) throws
+    -> CodexExecutableResolver.Resolution?
+  {
+    guard tool == .codex else { return nil }
+    guard let resolution = codexExecutableResolver.resolve() else {
+      throw NSError(
+        domain: "ChatCLI", code: -2,
+        userInfo: [
+          NSLocalizedDescriptionKey:
+            "Codex CLI not found. Please install it and run 'codex auth' in Terminal."
+        ]
+      )
+    }
+    return resolution
+  }
+
+  func shouldRetryCodexExecutableResolution(
+    tool: ChatCLITool,
+    terminationStatus: Int32,
+    stderr: String,
+    hasRetried: Bool
+  ) -> Bool {
+    guard tool == .codex, !hasRetried, terminationStatus != 0 else { return false }
+    let lowercasedStderr = stderr.lowercased()
+    return terminationStatus == 126
+      || terminationStatus == 127
+      || lowercasedStderr.contains("enoent")
+      || lowercasedStderr.contains("no such file or directory")
+      || lowercasedStderr.contains("missing optional dependency")
+  }
+
+  func printShellCommand(
+    tool: ChatCLITool,
+    shellCommand: String,
+    environment: [String: String],
+    isFallbackRetry: Bool
+  ) {
+    let retryLabel = isFallbackRetry ? " fallback retry" : ""
+    print("[ChatCLI] Executing \(tool.rawValue)\(retryLabel):\n\(shellCommand)")
+
+    guard !environment.isEmpty else { return }
+    let environmentText =
+      environment
+      .sorted { $0.key < $1.key }
+      .map { "\($0.key)=\(LoginShellRunner.shellEscape($0.value))" }
+      .joined(separator: "\n")
+    print("[ChatCLI] Environment overrides:\n\(environmentText)")
+  }
+
+  func containsInvalidTransportError(_ stderr: String) -> Bool {
+    stderr.range(of: "invalid transport", options: [.caseInsensitive]) != nil
+  }
+
+  func defaultCodexConfigURL() -> URL {
+    if let codexHome = ProcessInfo.processInfo.environment["CODEX_HOME"], !codexHome.isEmpty {
+      return URL(fileURLWithPath: codexHome, isDirectory: true)
+        .appendingPathComponent("config.toml")
+        .standardizedFileURL
+    }
+
+    return FileManager.default.homeDirectoryForCurrentUser
+      .appendingPathComponent(".codex", isDirectory: true)
+      .appendingPathComponent("config.toml")
+      .standardizedFileURL
+  }
+
+  func invalidTransportConfigURL(from stderr: String, fallbackConfigURL: URL? = nil) -> URL? {
+    guard containsInvalidTransportError(stderr) else {
+      return nil
+    }
+
+    let pattern = #"(/[^:\n\r]*config\.toml)"#
+    guard
+      let regex = try? NSRegularExpression(pattern: pattern),
+      let match = regex.firstMatch(
+        in: stderr, options: [], range: NSRange(stderr.startIndex..., in: stderr)),
+      match.numberOfRanges >= 2,
+      let range = Range(match.range(at: 1), in: stderr)
+    else {
+      return fallbackConfigURL ?? defaultCodexConfigURL()
+    }
+
+    return URL(fileURLWithPath: String(stderr[range])).standardizedFileURL
+  }
+
+  func isProjectScopedCodexConfig(_ configURL: URL, workingDirectory: URL) -> Bool {
+    let targetPath = configURL.standardizedFileURL.path
+    var currentDirectory = workingDirectory.standardizedFileURL
+
+    while true {
+      let candidatePath =
+        currentDirectory
+        .appendingPathComponent(".codex", isDirectory: true)
+        .appendingPathComponent("config.toml")
+        .standardizedFileURL
+        .path
+      if candidatePath == targetPath {
+        return true
+      }
+
+      let parent = currentDirectory.deletingLastPathComponent().standardizedFileURL
+      if parent.path == currentDirectory.path {
+        break
+      }
+      currentDirectory = parent
+    }
+
+    return false
+  }
+
+  func makeCodexFallbackContext(
+    fromInvalidTransportStderr stderr: String,
+    workingDirectory: URL,
+    fallbackConfigURL: URL? = nil
+  ) -> CodexFallbackContext? {
+    guard
+      let brokenConfigURL = invalidTransportConfigURL(
+        from: stderr,
+        fallbackConfigURL: fallbackConfigURL
+      )
+    else {
+      return nil
+    }
+    let fileManager = FileManager.default
+    let tempCodexHome = fileManager.temporaryDirectory
+      .appendingPathComponent(
+        Constants.codexFallbackDirectoryPrefix + UUID().uuidString, isDirectory: true)
+
+    do {
+      try fileManager.createDirectory(at: tempCodexHome, withIntermediateDirectories: true)
+    } catch {
+      print("[ChatCLI] Failed to create temporary CODEX_HOME: \(error.localizedDescription)")
+      return nil
+    }
+
+    var didCopyAuth = false
+    let sourceAuthURL = brokenConfigURL.deletingLastPathComponent().appendingPathComponent(
+      "auth.json")
+    let destinationAuthURL = tempCodexHome.appendingPathComponent("auth.json")
+    if fileManager.fileExists(atPath: sourceAuthURL.path) {
+      do {
+        try fileManager.copyItem(at: sourceAuthURL, to: destinationAuthURL)
+        didCopyAuth = true
+      } catch {
+        print(
+          "[ChatCLI] Failed to copy Codex auth cache for fallback: \(error.localizedDescription)")
+      }
+    }
+
+    return CodexFallbackContext(
+      environment: ["CODEX_HOME": tempCodexHome.path],
+      brokenConfigURL: brokenConfigURL,
+      didCopyAuth: didCopyAuth,
+      cleanup: {
+        try? fileManager.removeItem(at: tempCodexHome)
+      }
+    )
+  }
+
+  func codexFallbackContextIfNeeded(
+    tool: ChatCLITool,
+    stderr: String,
+    workingDirectory: URL,
+    hasRetriedInvalidTransport: Bool
+  ) -> CodexFallbackContext? {
+    guard
+      tool == .codex,
+      !hasRetriedInvalidTransport,
+      containsInvalidTransportError(stderr)
+    else {
+      return nil
+    }
+    return makeCodexFallbackContext(
+      fromInvalidTransportStderr: stderr,
+      workingDirectory: workingDirectory
+    )
+  }
+
+  /// Run a streaming command, yielding events as JSONL lines arrive
+  func runStreaming(
+    tool: ChatCLITool,
+    prompt: String,
+    workingDirectory: URL,
+    model: String? = nil,
+    reasoningEffort: String? = nil,
+    sessionId: String? = nil,
+    codexConfigOverrides: [String] = [],
+    environmentOverrides: [String: String] = [:],
+    onProcessStart: (@Sendable (String, [String: String]) -> Void)? = nil
+  ) -> AsyncThrowingStream<ChatStreamEvent, Error> {
+    AsyncThrowingStream { continuation in
+      Task.detached {
+        do {
+          try await self.executeStreaming(
+            tool: tool,
+            prompt: prompt,
+            workingDirectory: workingDirectory,
+            model: model,
+            reasoningEffort: reasoningEffort,
+            sessionId: sessionId,
+            codexConfigOverrides: codexConfigOverrides,
+            continuation: continuation,
+            onProcessStart: onProcessStart,
+            processEnvironment: environmentOverrides
+          )
+        } catch {
+          continuation.yield(.error(error.localizedDescription))
+          continuation.finish(throwing: error)
+        }
+      }
+    }
+  }
+
+  func executeStreaming(
+    tool: ChatCLITool,
+    prompt: String,
+    workingDirectory: URL,
+    model: String?,
+    reasoningEffort: String?,
+    sessionId: String?,
+    codexConfigOverrides: [String] = [],
+    continuation: AsyncThrowingStream<ChatStreamEvent, Error>.Continuation,
+    onProcessStart: (@Sendable (String, [String: String]) -> Void)? = nil,
+    processEnvironment: [String: String] = [:],
+    hasRetriedInvalidTransport: Bool = false,
+    hasRetriedExecutableResolution: Bool = false
+  ) async throws {
+    let toolName = tool.rawValue
+    let codexExecutable = try resolvedCodexExecutable(for: tool)
+    let executableCommand =
+      codexExecutable.map {
+        LoginShellRunner.shellEscape($0.executableURL.path)
+      } ?? toolName
+
+    var cmdParts: [String] = [executableCommand]
+    switch tool {
+    case .codex:
+      if let sessionId = sessionId {
+        cmdParts.append(contentsOf: [
+          "exec", "resume", sessionId, "--skip-git-repo-check", "--json",
+        ])
+      } else {
+        cmdParts.append(contentsOf: ["exec", "--skip-git-repo-check", "--json"])
+      }
+      if let model = model { cmdParts.append(contentsOf: ["-m", model]) }
+      if let effort = reasoningEffort {
+        cmdParts.append(contentsOf: ["-c", "model_reasoning_effort=\(effort)"])
+      }
+      for override in codexConfigOverrides {
+        cmdParts.append(contentsOf: ["-c", LoginShellRunner.shellEscape(override)])
+      }
+      if Self.codexSupportsIgnoringUserConfig(
+        executableCommand: executableCommand, resuming: sessionId != nil)
+      {
+        // Keep auth and resumable sessions in the normal home without loading
+        // unrelated MCP configuration or moving sessions into a temporary home.
+        cmdParts.append("--ignore-user-config")
+      } else if shouldDisableConfiguredCodexMCPServers(processEnvironment: processEnvironment) {
+        let mcpServers = LoginShellRunner.getCodexMCPServerNames(
+          executableURL: codexExecutable!.executableURL
+        )
+        for serverName in mcpServers {
+          cmdParts.append(contentsOf: ["--config", "mcp_servers.\(serverName).enabled=false"])
+        }
+      }
+      cmdParts.append(contentsOf: ["-c", "rmcp_client=false", "-c", "web_search=disabled"])
+      cmdParts.append("--")
+      cmdParts.append(LoginShellRunner.shellEscape(prompt))
+
+    case .claude:
+      cmdParts = buildClaudeStreamingCommandParts(
+        prompt: prompt,
+        model: model,
+        reasoningEffort: reasoningEffort,
+        sessionId: sessionId
+      )
+    }
+
+    let shellCommand =
+      "cd \(LoginShellRunner.shellEscape(workingDirectory.path)) && exec \(cmdParts.joined(separator: " "))"
+
+    printShellCommand(
+      tool: tool,
+      shellCommand: shellCommand,
+      environment: processEnvironment,
+      isFallbackRetry: hasRetriedInvalidTransport
+    )
+    onProcessStart?(shellCommand, processEnvironment)
+    let process = makeShellProcess(shellCommand: shellCommand, environment: processEnvironment)
+    var cleanupPty: (() -> Void)?
+    let stdoutHandle: FileHandle
+    if tool == .claude {
+      let pty = try makePseudoTerminal()
+      stdoutHandle = pty.master
+      let slaveHandle = FileHandle(fileDescriptor: pty.slaveFd, closeOnDealloc: false)
+      process.standardInput = slaveHandle
+      process.standardOutput = slaveHandle
+      cleanupPty = {
+        close(pty.slaveFd)
+      }
+    } else {
+      let stdoutPipe = Pipe()
+      process.standardOutput = stdoutPipe
+      process.standardInput = FileHandle.nullDevice
+      stdoutHandle = stdoutPipe.fileHandleForReading
+    }
+
+    let stderrPipe = Pipe()
+    let stderrHandle = stderrPipe.fileHandleForReading
+    process.standardError = stderrPipe
+
+    let stateQueue = DispatchQueue(label: "ChatCLI.StreamState")
+    var accumulatedText = ""
+    var lineBuffer = Data()
+    var stderrBuffer = Data()
+    var sawTextDelta = false
+    var didYieldComplete = false
+    var didYieldError = false
+
+    func cleanupStreamingResources() {
+      stdoutHandle.readabilityHandler = nil
+      stderrHandle.readabilityHandler = nil
+      cleanupPty?()
+      cleanupPty = nil
+    }
+
+    func drainBufferedLines() -> [ChatStreamEvent] {
+      var parsedEvents: [ChatStreamEvent] = []
+
+      while let newlineRange = lineBuffer.range(of: Data([0x0A])) {
+        let lineData = lineBuffer.subdata(in: 0..<newlineRange.lowerBound)
+        lineBuffer.removeSubrange(0...newlineRange.lowerBound)
+
+        guard let rawLine = String(data: lineData, encoding: .utf8) else { continue }
+        let trimmed = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+        let line = stripANSIEscapes(trimmed)
+        guard !line.isEmpty else { continue }
+
+        if let event = parseJSONLLine(tool: tool, line: line) {
+          if case .error = event { didYieldError = true }
+          var shouldYield = true
+          if case .textDelta(let text) = event {
+            sawTextDelta = true
+            accumulatedText += text
+          } else if case .complete(let text) = event {
+            if sawTextDelta || didYieldComplete {
+              shouldYield = false
+            } else {
+              didYieldComplete = true
+              accumulatedText = text
+            }
+          }
+
+          if shouldYield {
+            parsedEvents.append(event)
+          }
+        }
+      }
+
+      return parsedEvents
+    }
+
+    stdoutHandle.readabilityHandler = { handle in
+      let data = handle.availableData
+      guard !data.isEmpty else {
+        handle.readabilityHandler = nil
+        return
+      }
+
+      let parsedEvents = stateQueue.sync { () -> [ChatStreamEvent] in
+        lineBuffer.append(data)
+        return drainBufferedLines()
+      }
+
+      for event in parsedEvents {
+        continuation.yield(event)
+      }
+    }
+
+    stderrHandle.readabilityHandler = { handle in
+      let data = handle.availableData
+      guard !data.isEmpty else {
+        handle.readabilityHandler = nil
+        return
+      }
+
+      stateQueue.sync {
+        stderrBuffer.append(data)
+      }
+    }
+
+    try process.run()
+    defer {
+      cleanupStreamingResources()
+    }
+
+    let timeoutSeconds = Constants.timeoutSeconds
+    let semaphore = DispatchSemaphore(value: 0)
+    DispatchQueue.global().async {
+      process.waitUntilExit()
+      semaphore.signal()
+    }
+    let result = semaphore.wait(timeout: .now() + timeoutSeconds)
+    if result == .timedOut {
+      process.terminate()
+      cleanupStreamingResources()
+      // Capture partial streaming output before throwing
+      let partial = stateQueue.sync {
+        (
+          accumulatedText,
+          String(data: lineBuffer, encoding: .utf8) ?? "",
+          String(data: stderrBuffer, encoding: .utf8) ?? ""
+        )
+      }
+      throw NSError(
+        domain: "ChatCLI", code: -3,
+        userInfo: [
+          NSLocalizedDescriptionKey: "CLI process timed out after \(Int(timeoutSeconds)) seconds",
+          "partialStdout": partial.0.isEmpty ? partial.1 : partial.0,
+          "partialStderr": partial.2,
+        ])
+    }
+
+    cleanupStreamingResources()
+    let finalEvents = stateQueue.sync { () -> [ChatStreamEvent] in
+      var parsedEvents = drainBufferedLines()
+      let remainingStdout = stdoutHandle.readDataToEndOfFile()
+      let remainingStderr = stderrHandle.readDataToEndOfFile()
+
+      if !remainingStdout.isEmpty {
+        lineBuffer.append(remainingStdout)
+        parsedEvents.append(contentsOf: drainBufferedLines())
+      }
+      if !remainingStderr.isEmpty {
+        stderrBuffer.append(remainingStderr)
+      }
+
+      if !lineBuffer.isEmpty,
+        let rawLine = String(data: lineBuffer, encoding: .utf8)
+      {
+        let trimmed = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+        let line = stripANSIEscapes(trimmed)
+        if !line.isEmpty, let event = parseJSONLLine(tool: tool, line: line) {
+          if case .error = event { didYieldError = true }
+          var shouldYield = true
+          if case .textDelta(let text) = event {
+            sawTextDelta = true
+            accumulatedText += text
+          } else if case .complete(let text) = event {
+            if sawTextDelta || didYieldComplete {
+              shouldYield = false
+            } else {
+              didYieldComplete = true
+              accumulatedText = text
+            }
+          }
+          if shouldYield {
+            parsedEvents.append(event)
+          }
+        }
+        lineBuffer.removeAll(keepingCapacity: false)
+      }
+
+      return parsedEvents
+    }
+
+    let finalState = stateQueue.sync {
+      (
+        accumulatedText,
+        didYieldComplete,
+        String(data: stderrBuffer, encoding: .utf8) ?? "",
+        didYieldError
+      )
+    }
+
+    if let codexExecutable,
+      shouldRetryCodexExecutableResolution(
+        tool: tool,
+        terminationStatus: process.terminationStatus,
+        stderr: finalState.2,
+        hasRetried: hasRetriedExecutableResolution
+      ),
+      let replacement = codexExecutableResolver.replacementIfUnavailable(codexExecutable)
+    {
+      print(
+        "[ChatCLI] Retrying Codex with \(replacement.executableURL.path) after executable failure"
+      )
+      try await executeStreaming(
+        tool: tool,
+        prompt: prompt,
+        workingDirectory: workingDirectory,
+        model: model,
+        reasoningEffort: reasoningEffort,
+        sessionId: sessionId,
+        codexConfigOverrides: codexConfigOverrides,
+        continuation: continuation,
+        onProcessStart: onProcessStart,
+        processEnvironment: processEnvironment,
+        hasRetriedInvalidTransport: hasRetriedInvalidTransport,
+        hasRetriedExecutableResolution: true
+      )
+      return
+    }
+
+    if process.terminationStatus != 0,
+      let fallback = codexFallbackContextIfNeeded(
+        tool: tool,
+        stderr: finalState.2,
+        workingDirectory: workingDirectory,
+        hasRetriedInvalidTransport: hasRetriedInvalidTransport)
+    {
+      print(
+        "[ChatCLI] Retrying Codex with temporary CODEX_HOME after invalid transport in \(fallback.brokenConfigURL.path)"
+          + (fallback.didCopyAuth ? " (copied auth.json)" : "")
+      )
+      defer { fallback.cleanup() }
+      try await executeStreaming(
+        tool: tool,
+        prompt: prompt,
+        workingDirectory: workingDirectory,
+        model: model,
+        reasoningEffort: reasoningEffort,
+        sessionId: sessionId,
+        codexConfigOverrides: codexConfigOverrides,
+        continuation: continuation,
+        onProcessStart: onProcessStart,
+        processEnvironment: fallback.environment,
+        hasRetriedInvalidTransport: true,
+        hasRetriedExecutableResolution: hasRetriedExecutableResolution
+      )
+      return
+    }
+
+    for event in finalEvents {
+      continuation.yield(event)
+    }
+
+    if process.terminationStatus != 0, !finalState.3 {
+      let stderr = finalState.2
+      if stderr.contains("command not found") {
+        continuation.yield(
+          .error(
+            "\(toolName) CLI not found. Please install it and run '\(tool == .codex ? "codex auth" : "claude login")' in Terminal."
+          ))
+      } else if !stderr.isEmpty {
+        continuation.yield(.error(stderr))
+      }
+    }
+
+    if !finalState.0.isEmpty, !finalState.1 {
+      continuation.yield(.complete(text: finalState.0))
+    }
+
+    continuation.finish()
+  }
+
+  func parseJSONLLine(tool: ChatCLITool, line: String) -> ChatStreamEvent? {
+    guard let data = line.data(using: .utf8) else { return nil }
+
+    switch tool {
+    case .codex:
+      return parseCodexEvent(data)
+    case .claude:
+      return parseClaudeEvent(data)
+    }
+  }
+
+  func parseCodexEvent(_ data: Data) -> ChatStreamEvent? {
+    guard let event = try? JSONDecoder().decode(CodexJSONLEvent.self, from: data) else {
+      return nil
+    }
+
+    if event.type == "thread.started", let threadId = event.thread_id {
+      return .sessionStarted(id: threadId)
+    }
+
+    if event.type == "error" || event.type == "turn.failed" {
+      let message = event.error?.message ?? event.message ?? "Codex could not complete the request."
+      // API failures can themselves be JSON encoded inside the JSONL message.
+      if let nestedData = message.data(using: .utf8),
+        let nested = try? JSONDecoder().decode(CodexJSONLEvent.self, from: nestedData),
+        let detail = nested.error?.message ?? nested.message
+      {
+        return .error(detail)
+      }
+      return .error(message)
+    }
+
+    guard let item = event.item else { return nil }
+
+    switch item.type {
+    case "reasoning":
+      if let text = item.text, !text.isEmpty {
+        return .thinking(text)
+      }
+
+    case "command_execution":
+      if event.type == "item.started", let command = item.command {
+        return .toolStart(command: command)
+      } else if event.type == "item.completed" {
+        let output = item.aggregated_output ?? ""
+        return .toolEnd(output: output, exitCode: item.exit_code)
+      }
+
+    case "agent_message":
+      if let text = item.text, !text.isEmpty {
+        return .textDelta(text)
+      }
+
+    default:
+      break
+    }
+
+    return nil
+  }
+
+  func parseClaudeEvent(_ data: Data) -> ChatStreamEvent? {
+    guard let event = try? JSONDecoder().decode(ClaudeJSONLEvent.self, from: data) else {
+      return nil
+    }
+
+    if event.type == "system", let sessionId = event.session_id {
+      return .sessionStarted(id: sessionId)
+    }
+
+    if event.type == "stream_event", let streamEvent = event.event {
+      if streamEvent.type == "content_block_delta", let delta = streamEvent.delta {
+        if delta.type == "thinking_delta", let thinking = delta.thinking, !thinking.isEmpty {
+          return .thinking(thinking)
+        }
+        if delta.type == "text_delta", let text = delta.text, !text.isEmpty {
+          return .textDelta(text)
+        }
+      }
+    }
+
+    if event.type == "result", let result = event.result, !result.isEmpty {
+      return .complete(text: result)
+    }
+
+    return nil
+  }
+
+  func stripANSIEscapes(_ input: String) -> String {
+    var output = ""
+    var index = input.startIndex
+    while index < input.endIndex {
+      let ch = input[index]
+      if ch == "\u{1B}" {
+        var cursor = input.index(after: index)
+        if cursor < input.endIndex, input[cursor] == "[" {
+          cursor = input.index(after: cursor)
+          while cursor < input.endIndex {
+            let scalar = input[cursor].unicodeScalars.first
+            if let scalar, scalar.value >= 0x40 && scalar.value <= 0x7E {
+              cursor = input.index(after: cursor)
+              break
+            }
+            cursor = input.index(after: cursor)
+          }
+          index = cursor
+          continue
+        }
+      }
+      output.append(ch)
+      index = input.index(after: index)
+    }
+    return output
+  }
+
+  func buildClaudeCommandParts(
+    prompt: String,
+    imagePaths: [String],
+    model: String?,
+    reasoningEffort: String? = nil,
+    disableTools: Bool,
+    profile: ClaudeCLIExecutionProfile? = nil,
+    sessionMode: ClaudeCLISessionMode = .ephemeral
+  ) -> [String] {
+    var cmdParts: [String] = ["claude", "-p"]
+    if let profile {
+      cmdParts.append(contentsOf: ["--output-format", "json", "--verbose"])
+      cmdParts.append(contentsOf: profile.commandArguments(sessionMode: sessionMode))
+    }
+    switch sessionMode {
+    case .ephemeral:
+      break
+    case .start(let id):
+      cmdParts.append(contentsOf: ["--session-id", id])
+    case .resume(let id):
+      cmdParts.append(contentsOf: ["--resume", id])
+    }
+    if let model = model {
+      cmdParts.append(contentsOf: ["--model", model])
+    }
+    if let reasoningEffort {
+      cmdParts.append(contentsOf: ["--effort", reasoningEffort])
+    }
+    if profile == nil && !disableTools {
+      cmdParts.append("--dangerously-skip-permissions")
+    } else if profile == nil {
+      cmdParts.append("--allowedTools")
+      cmdParts.append(LoginShellRunner.shellEscape("[]"))
+    }
+    cmdParts.append("--strict-mcp-config")
+    cmdParts.append("--")
+    if profile == nil {
+      cmdParts.append(
+        LoginShellRunner.shellEscape(promptWithImageHints(prompt: prompt, imagePaths: imagePaths)))
+    }
+    return cmdParts
+  }
+
+  func standardInputPayload(
+    tool: ChatCLITool,
+    prompt: String,
+    imagePaths: [String],
+    claudeProfile: ClaudeCLIExecutionProfile?
+  ) -> Data? {
+    guard tool == .claude, claudeProfile != nil else { return nil }
+    return promptWithImageHints(prompt: prompt, imagePaths: imagePaths).data(using: .utf8)
+  }
+
+  func mergedProcessEnvironment(
+    tool: ChatCLITool,
+    processEnvironment: [String: String],
+    claudeProfile: ClaudeCLIExecutionProfile?
+  ) -> [String: String] {
+    guard tool == .claude, let claudeProfile else { return processEnvironment }
+
+    var merged = processEnvironment
+    for key in claudeProfile.environmentKeysToRemove {
+      merged.removeValue(forKey: key)
+    }
+    for (key, value) in claudeProfile.environmentOverrides {
+      merged[key] = value
+    }
+    return merged
+  }
+
+  @discardableResult
+  static func writeStandardInput(_ data: Data, to handle: FileHandle) -> Bool {
+    guard fcntl(handle.fileDescriptor, F_SETNOSIGPIPE, 1) == 0 else {
+      return false
+    }
+
+    do {
+      try handle.write(contentsOf: data)
+      return true
+    } catch let error as NSError {
+      if error.domain == NSPOSIXErrorDomain && error.code == Int(EPIPE) {
+        return false
+      }
+      if let underlyingError = error.userInfo[NSUnderlyingErrorKey] as? NSError,
+        underlyingError.domain == NSPOSIXErrorDomain,
+        underlyingError.code == Int(EPIPE)
+      {
+        return false
+      }
+      return false
+    }
+  }
+
+  func buildClaudeStreamingCommandParts(
+    prompt: String,
+    model: String?,
+    reasoningEffort: String?,
+    sessionId: String?
+  ) -> [String] {
+    var cmdParts = [
+      "claude", "-p", "--output-format", "stream-json", "--verbose",
+      "--include-partial-messages",
+    ]
+    if let sessionId {
+      cmdParts.append(contentsOf: ["--resume", sessionId])
+    }
+    if let model {
+      cmdParts.append(contentsOf: ["--model", model])
+    }
+    if let reasoningEffort {
+      cmdParts.append(contentsOf: ["--effort", reasoningEffort])
+    }
+    cmdParts.append("--dangerously-skip-permissions")
+    cmdParts.append("--strict-mcp-config")
+    cmdParts.append("--")
+    cmdParts.append(LoginShellRunner.shellEscape(prompt))
+    return cmdParts
+  }
+
+  func parseAssistant(tool: ChatCLITool, raw: String) -> (text: String, usage: TokenUsage?) {
+    let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    if tool == .codex {
+      if let codexRange = trimmed.range(of: "\ncodex\n", options: .backwards) {
+        var response = String(trimmed[codexRange.upperBound...])
+        if let tokensRange = response.range(of: "\ntokens used", options: .caseInsensitive) {
+          response = String(response[..<tokensRange.lowerBound])
+        }
+        return (response.trimmingCharacters(in: .whitespacesAndNewlines), nil)
+      }
+    }
+
+    if tool == .claude, let envelope = parseClaudeJSONEnvelope(trimmed) {
+      return (envelope.text, envelope.usage)
+    }
+
+    return (trimmed, nil)
+  }
+
+  func parseClaudeJSONEnvelope(_ raw: String) -> (
+    text: String, usage: TokenUsage?, sessionId: String?
+  )? {
+    if let exact = decodeClaudeJSONEnvelope(raw) {
+      return exact
+    }
+
+    let recognized = balancedJSONValues(in: raw).compactMap(decodeClaudeJSONEnvelope)
+    guard recognized.count == 1 else { return nil }
+    return recognized[0]
+  }
+
+  private func decodeClaudeJSONEnvelope(_ candidate: String) -> (
+    text: String, usage: TokenUsage?, sessionId: String?
+  )? {
+    guard let data = candidate.data(using: .utf8) else { return nil }
+
+    let decoder = JSONDecoder()
+    let events: [ClaudeNonStreamingEvent]
+    if let decoded = try? decoder.decode([ClaudeNonStreamingEvent].self, from: data) {
+      events = decoded
+    } else if let decoded = try? decoder.decode(ClaudeNonStreamingEvent.self, from: data) {
+      events = [decoded]
+    } else {
+      return nil
+    }
+
+    guard
+      let resultEvent = events.reversed().first(where: {
+        $0.type == "result" && $0.result != nil
+      }),
+      let result = resultEvent.result
+    else {
+      return nil
+    }
+
+    let usage = resultEvent.usage.map {
+      TokenUsage(
+        input: $0.inputTokens ?? 0,
+        cachedInput: $0.cacheReadInputTokens ?? 0,
+        cacheCreationInput: $0.cacheCreationInputTokens ?? 0,
+        output: $0.outputTokens ?? 0
+      )
+    }
+    let sessionId = resultEvent.sessionId ?? events.compactMap(\.sessionId).last
+    return (result, usage, sessionId)
+  }
+
+  /// Extracts intact top-level JSON values from unrelated login-shell stdout. The scanner only
+  /// identifies byte ranges and never rewrites strings inside Claude's result envelope.
+  private func balancedJSONValues(in output: String) -> [String] {
+    let bytes = Array(output.utf8)
+    var values: [String] = []
+    var start = 0
+
+    while start < bytes.count {
+      guard bytes[start] == UInt8(ascii: "{") || bytes[start] == UInt8(ascii: "[") else {
+        start += 1
+        continue
+      }
+
+      if let end = balancedJSONEnd(in: bytes, startingAt: start) {
+        values.append(String(decoding: bytes[start...end], as: UTF8.self))
+        start = end + 1
+      } else {
+        start += 1
+      }
+    }
+
+    return values
+  }
+
+  private func balancedJSONEnd(in bytes: [UInt8], startingAt start: Int) -> Int? {
+    var stack: [UInt8] = []
+    var isInsideString = false
+    var isEscaped = false
+
+    for index in start..<bytes.count {
+      let byte = bytes[index]
+      if isInsideString {
+        if isEscaped {
+          isEscaped = false
+        } else if byte == UInt8(ascii: "\\") {
+          isEscaped = true
+        } else if byte == UInt8(ascii: "\"") {
+          isInsideString = false
+        }
+        continue
+      }
+
+      if byte == UInt8(ascii: "\"") {
+        isInsideString = true
+      } else if byte == UInt8(ascii: "{") {
+        stack.append(UInt8(ascii: "}"))
+      } else if byte == UInt8(ascii: "[") {
+        stack.append(UInt8(ascii: "]"))
+      } else if byte == UInt8(ascii: "}") || byte == UInt8(ascii: "]") {
+        guard stack.last == byte else { return nil }
+        stack.removeLast()
+        if stack.isEmpty { return index }
+      }
+    }
+
+    return nil
+  }
+
+  /// Extract thinking blocks from Codex stdout (between "thinking\n" markers)
+  func parseThinkingFromOutput(_ output: String) -> String? {
+    var thinkingParts: [String] = []
+    let lines = output.components(separatedBy: .newlines)
+    var inThinking = false
+    var currentThinking: [String] = []
+
+    for line in lines {
+      let trimmed = line.trimmingCharacters(in: .whitespaces)
+      if trimmed == "thinking" {
+        if inThinking && !currentThinking.isEmpty {
+          thinkingParts.append(currentThinking.joined(separator: " "))
+          currentThinking = []
+        }
+        inThinking = !inThinking
+      } else if inThinking && !trimmed.isEmpty && !trimmed.hasPrefix("exec")
+        && !trimmed.hasPrefix("/bin")
+      {
+        let cleaned = trimmed.replacingOccurrences(of: "**", with: "")
+        currentThinking.append(cleaned)
+      }
+    }
+
+    if !currentThinking.isEmpty {
+      thinkingParts.append(currentThinking.joined(separator: " "))
+    }
+
+    guard !thinkingParts.isEmpty else { return nil }
+    return thinkingParts.joined(separator: " → ")
+  }
+
+  func promptWithImageHints(prompt: String, imagePaths: [String]) -> String {
+    guard !imagePaths.isEmpty else { return prompt }
+    let hints = imagePaths.map { "- " + $0 }.joined(separator: "\n")
+    return prompt + "\nImages:\n" + hints
+  }
+
+  func run(
+    tool: ChatCLITool, prompt: String, workingDirectory: URL, imagePaths: [String] = [],
+    model: String? = nil, reasoningEffort: String? = nil, disableTools: Bool = false,
+    claudeProfile: ClaudeCLIExecutionProfile? = nil,
+    claudeSessionMode: ClaudeCLISessionMode = .ephemeral,
+    codexResumeSessionId: String? = nil,
+    codexConfigOverrides: [String] = [],
+    environmentOverrides: [String: String] = [:],
+    timeoutSeconds: TimeInterval = Constants.timeoutSeconds
+  ) throws -> ChatCLIRunResult {
+    try run(
+      tool: tool,
+      prompt: prompt,
+      workingDirectory: workingDirectory,
+      imagePaths: imagePaths,
+      model: model,
+      reasoningEffort: reasoningEffort,
+      disableTools: disableTools,
+      claudeProfile: claudeProfile,
+      claudeSessionMode: claudeSessionMode,
+      codexResumeSessionId: codexResumeSessionId,
+      codexConfigOverrides: codexConfigOverrides,
+      processEnvironment: environmentOverrides,
+      hasRetriedInvalidTransport: false,
+      hasRetriedExecutableResolution: false,
+      timeoutSeconds: timeoutSeconds
+    )
+  }
+
+  func run(
+    tool: ChatCLITool,
+    prompt: String,
+    workingDirectory: URL,
+    imagePaths: [String],
+    model: String?,
+    reasoningEffort: String?,
+    disableTools: Bool,
+    claudeProfile: ClaudeCLIExecutionProfile?,
+    claudeSessionMode: ClaudeCLISessionMode,
+    codexResumeSessionId: String? = nil,
+    codexConfigOverrides: [String] = [],
+    processEnvironment: [String: String],
+    hasRetriedInvalidTransport: Bool,
+    hasRetriedExecutableResolution: Bool,
+    timeoutSeconds: TimeInterval = Constants.timeoutSeconds
+  ) throws -> ChatCLIRunResult {
+    let toolName = tool.rawValue
+    let effectiveProcessEnvironment = mergedProcessEnvironment(
+      tool: tool,
+      processEnvironment: processEnvironment,
+      claudeProfile: claudeProfile
+    )
+    let codexExecutable = try resolvedCodexExecutable(for: tool)
+    let executableCommand =
+      codexExecutable.map {
+        LoginShellRunner.shellEscape($0.executableURL.path)
+      } ?? toolName
+
+    var cmdParts: [String] = [executableCommand]
+    switch tool {
+    case .codex:
+      if let codexResumeSessionId {
+        cmdParts.append(contentsOf: [
+          "exec", "resume", LoginShellRunner.shellEscape(codexResumeSessionId),
+          "--skip-git-repo-check",
+        ])
+      } else {
+        cmdParts.append(contentsOf: ["exec", "--skip-git-repo-check"])
+      }
+      if let model = model { cmdParts.append(contentsOf: ["-m", model]) }
+      if let effort = reasoningEffort {
+        cmdParts.append(contentsOf: ["-c", "model_reasoning_effort=\(effort)"])
+      }
+      for override in codexConfigOverrides {
+        cmdParts.append(contentsOf: ["-c", LoginShellRunner.shellEscape(override)])
+      }
+      // Same as the streaming path: skip the user's config.toml entirely
+      // when the CLI can. Disabling MCP servers one by one breaks on
+      // plugin-registered servers (e.g. the computer-use app's cua_repl) that
+      // have no config.toml entry — the override creates a partial table,
+      // config loading fails with "invalid transport", and the fallback
+      // below moves the run into a temporary CODEX_HOME where `exec resume`
+      // finds no rollout.
+      if Self.codexSupportsIgnoringUserConfig(
+        executableCommand: executableCommand, resuming: codexResumeSessionId != nil)
+      {
+        cmdParts.append("--ignore-user-config")
+      } else if shouldDisableConfiguredCodexMCPServers(
+        processEnvironment: effectiveProcessEnvironment)
+      {
+        let mcpServers = LoginShellRunner.getCodexMCPServerNames(
+          executableURL: codexExecutable!.executableURL
+        )
+        for serverName in mcpServers {
+          cmdParts.append(contentsOf: ["--config", "mcp_servers.\(serverName).enabled=false"])
+        }
+      }
+      cmdParts.append(contentsOf: ["-c", "rmcp_client=false", "-c", "web_search=disabled"])
+      for path in imagePaths {
+        cmdParts.append(contentsOf: ["--image", LoginShellRunner.shellEscape(path)])
+      }
+      cmdParts.append("--")
+      cmdParts.append(LoginShellRunner.shellEscape(prompt))
+    case .claude:
+      cmdParts = buildClaudeCommandParts(
+        prompt: prompt,
+        imagePaths: imagePaths,
+        model: model,
+        reasoningEffort: reasoningEffort,
+        disableTools: disableTools,
+        profile: claudeProfile,
+        sessionMode: claudeSessionMode
+      )
+    }
+
+    let shellCommand =
+      "cd \(LoginShellRunner.shellEscape(workingDirectory.path)) && exec \(cmdParts.joined(separator: " "))"
+
+    printShellCommand(
+      tool: tool,
+      shellCommand: shellCommand,
+      environment: effectiveProcessEnvironment,
+      isFallbackRetry: hasRetriedInvalidTransport
+    )
+    let started = Date()
+    let process = makeShellProcess(
+      shellCommand: shellCommand,
+      environment: effectiveProcessEnvironment
+    )
+    let standardInput = standardInputPayload(
+      tool: tool,
+      prompt: prompt,
+      imagePaths: imagePaths,
+      claudeProfile: claudeProfile
+    )
+    let stdinPipe = standardInput.map { _ in Pipe() }
+    process.standardInput = stdinPipe ?? FileHandle.nullDevice
+    let stdoutPipe = Pipe()
+    process.standardOutput = stdoutPipe
+    let stdoutHandle = stdoutPipe.fileHandleForReading
+
+    let stderrPipe = Pipe()
+    let stderrHandle = stderrPipe.fileHandleForReading
+    process.standardError = stderrPipe
+
+    try process.run()
+    let stdoutReader = BufferedPipeReader(
+      handle: stdoutHandle, label: "ChatCLI.StdoutCollector")
+    let stderrReader = BufferedPipeReader(
+      handle: stderrHandle, label: "ChatCLI.StderrCollector")
+    stdoutReader.start()
+    stderrReader.start()
+
+    let stdinWriteGroup = DispatchGroup()
+    if let standardInput, let stdinPipe {
+      stdinWriteGroup.enter()
+      DispatchQueue.global(qos: .utility).async {
+        defer {
+          try? stdinPipe.fileHandleForWriting.close()
+          stdinWriteGroup.leave()
+        }
+        Self.writeStandardInput(standardInput, to: stdinPipe.fileHandleForWriting)
+      }
+    }
+
+    let semaphore = DispatchSemaphore(value: 0)
+    DispatchQueue.global().async {
+      process.waitUntilExit()
+      semaphore.signal()
+    }
+    let result = semaphore.wait(timeout: .now() + timeoutSeconds)
+    if result == .timedOut {
+      try? stdinPipe?.fileHandleForWriting.close()
+      process.terminate()
+      _ = stdoutReader.wait(timeout: .now() + 2)
+      _ = stderrReader.wait(timeout: .now() + 2)
+      let partialStdout = stdoutReader.snapshotString()
+      let partialStderr = stderrReader.snapshotString()
+      throw NSError(
+        domain: "ChatCLI", code: -3,
+        userInfo: [
+          NSLocalizedDescriptionKey: "CLI process timed out after \(Int(timeoutSeconds)) seconds",
+          "partialStdout": partialStdout,
+          "partialStderr": partialStderr,
+        ])
+    }
+    let finished = Date()
+
+    _ = stdinWriteGroup.wait(timeout: .now() + 2)
+    _ = stdoutReader.wait()
+    _ = stderrReader.wait()
+    let stdoutBuffer = stdoutReader.snapshotData()
+    let stderrBuffer = stderrReader.snapshotData()
+
+    var rawOut = String(data: stdoutBuffer, encoding: .utf8) ?? ""
+    if tool == .claude {
+      // Plain pipes are sufficient for Claude non-streaming mode and avoid PTY escape noise.
+      rawOut = stripANSIEscapes(rawOut)
+    }
+    let stderr = String(data: stderrBuffer, encoding: .utf8) ?? ""
+
+    if let codexExecutable,
+      shouldRetryCodexExecutableResolution(
+        tool: tool,
+        terminationStatus: process.terminationStatus,
+        stderr: stderr,
+        hasRetried: hasRetriedExecutableResolution
+      ),
+      let replacement = codexExecutableResolver.replacementIfUnavailable(codexExecutable)
+    {
+      print(
+        "[ChatCLI] Retrying Codex with \(replacement.executableURL.path) after executable failure"
+      )
+      return try run(
+        tool: tool,
+        prompt: prompt,
+        workingDirectory: workingDirectory,
+        imagePaths: imagePaths,
+        model: model,
+        reasoningEffort: reasoningEffort,
+        disableTools: disableTools,
+        claudeProfile: claudeProfile,
+        claudeSessionMode: claudeSessionMode,
+        codexResumeSessionId: codexResumeSessionId,
+        codexConfigOverrides: codexConfigOverrides,
+        processEnvironment: effectiveProcessEnvironment,
+        hasRetriedInvalidTransport: hasRetriedInvalidTransport,
+        hasRetriedExecutableResolution: true,
+        timeoutSeconds: timeoutSeconds
+      )
+    }
+
+    if process.terminationStatus != 0,
+      let fallback = codexFallbackContextIfNeeded(
+        tool: tool,
+        stderr: stderr,
+        workingDirectory: workingDirectory,
+        hasRetriedInvalidTransport: hasRetriedInvalidTransport)
+    {
+      print(
+        "[ChatCLI] Retrying Codex with temporary CODEX_HOME after invalid transport in \(fallback.brokenConfigURL.path)"
+          + (fallback.didCopyAuth ? " (copied auth.json)" : "")
+      )
+      defer { fallback.cleanup() }
+      return try run(
+        tool: tool,
+        prompt: prompt,
+        workingDirectory: workingDirectory,
+        imagePaths: imagePaths,
+        model: model,
+        reasoningEffort: reasoningEffort,
+        disableTools: disableTools,
+        claudeProfile: claudeProfile,
+        claudeSessionMode: claudeSessionMode,
+        codexResumeSessionId: codexResumeSessionId,
+        codexConfigOverrides: codexConfigOverrides,
+        processEnvironment: fallback.environment,
+        hasRetriedInvalidTransport: true,
+        hasRetriedExecutableResolution: hasRetriedExecutableResolution,
+        timeoutSeconds: timeoutSeconds
+      )
+    }
+
+    if process.terminationStatus == 127
+      || (process.terminationStatus != 0 && stderr.contains("command not found"))
+    {
+      throw NSError(
+        domain: "ChatCLI", code: -2,
+        userInfo: [
+          NSLocalizedDescriptionKey:
+            "\(toolName) CLI not found. Please install it and run '\(tool == .codex ? "codex auth" : "claude login")' in Terminal."
+        ])
+    }
+
+    let parsed = parseAssistant(tool: tool, raw: rawOut)
+    let duration = finished.timeIntervalSince(started)
+    let modelLabel = model ?? "default"
+    print("⏱️ [ChatCLI] \(tool.rawValue) \(modelLabel) \(String(format: "%.2f", duration))s")
+    return ChatCLIRunResult(
+      exitCode: process.terminationStatus, stdout: parsed.text, rawStdout: rawOut, stderr: stderr,
+      shellCommand: shellCommand, environmentOverrides: effectiveProcessEnvironment,
+      startedAt: started, finishedAt: finished, usage: parsed.usage)
+  }
+}
+
+private struct ClaudeNonStreamingEvent: Decodable {
+  let type: String?
+  let result: String?
+  let sessionId: String?
+  let usage: Usage?
+
+  enum CodingKeys: String, CodingKey {
+    case type
+    case result
+    case sessionId = "session_id"
+    case usage
+  }
+
+  struct Usage: Decodable {
+    let inputTokens: Int?
+    let cacheReadInputTokens: Int?
+    let cacheCreationInputTokens: Int?
+    let outputTokens: Int?
+
+    enum CodingKeys: String, CodingKey {
+      case inputTokens = "input_tokens"
+      case cacheReadInputTokens = "cache_read_input_tokens"
+      case cacheCreationInputTokens = "cache_creation_input_tokens"
+      case outputTokens = "output_tokens"
+    }
+  }
+}

@@ -1,0 +1,24 @@
+# Woodpecker CI (self-hosted) for TBD Chat: TypeScript and tests only.
+# No signing, no Electron build, no secrets. Releases are built and signed on
+# a Mac with scripts/release.sh. GitHub Actions is not used.
+when:
+  - event: pull_request
+    path: ["chat/**", ".woodpecker/chat.yml"]
+  - event: push
+    branch: main
+    path: ["chat/**", ".woodpecker/chat.yml"]
+  - event: manual
+
+steps:
+  - name: chat
+    image: node:24.21.0-bookworm@sha256:3d27e5c11e5786e309ec3e03f93ae536eb36e6e5eb3714d5eb3300a36157add0
+    environment:
+      CI: "true"
+      NPM_CONFIG_UPDATE_NOTIFIER: "false"
+      # Nothing here launches Electron; skip its ~100 MB binary download.
+      ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+    commands:
+      - cd chat
+      - npm ci --no-audit --no-fund
+      - npm run typecheck
+      - npm test

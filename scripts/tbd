@@ -1,0 +1,9 @@
+#!/bin/bash
+set -euo pipefail
+TBD_APP="${TBD_APP:-/Applications/TBD.app}"
+case "${1:-open}" in
+ open) open "$TBD_APP" ;;
+ companion) shift; exec "$TBD_APP/Contents/Helpers/dayflow" "$@" ;;
+ listening) shift; exec "$TBD_APP/Contents/Helpers/macparakeet-cli" "$@" ;;
+ *) echo 'Usage: tbd [open|companion <arguments>|listening <arguments>]' >&2; exit 2 ;;
+esac
