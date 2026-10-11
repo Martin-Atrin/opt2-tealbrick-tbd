@@ -21,3 +21,24 @@ final class EngineSmokeTests: XCTestCase {
         await engine.unload()
     }
 }
+
+/// File pipeline end to end (decode → transcribe → diarize → store). Skips without models.
+final class TranscriberSmokeTests: XCTestCase {
+    func testTranscribesFileIntoLibrary() async throws {
+        try XCTSkipUnless(TBDModelManager().isDownloaded(.parakeetV3), "Parakeet v3 is not downloaded")
+        let fixture = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("tests/fixtures/tbd-speech.aiff")
+        try XCTSkipUnless(FileManager.default.fileExists(atPath: fixture.path), "fixture missing")
+        let database = try TBDListeningDatabase(inMemory: ())
+        try database.save(TBDCustomWord(word: "desktop companion", replacement: "Desktop Companion"))
+        let defaults = UserDefaults(suiteName: "tbd.tests.\(UUID().uuidString)")!
+        let speech = TBDSpeechService(preferences: TBDListeningPreferences(defaults: defaults))
+        let item = try await TBDTranscriber(speech: speech, database: database).transcribe(file: fixture)
+        XCTAssertEqual(item.status, .completed)
+        XCTAssertGreaterThan(item.durationMs, 1000)
+        XCTAssertFalse(item.segments.isEmpty)
+        XCTAssertEqual(try database.transcriptions(matching: "meeting").first?.id, item.id)
+        print("TRANSCRIBER_SMOKE: speakers=\(item.speakers.map(\.label)) segments=\(item.segments.count) text=\(item.text)")
+        await speech.shutdown()
+    }
+}

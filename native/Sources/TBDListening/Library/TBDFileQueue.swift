@@ -1,0 +1,138 @@
+import AppKit
+import TBDSpeech
+import UniformTypeIdentifiers
+
+/// Batch queue for file and link transcription. Items run one after another on the file lane.
+@MainActor
+final class TBDFileQueue: ObservableObject {
+    struct Item: Identifiable, Equatable {
+        enum Source: Equatable { case file(URL), link(URL) }
+        enum State: Equatable { case queued, running(String, Double), done(String), failed(String), cancelled }
+        let id = UUID()
+        let source: Source
+        var title: String
+        var state: State = .queued
+        var isFinished: Bool {
+            switch state { case .done, .failed, .cancelled: true; default: false }
+        }
+    }
+
+    @Published private(set) var items: [Item] = []
+    var onMessage: ((String) -> Void)?
+    private let env: TBDListeningEnvironment
+    private var worker: Task<Void, Never>?
+    private var current: (id: UUID, task: Task<Void, Never>)?
+
+    init(env: TBDListeningEnvironment) { self.env = env }
+
+    var isBusy: Bool { items.contains { !$0.isFinished } }
+
+    func pickFiles() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        panel.allowedContentTypes = [.audio, .movie, .audiovisualContent]
+        panel.message = "Choose audio or video files to transcribe"
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK else { return }
+        enqueue(files: panel.urls)
+    }
+
+    func promptForURL() {
+        let alert = NSAlert()
+        alert.messageText = "Transcribe a link"
+        alert.informativeText = "Paste a video or podcast link. Listening uses the yt-dlp already installed on this Mac."
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 360, height: 24))
+        field.placeholderString = "https://…"
+        if let clip = NSPasteboard.general.string(forType: .string), TBDLinkDownloader.validate(clip) != nil { field.stringValue = clip }
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Transcribe")
+        alert.addButton(withTitle: "Cancel")
+        NSApp.activate(ignoringOtherApps: true)
+        alert.window.initialFirstResponder = field
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        enqueue(link: field.stringValue)
+    }
+
+    func enqueue(files: [URL]) {
+        let accepted = files.filter { TBDAudioDecoder.supportedExtensions.contains($0.pathExtension.lowercased()) || UTType(filenameExtension: $0.pathExtension)?.conforms(to: .audiovisualContent) == true }
+        if accepted.count < files.count { onMessage?("Some files were skipped: not audio or video.") }
+        items += accepted.map { Item(source: .file($0), title: $0.lastPathComponent) }
+        pump()
+    }
+
+    func enqueue(link text: String) {
+        guard let url = TBDLinkDownloader.validate(text) else { onMessage?("Enter a valid http or https link."); return }
+        guard TBDLinkDownloader.toolPath() != nil else {
+            onMessage?("Link transcription needs yt-dlp on your PATH (for example: brew install yt-dlp).")
+            return
+        }
+        items.append(Item(source: .link(url), title: url.host ?? url.absoluteString))
+        pump()
+    }
+
+    func cancel(_ id: UUID) {
+        if current?.id == id { current?.task.cancel(); return }
+        update(id) { $0.state = .cancelled }
+    }
+
+    func cancelAll() {
+        for index in items.indices where items[index].state == .queued { items[index].state = .cancelled }
+        current?.task.cancel()
+    }
+
+    func clearFinished() { items.removeAll(where: \.isFinished) }
+
+    private func update(_ id: UUID, _ change: (inout Item) -> Void) {
+        guard let index = items.firstIndex(where: { $0.id == id }) else { return }
+        change(&items[index])
+    }
+
+    private func pump() {
+        guard worker == nil else { return }
+        worker = Task {
+            while let next = items.first(where: { $0.state == .queued }) {
+                let task = Task { await self.process(next) }
+                current = (next.id, task)
+                await task.value
+                current = nil
+            }
+            worker = nil
+        }
+    }
+
+    private func process(_ item: Item) async {
+        guard let transcriber = env.transcriber else {
+            update(item.id) { $0.state = .failed(env.databaseError ?? "Library unavailable") }
+            return
+        }
+        let id = item.id
+        let progress: TBDTranscriber.Progress = { [weak self] stage, fraction in
+            Task { @MainActor in self?.update(id) { item in if !item.isFinished { item.state = .running(stage, fraction) } } }
+        }
+        update(id) { $0.state = .running("Starting", 0) }
+        do {
+            let result: TBDTranscription
+            switch item.source {
+            case .file(let url):
+                let access = url.startAccessingSecurityScopedResource()
+                defer { if access { url.stopAccessingSecurityScopedResource() } }
+                result = try await transcriber.transcribe(file: url, progress: progress)
+            case .link(let url):
+                update(id) { $0.state = .running("Downloading", 0) }
+                let download = try await TBDLinkDownloader().download(url, into: TBDListeningPaths.downloads)
+                defer { try? FileManager.default.removeItem(at: download.file) }
+                update(id) { $0.title = download.title }
+                result = try await transcriber.transcribe(file: download.file, kind: .url, title: download.title,
+                                                          sourceURL: url.absoluteString, keepAudio: env.preferences.keepAudio, progress: progress)
+            }
+            update(id) { $0.state = .done(result.id) }
+            env.selectedTranscriptionID = result.id
+        } catch is CancellationError {
+            update(id) { $0.state = .cancelled }
+        } catch {
+            update(id) { $0.state = .failed(error.localizedDescription) }
+        }
+        env.changed()
+    }
+}

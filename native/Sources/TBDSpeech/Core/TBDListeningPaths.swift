@@ -14,7 +14,14 @@ public enum TBDListeningPaths {
     }
 
     public static var database: URL { root.appendingPathComponent("listening.sqlite") }
-    public static var models: URL { root.appendingPathComponent("Models", isDirectory: true) }
+    /// Overrides the model folder (tooling that uses a scratch root but the real models).
+    public static let modelsEnvironmentKey = "TBD_LISTENING_MODELS"
+    public static var models: URL {
+        if let override = ProcessInfo.processInfo.environment[modelsEnvironmentKey], !override.isEmpty {
+            return URL(fileURLWithPath: override, isDirectory: true)
+        }
+        return root.appendingPathComponent("Models", isDirectory: true)
+    }
     public static var voiceNotes: URL { root.appendingPathComponent("VoiceNotes", isDirectory: true) }
     public static var dictations: URL { root.appendingPathComponent("Dictations", isDirectory: true) }
     public static var meetings: URL { root.appendingPathComponent("Meetings", isDirectory: true) }

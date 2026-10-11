@@ -133,6 +133,9 @@ public final class TBDListeningDatabase: @unchecked Sendable {
         public var words = 0
         public var durationMs = 0
         public var today = 0
+        public init(count: Int = 0, words: Int = 0, durationMs: Int = 0, today: Int = 0) {
+            self.count = count; self.words = words; self.durationMs = durationMs; self.today = today
+        }
         /// Words per minute of speech, or 0.
         public var wordsPerMinute: Int { durationMs > 0 ? Int(Double(words) / (Double(durationMs) / 60_000)) : 0 }
     }

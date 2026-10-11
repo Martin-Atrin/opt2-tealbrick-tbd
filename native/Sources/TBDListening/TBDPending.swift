@@ -4,7 +4,7 @@ import TBDDesign
 import TBDSpeech
 
 // Placeholders replaced by later milestones.
-@MainActor final class TBDMeetingController {
+@MainActor final class TBDMeetingController: ObservableObject {
     var onMessage: ((String) -> Void)?
     init(env: TBDListeningEnvironment) {}
     var statusText: String { "Idle" }
@@ -12,14 +12,17 @@ import TBDSpeech
     func start() {}
     func shutdown() {}
     func toggle() { onMessage?("Meetings are not available yet") }
+    func retranscribe(_ id: String) {}
 }
 
-@MainActor final class TBDFileQueue {
-    var onMessage: ((String) -> Void)?
-    init(env: TBDListeningEnvironment) {}
-    func pickFiles() { onMessage?("File transcription is not available yet") }
-    func promptForURL() { onMessage?("Link transcription is not available yet") }
-    func cancelAll() {}
+struct TBDMeetingButton: View {
+    @ObservedObject var meetings: TBDMeetingController
+    var body: some View { Button("Record meeting") { meetings.toggle() }.buttonStyle(TBDButtonStyle(.primary)) }
+}
+
+struct TBDMeetingsView: View {
+    let context: TBDListeningContext
+    var body: some View { TBDLibraryView(context: context, kind: .meeting) }
 }
 
 @MainActor final class TBDTransformController {
@@ -27,11 +30,6 @@ import TBDSpeech
     init(env: TBDListeningEnvironment) {}
     func run() {}
     func chooseAndRun() { onMessage?("Transforms are not available yet") }
-}
-
-struct TBDListeningView: View {
-    let context: TBDListeningContext
-    var body: some View { Text("Listening").foregroundStyle(TBDTokens.muted).frame(maxWidth: .infinity, maxHeight: .infinity) }
 }
 
 struct TBDListeningSettingsView: View {

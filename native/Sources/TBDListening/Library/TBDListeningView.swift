@@ -1,0 +1,102 @@
+import SwiftUI
+import TBDDesign
+import TBDSpeech
+import UniformTypeIdentifiers
+
+/// The Listening tab: library, dictation history and meetings, with drag-and-drop transcription.
+struct TBDListeningView: View {
+    let context: TBDListeningContext
+    @EnvironmentObject private var env: TBDListeningEnvironment
+    @State private var dropTargeted = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: TBDTokens.Space.lg) {
+            TBDPageHeader("Listening", label: "Speech") {
+                HStack(spacing: TBDTokens.Space.sm) {
+                    Button { context.files.pickFiles() } label: { Label("Transcribe file", systemImage: "doc.badge.plus") }
+                        .buttonStyle(TBDButtonStyle(.secondary))
+                    Button { context.files.promptForURL() } label: { Label("Link", systemImage: "link") }
+                        .buttonStyle(TBDButtonStyle(.secondary))
+                    TBDMeetingButton(meetings: context.meetings)
+                }
+            }
+            if let error = env.databaseError {
+                Text("The Listening library could not be opened: \(error)").foregroundStyle(TBDTokens.alert)
+            }
+            Picker("", selection: $env.selectedTab) {
+                ForEach(TBDListeningTab.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented).labelsHidden().frame(maxWidth: 360)
+            TBDQueueStrip(queue: context.files)
+            Group {
+                switch env.selectedTab {
+                case .library: TBDLibraryView(context: context, kind: nil)
+                case .dictations: TBDDictationHistoryView()
+                case .meetings: TBDMeetingsView(context: context)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .padding(TBDTokens.Space.xxl)
+        .background(TBDTokens.canvas)
+        .overlay {
+            if dropTargeted {
+                RoundedRectangle(cornerRadius: TBDTokens.Radius.sm).strokeBorder(TBDTokens.accent, style: StrokeStyle(lineWidth: 2, dash: [6]))
+                    .overlay(TBDLabel("Drop audio or video to transcribe")).padding(TBDTokens.Space.sm)
+            }
+        }
+        .onDrop(of: [.fileURL], isTargeted: $dropTargeted) { providers in
+            for provider in providers {
+                _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                    guard let url else { return }
+                    Task { @MainActor in context.files.enqueue(files: [url]) }
+                }
+            }
+            return true
+        }
+    }
+}
+
+/// Progress of queued file and link jobs.
+struct TBDQueueStrip: View {
+    @ObservedObject var queue: TBDFileQueue
+
+    var body: some View {
+        if !queue.items.isEmpty {
+            VStack(alignment: .leading, spacing: TBDTokens.Space.sm) {
+                HStack {
+                    TBDLabel("Transcription queue")
+                    Spacer()
+                    if queue.items.contains(where: \.isFinished) {
+                        Button("Clear finished") { queue.clearFinished() }.buttonStyle(TBDButtonStyle(.quiet))
+                    }
+                }
+                ForEach(queue.items) { item in
+                    HStack(spacing: TBDTokens.Space.md) {
+                        Text(item.title).lineLimit(1).truncationMode(.middle).frame(maxWidth: 280, alignment: .leading)
+                        status(item)
+                        Spacer()
+                        if !item.isFinished {
+                            Button { queue.cancel(item.id) } label: { Image(systemName: "xmark") }
+                                .buttonStyle(TBDButtonStyle(.icon)).help("Cancel").accessibilityLabel("Cancel \(item.title)")
+                        }
+                    }
+                    .font(TBDTokens.Typography.body)
+                }
+            }
+            .tbdCard(padding: TBDTokens.Space.md)
+        }
+    }
+
+    @ViewBuilder private func status(_ item: TBDFileQueue.Item) -> some View {
+        switch item.state {
+        case .queued: TBDChip("Queued", color: TBDTokens.muted)
+        case .running(let stage, let fraction):
+            ProgressView(value: fraction).frame(width: 140)
+            Text(stage).foregroundStyle(TBDTokens.muted)
+        case .done: TBDChip("Done")
+        case .failed(let message): TBDChip("Failed", color: TBDTokens.alert); Text(message).foregroundStyle(TBDTokens.muted).lineLimit(1)
+        case .cancelled: TBDChip("Cancelled", color: TBDTokens.muted)
+        }
+    }
+}
