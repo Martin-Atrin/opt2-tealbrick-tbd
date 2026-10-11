@@ -28,7 +28,7 @@ public actor TBDDiarizer {
     /// Downloads the diarization models. Only called from an explicit user action.
     static func download(modelsRoot: URL = TBDListeningPaths.models, progress: (@Sendable (Double) -> Void)?) async throws {
         try TBDListeningPaths.ensure(modelsRoot)
-        _ = try await OfflineDiarizerModels.load(from: modelsRoot, progressHandler: progress.map { report in { report($0.fractionCompleted) } })
+        _ = try await OfflineDiarizerModels.load(from: modelsRoot, progressHandler: progress.map { report in { @Sendable value in report(value.fractionCompleted) } })
     }
 
     /// Speaker turns for `url`, labelled S1, S2… in order of first speech.

@@ -35,7 +35,7 @@ public final class TBDParakeetEngine: TBDSpeechEngine, @unchecked Sendable {
         try TBDListeningPaths.ensure(modelsRoot)
         try await AsrModels.download(to: directory(for: choice, modelsRoot: modelsRoot),
                                      version: choice == .parakeetV2 ? .v2 : .v3,
-                                     progressHandler: progress.map { report in { report($0.fractionCompleted) } })
+                                     progressHandler: progress.map { report in { @Sendable value in report(value.fractionCompleted) } })
     }
 
     public func prepare() async throws {

@@ -1,0 +1,185 @@
+import AppKit
+import TBDSpeech
+
+/// Hotkey dictation: record → transcribe (interactive lane) → text pipeline → optional cleanup →
+/// paste into the frontmost app → history.
+@MainActor
+final class TBDDictationController: ObservableObject {
+    @Published private(set) var isRecording = false
+    @Published private(set) var isProcessing = false
+    @Published var lastMessage = ""
+
+    private let env: TBDListeningEnvironment
+    private var gesture = TBDHotkeyGesture()
+    private var recorder: TBDAudioRecorder?
+    private var armWork: DispatchWorkItem?
+    private var levelTimer: Timer?
+    private var targetApp: NSRunningApplication?
+    private var processing: Task<Void, Never>?
+    private var hotkeyHeld = false
+
+    init(env: TBDListeningEnvironment) {
+        self.env = env
+        env.overlay.model.onStop = { [weak self] in self?.finish() }
+        env.overlay.model.onCancel = { [weak self] in self?.cancel() }
+    }
+
+    var isBusy: Bool { isRecording || isProcessing }
+
+    // MARK: Hotkey
+
+    func handle(_ event: TBDHotkeyMonitor.Event, at ms: UInt64) {
+        switch event {
+        case .down:
+            hotkeyHeld = true
+            perform(gesture.press(at: ms))
+            if gesture.state == .pending {
+                let work = DispatchWorkItem { [weak self] in
+                    guard let self else { return }
+                    self.perform(self.gesture.armed())
+                }
+                armWork = work
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: work)
+            }
+        case .up:
+            hotkeyHeld = false
+            armWork?.cancel()
+            perform(gesture.release(at: ms))
+        case .otherKey:
+            armWork?.cancel()
+            perform(gesture.otherKey())
+        case .escape:
+            perform(gesture.escape(keyHeld: hotkeyHeld))
+        }
+    }
+
+    private func perform(_ action: TBDHotkeyGesture.Action) {
+        switch action {
+        case .none: break
+        case .start: begin(handsFree: false)
+        case .startHandsFree: begin(handsFree: true)
+        case .handsFree: env.overlay.show(.recording(handsFree: true))
+        case .stop: finish()
+        case .cancel: cancel()
+        }
+    }
+
+    /// Menu action: start hands-free, or stop and paste.
+    func toggle() {
+        if isRecording { finish() } else if !isProcessing { gesture.reset(); _ = gesture.press(at: 0); _ = gesture.release(at: 0); begin(handsFree: true) }
+    }
+
+    // MARK: Recording
+
+    private func begin(handsFree: Bool) {
+        guard recorder == nil, !isProcessing else { gesture.reset(keyHeld: hotkeyHeld); return }
+        targetApp = NSWorkspace.shared.frontmostApplication
+        let recorder = TBDAudioRecorder(microphone: env.microphone)
+        self.recorder = recorder
+        isRecording = true
+        env.overlay.show(.recording(handsFree: handsFree))
+        Task {
+            do {
+                try await recorder.start()
+                guard self.recorder === recorder else { await recorder.cancel(); return }
+                startLevelTimer(recorder)
+            } catch {
+                if self.recorder === recorder { self.recorder = nil; isRecording = false }
+                gesture.reset(keyHeld: hotkeyHeld)
+                show(error.localizedDescription)
+            }
+        }
+    }
+
+    private func startLevelTimer(_ recorder: TBDAudioRecorder) {
+        levelTimer?.invalidate()
+        levelTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 20, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.env.overlay.update(levels: recorder.recentLevels, elapsedMs: recorder.elapsedMs) }
+        }
+    }
+
+    func cancel() {
+        levelTimer?.invalidate()
+        gesture.reset(keyHeld: hotkeyHeld)
+        processing?.cancel()
+        guard let recorder else { if isProcessing { env.overlay.hide() }; return }
+        self.recorder = nil
+        isRecording = false
+        env.overlay.hide()
+        Task { await recorder.cancel() }
+    }
+
+    func finish() {
+        levelTimer?.invalidate()
+        gesture.reset(keyHeld: hotkeyHeld)
+        guard let recorder else { return }
+        self.recorder = nil
+        isRecording = false
+        isProcessing = true
+        env.overlay.show(.processing("Transcribing…"))
+        let target = targetApp
+        processing = Task {
+            defer { isProcessing = false; processing = nil }
+            do {
+                let recording = try await recorder.stop()
+                guard recording.durationMs >= 250 else {
+                    try? FileManager.default.removeItem(at: recording.url)
+                    env.overlay.hide()
+                    return
+                }
+                try await transcribeAndPaste(recording, target: target)
+            } catch is CancellationError {
+                env.overlay.hide()
+            } catch {
+                show(error.localizedDescription)
+            }
+        }
+    }
+
+    private func transcribeAndPaste(_ recording: TBDAudioRecorder.Recording, target: NSRunningApplication?) async throws {
+        let prefs = env.preferences
+        let transcript: TBDTranscript
+        do {
+            let samples = try TBDAudioDecoder.samples(from: recording.url)
+            transcript = try await env.speech.transcribe(samples: samples, kind: .dictation)
+        } catch {
+            // Keep the audio so nothing said is lost.
+            _ = try? env.keep(recording.url, in: TBDListeningPaths.dictations, name: "failed-\(tbdNewID()).wav")
+            throw error
+        }
+        let raw = transcript.trimmedText
+        guard !raw.isEmpty else {
+            try? FileManager.default.removeItem(at: recording.url)
+            show("No speech detected")
+            return
+        }
+        let words = (try? env.database?.customWords()) ?? []
+        let snippets = (try? env.database?.snippets()) ?? []
+        let processed = TBDTextPipeline().process(raw, customWords: words, snippets: snippets, removeFillers: prefs.removeFillers)
+        try? env.database?.incrementSnippetUse(ids: processed.expandedSnippetIDs)
+        var text = processed.text
+        if prefs.dictationCleanup {
+            env.overlay.show(.processing("Cleaning up…"))
+            let cleaned = try await TBDCleanup.apply(raw: text, enabled: true, formatter: TBDCleanup.modelFormatter(prompt: prefs.cleanupPrompt))
+            text = cleaned.text
+            if !cleaned.warning.isEmpty { lastMessage = cleaned.warning }
+        }
+        try Task.checkCancellation()
+        var pasteError: Error?
+        do { try TBDPasteService.paste(text) } catch { pasteError = error }
+        let id = tbdNewID()
+        let audio = prefs.keepAudio ? try? env.keep(recording.url, in: TBDListeningPaths.dictations, name: id + ".wav") : nil
+        if audio == nil { try? FileManager.default.removeItem(at: recording.url) }
+        if prefs.keepHistory {
+            try? env.database?.save(TBDDictation(id: id, durationMs: recording.durationMs, rawText: raw, cleanText: text == raw ? nil : text,
+                                                 targetApp: target?.localizedName, audioPath: audio?.path, engine: transcript.engine))
+            env.changed()
+        }
+        if let pasteError { show(pasteError.localizedDescription) } else { env.overlay.hide() }
+    }
+
+    private func show(_ message: String) {
+        lastMessage = message
+        env.overlay.show(.message(message))
+    }
+}
