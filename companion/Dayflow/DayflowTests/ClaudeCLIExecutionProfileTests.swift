@@ -1,6 +1,6 @@
 import XCTest
 
-@testable import Dayflow
+@testable import TBD
 
 final class ClaudeCLIExecutionProfileTests: XCTestCase {
   private let runner = ChatCLIProcessRunner()

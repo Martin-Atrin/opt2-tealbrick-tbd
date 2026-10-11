@@ -1,6 +1,6 @@
 import XCTest
 
-@testable import Dayflow
+@testable import TBD
 
 @MainActor
 final class ProvidersSettingsViewModelTests: XCTestCase {

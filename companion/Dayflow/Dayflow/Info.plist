@@ -23,30 +23,12 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>1</string>
-	<key>DayflowBackendURL</key>
-	<string></string>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>Tealbrick (companion) uses Automation to focus or reopen your agent sessions in the terminal.</string>
+	<string>TBD uses Automation to focus or reopen your agent sessions in the terminal.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>TBD uses the microphone for dictation and meetings only when you start capture.</string>
 	<key>NSScreenCaptureUsageDescription</key>
-	<string>Tealbrick (companion) uses screen access to create your timeline. Recordings stay on your Mac and you can pause or delete them anytime.</string>
-	<key>PHPostHogApiKey</key>
-	<string></string>
-	<key>SUAllowsAutomaticUpdates</key>
-	<false/>
-	<key>SUAutomaticallyUpdate</key>
-	<false/>
-	<key>SUEnableAutomaticChecks</key>
-	<false/>
-	<key>SUEnableInstallerLauncherService</key>
-	<true/>
-	<key>SUScheduledCheckInterval</key>
-	<integer>3600</integer>
-	<key>SUSendProfileInfo</key>
-	<false/>
-	<key>SentryDSN</key>
-	<string></string>
+	<string>TBD uses screen access to create your timeline. Recordings stay on your Mac and you can pause or delete them anytime.</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>InstrumentSerif-Regular.ttf</string>

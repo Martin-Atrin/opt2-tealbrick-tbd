@@ -1,6 +1,6 @@
 import XCTest
 
-@testable import Dayflow
+@testable import TBD
 
 final class OpenAICompatibleConfigurationTests: XCTestCase {
   private final class IgnoringUserDefaults: UserDefaults {

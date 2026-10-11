@@ -1,7 +1,7 @@
 import AppKit
 import XCTest
 
-@testable import Dayflow
+@testable import TBD
 
 final class OpenAICompatibleProviderTests: XCTestCase {
   private func configuration(_ endpoint: String = "https://openrouter.ai/api/v1")

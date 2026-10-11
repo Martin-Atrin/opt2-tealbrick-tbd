@@ -1,6 +1,6 @@
 import XCTest
 
-@testable import Dayflow
+@testable import TBD
 
 final class ProviderPromptPreferencesTests: XCTestCase {
   private final class IgnoringUserDefaults: UserDefaults {

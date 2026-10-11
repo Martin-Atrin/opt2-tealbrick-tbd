@@ -1,6 +1,6 @@
 import XCTest
 
-@testable import Dayflow
+@testable import TBD
 
 final class ClaudeActivityCardBoundaryTests: XCTestCase {
   private let provider = ClaudeProvider()

@@ -1,6 +1,6 @@
 import XCTest
 
-@testable import Dayflow
+@testable import TBD
 
 final class LocalizationTests: XCTestCase {
   func testLanguagePickerPersistsOnlyAnAppOverrideAndCanRemoveIt() throws {
@@ -67,9 +67,6 @@ final class LocalizationTests: XCTestCase {
 
   func testInternalLabelsRemainStableAcrossInterfaceLanguages() {
     XCTAssertEqual(LLMProviderID.local.providerLabel, "local")
-    XCTAssertEqual(DashboardChatProvider.gemini.runtimeLabel, "gemini_function_calling")
-    XCTAssertEqual(DashboardChatTurnRole.user.promptLabel, "User")
-    XCTAssertEqual(DashboardChatTurnRole.assistant.promptLabel, "Assistant")
   }
 
   func testLocalizedInterfaceDoesNotChangeWireTimeParsing() {

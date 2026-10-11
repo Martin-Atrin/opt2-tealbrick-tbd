@@ -1,7 +1,7 @@
 import AppKit
 import XCTest
 
-@testable import Dayflow
+@testable import TBD
 
 final class ClaudeTranscriptionInputBuilderTests: XCTestCase {
   private final class MockRecognizer: ClaudeFrameTextRecognizing, @unchecked Sendable {

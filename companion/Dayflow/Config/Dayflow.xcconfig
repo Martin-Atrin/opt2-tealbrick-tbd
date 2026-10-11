@@ -1,5 +1,2 @@
-DAYFLOW_BACKEND_URL =
-// PostHog project token. Empty keeps analytics and the support chat off in local builds.
-POSTHOG_API_KEY =
-
+// TBD build configuration. No secrets here.
 #include? "LocalSecrets.xcconfig"

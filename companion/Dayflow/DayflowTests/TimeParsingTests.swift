@@ -1,5 +1,5 @@
 import XCTest
-@testable import Dayflow
+@testable import TBD
 
 final class TimeParsingTests: XCTestCase {
     func testValidTimes() {

@@ -1,6 +1,6 @@
 import XCTest
 
-@testable import Dayflow
+@testable import TBD
 
 final class CodexClaudeProviderTests: XCTestCase {
   private let runner = ChatCLIProcessRunner()
@@ -174,110 +174,6 @@ final class CodexClaudeProviderTests: XCTestCase {
 
     XCTAssertEqual(segments.count, 1)
     XCTAssertEqual(segments.first?.description, "Writing")
-  }
-
-  func testTelemetryErrorSanitizerKeepsUsefulValidationReasonWithoutCardData() {
-    let detail = """
-      Missing coverage from 9:00 AM to 9:04 AM.
-
-      📥 INPUT CARDS:
-      Secret Project — customer@example.com
-      """
-
-    let sanitized = TelemetryErrorSanitizer.sanitize(detail)
-
-    XCTAssertEqual(sanitized, "Missing coverage from 9:00 AM to 9:04 AM.")
-  }
-
-  func testTelemetryErrorSanitizerRedactsCommonIdentifiersAndBoundsLength() {
-    let detail =
-      "user@example.com /Users/jerry/private.txt https://example.com sk-proj-abcdefghijklmnop "
-      + String(repeating: "x", count: 600)
-
-    let sanitized = TelemetryErrorSanitizer.sanitize(detail)
-
-    XCTAssertNotNil(sanitized)
-    XCTAssertLessThanOrEqual(sanitized?.count ?? 0, 500)
-    XCTAssertFalse(sanitized?.contains("user@example.com") ?? true)
-    XCTAssertFalse(sanitized?.contains("/Users/jerry") ?? true)
-    XCTAssertFalse(sanitized?.contains("https://example.com") ?? true)
-    XCTAssertFalse(sanitized?.contains("sk-proj-abcdefghijklmnop") ?? true)
-  }
-
-  func testTelemetryErrorSanitizerRedactsCardTitlesContainingApostrophes() {
-    let sanitized = TelemetryErrorSanitizer.sanitize(
-      "Card 2 'Don\'t expose customer@example.com' is only 5.0 minutes long"
-    )
-
-    XCTAssertEqual(sanitized, "Card 2 is only 5.0 minutes long")
-  }
-
-  func testTelemetryErrorSanitizerNormalizesModelSuppliedTimestamps() {
-    let sanitized = TelemetryErrorSanitizer.sanitize(
-      "Segment end time must be after start time: customer@example.com -> secret project"
-    )
-
-    XCTAssertEqual(sanitized, "Segment end time must be after start time.")
-  }
-
-  func testTelemetryFailureStdoutRemovesJSONAndKeepsCLIText() {
-    let stdout = """
-      warning: invalid model alias
-      {"type":"result","result":"customer@example.com opened Secret Project"}
-      retry with a supported model
-      """
-
-    let sanitized = TelemetryErrorSanitizer.sanitizeFailureStdout(stdout)
-
-    XCTAssertEqual(sanitized?.originalLength, stdout.count)
-    XCTAssertTrue(sanitized?.removedJSON ?? false)
-    XCTAssertEqual(
-      sanitized?.detail,
-      "warning: invalid model alias\n\nretry with a supported model"
-    )
-    XCTAssertFalse(sanitized?.detail?.contains("Secret Project") ?? true)
-  }
-
-  func testTelemetryFailureStdoutRemovesFencedJSONBeforeRedactingText() {
-    let stdout = """
-      account user@example.com failed
-      ```json
-      {"output":{"title":"Private customer work"}}
-      ```
-      see /Users/jerry/private.log
-      """
-
-    let sanitized = TelemetryErrorSanitizer.sanitizeFailureStdout(stdout)
-
-    XCTAssertTrue(sanitized?.removedJSON ?? false)
-    XCTAssertEqual(
-      sanitized?.detail,
-      "account <redacted-email> failed\n\nsee <redacted-path>"
-    )
-    XCTAssertFalse(sanitized?.detail?.contains("Private customer work") ?? true)
-  }
-
-  func testTelemetryFailureStdoutRemovesNonJSONBracesConservatively() {
-    let stdout = "error: expected {model-name} after --model"
-
-    let sanitized = TelemetryErrorSanitizer.sanitizeFailureStdout(stdout)
-
-    XCTAssertTrue(sanitized?.removedJSON ?? false)
-    XCTAssertEqual(sanitized?.detail, "error: expected after --model")
-  }
-
-  func testTelemetryFailureStdoutDropsTruncatedJSONLine() {
-    let stdout = """
-      warning before payload
-      {"cards":[{"title":"Private customer work"
-      retry after payload
-      """
-
-    let sanitized = TelemetryErrorSanitizer.sanitizeFailureStdout(stdout)
-
-    XCTAssertTrue(sanitized?.removedJSON ?? false)
-    XCTAssertEqual(sanitized?.detail, "warning before payload\n\nretry after payload")
-    XCTAssertFalse(sanitized?.detail?.contains("Private customer work") ?? true)
   }
 
   func testClaudeSessionCleanupRemovesOnlyItsSessionTranscript() throws {
