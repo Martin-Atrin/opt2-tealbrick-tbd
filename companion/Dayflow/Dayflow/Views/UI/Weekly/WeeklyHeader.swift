@@ -72,7 +72,7 @@ private struct WeeklyNavigationButton: View {
     .frame(width: hoverBoxSize, height: hoverBoxSize)
     .disabled(!isEnabled)
     .onHover { hovering in
-      withAnimation(.easeOut(duration: 0.12)) {
+      withAnimation(TBDMotion.instant) {
         isHovering = isEnabled && hovering
       }
     }

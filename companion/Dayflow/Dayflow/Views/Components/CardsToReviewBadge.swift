@@ -90,20 +90,20 @@ struct CardsToReviewButton: View {
       .dayflowPressScale(
         isPressed,
         pressedScale: 0.97,
-        animation: .spring(response: 0.3, dampingFraction: 0.7)
+        animation: TBDMotion.spring
       )
       .scaleEffect(isHovered ? 1.02 : 1.0)
-      .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovered)
+      .animation(TBDMotion.spring, value: isHovered)
       .onHover { hovering in
         isHovered = hovering
       }
       .onTapGesture {
         // Haptic-like visual feedback
-        withAnimation(.spring(response: 0.15, dampingFraction: 0.5)) {
+        withAnimation(TBDMotion.spring) {
           isPressed = true
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-          withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+          withAnimation(TBDMotion.spring) {
             isPressed = false
           }
           action()
@@ -112,7 +112,7 @@ struct CardsToReviewButton: View {
       .onLongPressGesture(
         minimumDuration: .infinity,
         pressing: { pressing in
-          withAnimation(.spring(response: 0.25, dampingFraction: 0.6)) {
+          withAnimation(TBDMotion.spring) {
             isPressed = pressing
           }
         }, perform: {}

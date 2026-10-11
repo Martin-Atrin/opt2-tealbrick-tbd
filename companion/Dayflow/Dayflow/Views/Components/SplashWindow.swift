@@ -7,6 +7,7 @@
 
 import AppKit
 import SwiftUI
+import TBDDesign
 
 class SplashWindow: NSWindow {
   var onClose: (() -> Void)?
@@ -69,7 +70,7 @@ struct SplashView: View {
     }
     .frame(width: 250, height: 250)
     .onAppear {
-      withAnimation(.easeIn(duration: 0.15)) {
+      withAnimation(TBDMotion.instant) {
         logoOpacity = 1.0
       }
     }

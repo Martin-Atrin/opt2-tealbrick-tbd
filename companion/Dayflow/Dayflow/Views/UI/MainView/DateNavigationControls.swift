@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import TBDDesign
 
 struct DateNavigationControls: View {
   @Binding var selectedDate: Date
@@ -12,9 +13,7 @@ struct DateNavigationControls: View {
   // 1.0 before settling. Applied only to the two chevrons — other
   // DayflowCircleButton callers keep the subtler 0.97/critically-damped feel.
   private static let chevronPressedScale: CGFloat = 0.88
-  private static let chevronPressAnimation: Animation = .spring(
-    response: 0.32, dampingFraction: 0.58
-  )
+  private static let chevronPressAnimation: Animation = TBDMotion.spring
 
   var body: some View {
     HStack(spacing: 12) {

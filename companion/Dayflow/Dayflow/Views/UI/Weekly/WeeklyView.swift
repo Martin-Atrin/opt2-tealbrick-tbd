@@ -660,7 +660,7 @@ private struct WeeklyExportableGraphic<Content: View>: View {
         }
       }
       .onHover { hovering in
-        withAnimation(.easeInOut(duration: 0.12)) {
+        withAnimation(TBDMotion.instant) {
           isHovering = hovering
         }
       }
@@ -727,7 +727,7 @@ private struct WeeklyExportableFixedGraphic<Content: View>: View {
         }
       }
       .onHover { hovering in
-        withAnimation(.easeInOut(duration: 0.12)) {
+        withAnimation(TBDMotion.instant) {
           isHovering = hovering
         }
       }
@@ -784,7 +784,7 @@ private struct WeeklyGraphicDownloadButton: View {
     .buttonStyle(.plain)
     .help("Download \(title) as a full-resolution PNG")
     .onHover { isHovering = $0 }
-    .animation(.easeOut(duration: 0.08), value: isHovering)
+    .animation(TBDMotion.instant, value: isHovering)
     .pointingHandCursorOnHover(reassertOnPressEnd: true)
   }
 }

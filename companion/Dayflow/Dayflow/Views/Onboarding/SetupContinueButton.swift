@@ -46,8 +46,8 @@ struct SetupContinueButton: View {
       .opacity(isEnabled ? 1.0 : 0.4)
     }
     .buttonStyle(.plain)
-    .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isPressed)
-    .animation(.easeOut(duration: 0.2), value: isHovered)
+    .animation(TBDMotion.spring, value: isPressed)
+    .animation(TBDMotion.quick, value: isHovered)
     .onHover { hovering in
       if isEnabled {
         isHovered = hovering

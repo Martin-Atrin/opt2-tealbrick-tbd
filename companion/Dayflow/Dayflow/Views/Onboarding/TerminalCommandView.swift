@@ -77,12 +77,12 @@ struct TerminalCommandView: View {
 
     // Track copy (without sending command content)
 
-    withAnimation(.easeInOut(duration: 0.2)) {
+    withAnimation(TBDMotion.quick) {
       isCopied = true
     }
 
     DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-      withAnimation(.easeInOut(duration: 0.2)) {
+      withAnimation(TBDMotion.quick) {
         isCopied = false
       }
     }

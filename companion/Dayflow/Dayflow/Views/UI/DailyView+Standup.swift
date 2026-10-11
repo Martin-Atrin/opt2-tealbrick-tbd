@@ -62,7 +62,7 @@ extension DailyView {
       }
     }
     .buttonStyle(TBDButtonStyle(.secondary))
-    .animation(.easeInOut(duration: 0.22), value: standupCopyState)
+    .animation(TBDMotion.quick, value: standupCopyState)
     .pointingHandCursorOnHover(reassertOnPressEnd: true)
     .accessibilityLabel(
       Text(
@@ -111,7 +111,7 @@ extension DailyView {
       }
     }
     .buttonStyle(TBDButtonStyle(.secondary))
-    .animation(.easeInOut(duration: 0.22), value: standupRegenerateState)
+    .animation(TBDMotion.quick, value: standupRegenerateState)
     .disabled(!canRegenerateStandup)
     .pointingHandCursorOnHover(
       enabled: canRegenerateStandup, reassertOnPressEnd: true
@@ -218,7 +218,7 @@ extension DailyView {
 
     standupCopyResetTask?.cancel()
 
-    withAnimation(.easeInOut(duration: 0.22)) {
+    withAnimation(TBDMotion.quick) {
       standupCopyState = .copied
     }
 
@@ -228,7 +228,7 @@ extension DailyView {
       guard !Task.isCancelled else { return }
 
       await MainActor.run {
-        withAnimation(.easeInOut(duration: 0.22)) {
+        withAnimation(TBDMotion.quick) {
           standupCopyState = .idle
         }
         standupCopyResetTask = nil

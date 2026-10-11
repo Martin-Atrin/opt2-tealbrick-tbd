@@ -79,7 +79,7 @@ extension MainView {
         }
       }
       .onReceive(NotificationCenter.default.publisher(for: .navigateToWeekly)) { _ in
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
+        withAnimation(TBDMotion.spring) {
           selectedIcon = .weekly
         }
       }
@@ -142,19 +142,19 @@ extension MainView {
     // screen viewed and initial timeline view
     // Orchestrated entrance animations following Emil Kowalski principles —
     // fast, under 300ms, natural spring motion, staggered by 50ms.
-    withAnimation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0)) {
+    withAnimation(TBDMotion.spring) {
       logoScale = 1.0
       logoOpacity = 1
     }
-    withAnimation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0).delay(0.1)) {
+    withAnimation(TBDMotion.spring.delay(0.1)) {
       timelineOffset = 0
       timelineOpacity = 1
     }
-    withAnimation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0).delay(0.15)) {
+    withAnimation(TBDMotion.spring.delay(0.15)) {
       sidebarOffset = 0
       sidebarOpacity = 1
     }
-    withAnimation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0).delay(0.2)) {
+    withAnimation(TBDMotion.spring.delay(0.2)) {
       contentOpacity = 1
     }
 
@@ -251,7 +251,7 @@ extension MainView {
     else {
       return
     }
-    withAnimation(.spring(response: 0.28, dampingFraction: 0.9)) {
+    withAnimation(TBDMotion.spring) {
       timelineFailureToastPayload = payload
     }
   }
@@ -268,7 +268,7 @@ extension MainView {
     }
     guard AppState.shared.getSavedPreference() == true || appState.isRecording else { return }
 
-    withAnimation(.spring(response: 0.28, dampingFraction: 0.9)) {
+    withAnimation(TBDMotion.spring) {
       showScreenRecordingPermissionNotice = true
     }
   }
@@ -291,7 +291,7 @@ extension MainView {
   }
 
   private func handleTimelineFailureToastOpenSettings(_ payload: TimelineFailureToastPayload) {
-    withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
+    withAnimation(TBDMotion.spring) {
       selectedIcon = .settings
       timelineFailureToastPayload = nil
     }
@@ -303,14 +303,14 @@ extension MainView {
   }
 
   private func handleTimelineFailureToastDismiss(_ payload: TimelineFailureToastPayload) {
-    withAnimation(.spring(response: 0.25, dampingFraction: 0.92)) {
+    withAnimation(TBDMotion.spring) {
       timelineFailureToastPayload = nil
     }
   }
 
   private func handleScreenRecordingPermissionNoticeOpenSettings() {
     didDismissScreenRecordingPermissionNoticeThisSession = true
-    withAnimation(.spring(response: 0.25, dampingFraction: 0.92)) {
+    withAnimation(TBDMotion.spring) {
       showScreenRecordingPermissionNotice = false
     }
     ScreenRecordingPermissionNotice.openSystemSettings()
@@ -318,7 +318,7 @@ extension MainView {
 
   private func handleScreenRecordingPermissionNoticeDismiss() {
     didDismissScreenRecordingPermissionNoticeThisSession = true
-    withAnimation(.spring(response: 0.25, dampingFraction: 0.92)) {
+    withAnimation(TBDMotion.spring) {
       showScreenRecordingPermissionNotice = false
     }
   }

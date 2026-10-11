@@ -1,4 +1,5 @@
 import SwiftUI
+import TBDDesign
 
 #if os(macOS)
 
@@ -10,7 +11,7 @@ import SwiftUI
     init(
       enabled: Bool = true,
       pressedScale: CGFloat = 0.97,
-      animation: Animation = .spring(response: 0.24, dampingFraction: 0.82)
+      animation: Animation = TBDMotion.spring
     ) {
       self.enabled = enabled
       self.pressedScale = pressedScale
@@ -72,7 +73,7 @@ import SwiftUI
     func hoverScaleEffect(
       enabled: Bool = true,
       scale: CGFloat = 1.02,
-      animation: Animation = .spring(response: 0.24, dampingFraction: 0.82)
+      animation: Animation = TBDMotion.spring
     ) -> some View {
       // Brick: no scale bounce on hover (TBD/docs/design-language.md).
       modifier(HoverScaleModifier(enabled: false, scale: 1, animation: animation))
@@ -82,7 +83,7 @@ import SwiftUI
       _ isPressed: Bool,
       enabled: Bool = true,
       pressedScale: CGFloat = 0.97,
-      animation: Animation = .spring(response: 0.24, dampingFraction: 0.82)
+      animation: Animation = TBDMotion.spring
     ) -> some View {
       scaleEffect(enabled && isPressed ? pressedScale : 1)
         .animation(animation, value: isPressed)
@@ -91,7 +92,7 @@ import SwiftUI
     func pointingHandCursorWithHoverScale(
       enabled: Bool = true,
       scale: CGFloat = 1.01,
-      animation: Animation = .spring(response: 0.24, dampingFraction: 0.82),
+      animation: Animation = TBDMotion.spring,
       reassertOnPressEnd: Bool = true
     ) -> some View {
       _ = reassertOnPressEnd

@@ -22,15 +22,13 @@ struct DayflowButton: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   // Animation constants following Emil Kowalski principles
-  private let hoverAnimation = Animation.spring(
-    response: 0.22, dampingFraction: 0.8, blendDuration: 0)
-  private let pressAnimation = Animation.spring(
-    response: 0.3, dampingFraction: 0.65, blendDuration: 0)
+  private let hoverAnimation = TBDMotion.spring
+  private let pressAnimation = TBDMotion.spring
 
   var body: some View {
     Button(action: {
       // Trigger pulse animation
-      withAnimation(.easeOut(duration: 0.1)) {
+      withAnimation(TBDMotion.instant) {
         isPressed = true
       }
 
@@ -82,7 +80,7 @@ struct DayflowButton: View {
               }
               .scaleEffect(1.2)
               .blur(radius: 10)
-              .animation(.easeOut(duration: 0.3), value: showPulse)
+              .animation(TBDMotion.standard, value: showPulse)
             }
           }
         )

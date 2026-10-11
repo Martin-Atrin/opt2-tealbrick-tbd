@@ -10,6 +10,7 @@ import AVKit
 import AppKit
 import Foundation
 import SwiftUI
+import TBDDesign
 
 struct MainView: View {
   @EnvironmentObject var appState: AppState
@@ -114,7 +115,7 @@ struct MainView: View {
         if wasAlreadyOnDaily {
           consumePendingDailyRecapOpenIfNeeded(source: "daily_notification_navigation")
         }
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
+        withAnimation(TBDMotion.spring) {
           selectedIcon = .daily
         }
       }

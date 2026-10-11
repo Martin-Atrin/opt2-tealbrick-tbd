@@ -158,13 +158,13 @@ struct SettingsView: View {
     }
     .onReceive(NotificationCenter.default.publisher(for: .openProvidersSettings)) { _ in
       guard selectedTab != .providers else { return }
-      withAnimation(.easeOut(duration: 0.18)) {
+      withAnimation(TBDMotion.quick) {
         selectedTab = .providers
       }
     }
     .onReceive(NotificationCenter.default.publisher(for: .openAccountSettings)) { _ in
       guard selectedTab != .account else { return }
-      withAnimation(.easeOut(duration: 0.18)) {
+      withAnimation(TBDMotion.quick) {
         selectedTab = .account
       }
     }
@@ -259,7 +259,7 @@ struct SettingsView: View {
 
   private func sidebarButton(for tab: SettingsTab) -> some View {
     Button {
-      withAnimation(.easeOut(duration: 0.18)) { selectedTab = tab }
+      withAnimation(TBDMotion.quick) { selectedTab = tab }
     } label: {
       railLabel(tab.title, symbol: tab.symbol, selected: selectedTab == tab)
     }

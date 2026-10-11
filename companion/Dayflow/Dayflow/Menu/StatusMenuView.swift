@@ -219,7 +219,7 @@ private struct DurationOption: View {
     .buttonStyle(.plain)
     .pointingHandCursor()
     .onHover { hovering in
-      withAnimation(.easeInOut(duration: 0.15)) {
+      withAnimation(TBDMotion.instant) {
         isHovering = hovering
       }
     }

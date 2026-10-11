@@ -1,5 +1,6 @@
 import OSLog
 import SwiftUI
+import TBDDesign
 
 // MARK: - Cached DateFormatters (creating DateFormatters is expensive due to ICU initialization)
 // These are internal (not private) so they can be shared with DateNavigationControls
@@ -130,11 +131,11 @@ extension MainView {
   }
 
   var shellAnimation: Animation {
-    return .spring(duration: 0.28, bounce: 0)
+    return TBDMotion.spring
   }
 
   var timelineModeSwitchAnimation: Animation {
-    .spring(response: 0.26, dampingFraction: 0.84)
+    TBDMotion.spring
   }
 
   var timelineModeContentAnimation: Animation {

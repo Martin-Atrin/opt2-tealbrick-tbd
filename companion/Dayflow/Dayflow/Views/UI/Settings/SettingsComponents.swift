@@ -281,7 +281,7 @@ private struct SettingsButtonPressStyle: ButtonStyle {
     configuration.label
       .opacity(configuration.isPressed ? 0.85 : 1)
       .scaleEffect(configuration.isPressed ? 0.98 : 1)
-      .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
+      .animation(TBDMotion.instant, value: configuration.isPressed)
   }
 }
 

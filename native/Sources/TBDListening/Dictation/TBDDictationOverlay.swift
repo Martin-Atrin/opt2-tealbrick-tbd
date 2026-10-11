@@ -113,7 +113,7 @@ struct TBDRecordingPill: View {
         .background(TBDDesign.recordingSurface, in: RoundedRectangle(cornerRadius: TBDTokens.Radius.sm + 18, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.sm + 18, style: .continuous).strokeBorder(.white.opacity(0.12)))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .animation(.easeOut(duration: 0.15), value: model.phase)
+        .animation(TBDMotion.instant, value: model.phase)
     }
 
     private func pillButton(_ symbol: String, help: String, action: @escaping () -> Void) -> some View {

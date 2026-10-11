@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import TBDDesign
 
 struct ConfettiBurstView: View {
   let trigger: Int
@@ -64,7 +65,7 @@ private struct ConfettiPiece: View {
         rotation = 0
         opacity = 1
 
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.65)) {
+        withAnimation(TBDMotion.spring) {
           offset = CGSize(width: xBurst, height: yBurst)
           rotation = spinBurst
         }
@@ -74,7 +75,7 @@ private struct ConfettiPiece: View {
           rotation = spinFall
         }
 
-        withAnimation(.easeOut(duration: 0.4).delay(1.6)) {
+        withAnimation(TBDMotion.gentle.delay(1.6)) {
           opacity = 0
         }
       }

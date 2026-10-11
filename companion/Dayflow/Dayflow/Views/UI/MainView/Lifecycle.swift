@@ -1,4 +1,5 @@
 import SwiftUI
+import TBDDesign
 
 /// Cached DateFormatter for day change detection - creating DateFormatters is expensive (ICU initialization)
 private let cachedDayFormatter: DateFormatter = {
@@ -32,7 +33,7 @@ extension MainView {
       setSelectedDate(timelineDisplayDate(from: Date()))
       selectedActivity = nil
       DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-        withAnimation(.easeInOut(duration: 0.35)) {
+        withAnimation(TBDMotion.gentle) {
           scrollToNowTick &+= 1
         }
       }
@@ -83,7 +84,7 @@ extension MainView {
     setTimelineMode(.day)
 
     if selectedIcon != .timeline {
-      withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
+      withAnimation(TBDMotion.spring) {
         selectedIcon = .timeline
       }
     }
@@ -108,7 +109,7 @@ extension MainView {
       #if DEBUG
         print("[MainView] performIdleResetAndScroll -> nudging scrollToNowTick")
       #endif
-      withAnimation(.easeInOut(duration: 0.35)) {
+      withAnimation(TBDMotion.gentle) {
         scrollToNowTick &+= 1
       }
     }
@@ -138,7 +139,7 @@ extension MainView {
       #if DEBUG
         print("[MainView] performInitialScrollIfNeeded firing -> nudging scrollToNowTick")
       #endif
-      withAnimation(.easeInOut(duration: 0.35)) {
+      withAnimation(TBDMotion.gentle) {
         scrollToNowTick &+= 1
       }
     }

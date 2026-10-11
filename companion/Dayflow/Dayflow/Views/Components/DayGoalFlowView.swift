@@ -231,7 +231,7 @@ struct DayGoalFlowView: View {
 
       primaryButton(String(localized: "Set today’s goals")) {
         onSetupStarted()
-        withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+        withAnimation(TBDMotion.spring) {
           screen = .setup
         }
       }

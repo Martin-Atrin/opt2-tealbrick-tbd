@@ -806,7 +806,7 @@ private struct DistractionLimitBar: View {
     lossScale = 1
     flashOpacity = 0.20
 
-    withAnimation(.easeOut(duration: 0.36)) {
+    withAnimation(TBDMotion.gentle) {
       flashOpacity = 0
     }
 

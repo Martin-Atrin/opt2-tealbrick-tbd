@@ -299,11 +299,11 @@ extension MainView {
   }
 
   private var timelineCalendarPopoverOpenAnimation: Animation {
-    reduceMotion ? .linear(duration: 0.01) : .easeOut(duration: 0.18)
+    reduceMotion ? .linear(duration: 0.01) : TBDMotion.quick
   }
 
   private var timelineCalendarPopoverCloseAnimation: Animation {
-    reduceMotion ? .linear(duration: 0.01) : .easeOut(duration: 0.12)
+    reduceMotion ? .linear(duration: 0.01) : TBDMotion.instant
   }
 
   private var timelineCalendarPopoverTransition: AnyTransition {

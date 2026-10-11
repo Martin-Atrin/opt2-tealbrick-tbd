@@ -122,7 +122,7 @@ struct CanvasTimelineDataView: View {
       proxy.scrollTo("hour-\(targetIndex)", anchor: UnitPoint(x: 0, y: 0.25))
     }
     if animated {
-      withAnimation(.easeInOut(duration: 0.35)) { action() }
+      withAnimation(TBDMotion.gentle) { action() }
     } else {
       action()
     }
@@ -209,7 +209,7 @@ struct CanvasTimelineDataView: View {
 
   private func revealInitialScroll() {
     guard !hasPerformedInitialScroll else { return }
-    withAnimation(.easeOut(duration: 0.18)) {
+    withAnimation(TBDMotion.quick) {
       hasPerformedInitialScroll = true
     }
   }
@@ -374,7 +374,7 @@ struct CanvasTimelineDataView: View {
           .opacity(isVisible ? 1 : 0)
           .offset(x: isVisible ? 0 : 12)
           .animation(
-            .spring(response: 0.35, dampingFraction: 0.8)
+            TBDMotion.spring
               .delay(Double(index) * 0.03),  // 30ms stagger between cards
             value: isVisible
           )

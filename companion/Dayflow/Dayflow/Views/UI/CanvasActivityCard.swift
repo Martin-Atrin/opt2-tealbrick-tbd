@@ -93,7 +93,7 @@ struct CanvasActivityCard: View {
 
   var body: some View {
     Button(action: {
-      withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+      withAnimation(TBDMotion.spring) {
         onTap()
       }
     }) {
@@ -220,7 +220,7 @@ struct CanvasActivityCard: View {
     .onHover { hovering in
       isHovering = hovering
     }
-    .animation(.easeOut(duration: 0.18), value: isHovering)
+    .animation(TBDMotion.quick, value: isHovering)
     .padding(.horizontal, 6)
   }
 }

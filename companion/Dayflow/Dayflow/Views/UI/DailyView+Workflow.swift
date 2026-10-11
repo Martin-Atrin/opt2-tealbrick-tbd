@@ -236,8 +236,8 @@ extension DailyView {
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
-    .animation(.easeOut(duration: 0.12), value: workflowHoveredCellKey)
-    .animation(.easeOut(duration: 0.12), value: workflowHoveredDistractionId)
+    .animation(TBDMotion.instant, value: workflowHoveredCellKey)
+    .animation(TBDMotion.instant, value: workflowHoveredDistractionId)
     .allowsHitTesting(false)
   }
   var workflowTooltipRows: [DailyWorkflowGridRow] {

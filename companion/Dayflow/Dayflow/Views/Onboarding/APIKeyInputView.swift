@@ -96,7 +96,7 @@ struct APIKeyInputView: View {
             .transition(.opacity)
         }
       }
-      .animation(.easeOut(duration: 0.2), value: validationState)
+      .animation(TBDMotion.quick, value: validationState)
 
       // Help text
       HStack(spacing: 4) {
@@ -134,7 +134,7 @@ struct APIKeyInputView: View {
       return
     }
 
-    withAnimation(.easeOut(duration: 0.2)) {
+    withAnimation(TBDMotion.quick) {
       validationState = onValidate(key) ? .valid : .invalid
     }
   }

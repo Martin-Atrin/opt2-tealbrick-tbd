@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import TBDDesign
 
 @MainActor
 final class ProvidersSettingsViewModel: ObservableObject {
@@ -530,7 +531,7 @@ final class ProvidersSettingsViewModel: ObservableObject {
     guard canModifyRouting else { return false }
     do {
       try LLMProviderRoutingStore.save(updatedRouting)
-      withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+      withAnimation(TBDMotion.spring) {
         routing = updatedRouting
       }
       providerRoutingErrorMessage = nil

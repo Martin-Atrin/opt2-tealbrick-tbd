@@ -500,14 +500,14 @@ struct ColorOrganizerRoot: View {
           commitPendingEditsIfNeeded()
           trackDetailsCompletion()
           categoryStore.persist()
-          withAnimation(.easeInOut(duration: 0.25)) {
+          withAnimation(TBDMotion.standard) {
             stage = .colors
           }
         }
       } else {
         SetupSecondaryButton(title: String(localized: "Back")) {
           if supportsDetailsStage {
-            withAnimation(.easeInOut(duration: 0.25)) {
+            withAnimation(TBDMotion.standard) {
               isDraggingColor = false
               stage = .details
             }
@@ -579,7 +579,7 @@ struct ColorOrganizerRoot: View {
         .frame(height: containerHeight, alignment: .topLeading)
         .onChange(of: pendingScrollTarget) { _, target in
           guard let target else { return }
-          withAnimation(.easeOut(duration: 0.35)) {
+          withAnimation(TBDMotion.gentle) {
             proxy.scrollTo(target, anchor: .bottom)
           }
           DispatchQueue.main.async { pendingScrollTarget = nil }
@@ -682,7 +682,7 @@ struct ColorOrganizerRoot: View {
   private func createNewCategory() {
     guard canAddMoreCategories else { return }
 
-    withAnimation(.easeInOut(duration: 0.25)) {
+    withAnimation(TBDMotion.standard) {
       if stage != .details {
         stage = .details
       }
@@ -725,7 +725,7 @@ struct ColorOrganizerRoot: View {
     if editingCategoryID != nil && editingCategoryID != category.id {
       commitPendingEditsIfNeeded()
     }
-    withAnimation(.easeInOut(duration: 0.2)) {
+    withAnimation(TBDMotion.quick) {
       editingCategoryID = category.id
       draftName = category.name
       draftDetails = category.details
@@ -770,7 +770,7 @@ struct ColorOrganizerRoot: View {
   }
 
   private func deleteCategory(_ category: TimelineCategory) {
-    withAnimation(.easeInOut(duration: 0.2)) {
+    withAnimation(TBDMotion.quick) {
       if editingCategoryID == category.id {
         endEditing()
       }

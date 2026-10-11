@@ -39,7 +39,7 @@ struct DayflowCircleButton<Content: View>: View {
     width: CGFloat = 31.40301,
     height: CGFloat = 30.4514,
     pressedScale: CGFloat = 0.97,
-    pressAnimation: Animation = .spring(response: 0.24, dampingFraction: 0.82),
+    pressAnimation: Animation = TBDMotion.spring,
     action: @escaping () -> Void,
     @ViewBuilder content: @escaping () -> Content
   ) {

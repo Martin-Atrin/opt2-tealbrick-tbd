@@ -19,7 +19,7 @@ struct SunriseGlassPillToggleStyle: ToggleStyle {
   func makeBody(configuration: Configuration) -> some View {
     let isOn = configuration.isOn
     Button {
-      withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+      withAnimation(TBDMotion.spring) {
         configuration.isOn.toggle()
         #if os(iOS)
           UIImpactFeedbackGenerator(style: .light).impactOccurred()

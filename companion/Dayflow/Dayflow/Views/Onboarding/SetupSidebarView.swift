@@ -95,8 +95,8 @@ struct SetupSidebarItem: View {
     .buttonStyle(.plain)
     .pointingHandCursor()
     .offset(x: isHovered && !isSelected ? -1 : 0)
-    .animation(.spring(response: 0.3, dampingFraction: 0.9), value: isSelected)
-    .animation(.easeOut(duration: 0.2), value: isHovered)
+    .animation(TBDMotion.spring, value: isSelected)
+    .animation(TBDMotion.quick, value: isHovered)
     .onHover { hovering in
       isHovered = hovering
     }

@@ -29,8 +29,8 @@ struct DayflowSurfaceButton<Content: View>: View {
   @State private var isPressed = false
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-  private let hoverAnim = Animation.spring(response: 0.22, dampingFraction: 0.85)
-  private let pressAnim = Animation.spring(response: 0.26, dampingFraction: 0.75)
+  private let hoverAnim = TBDMotion.spring
+  private let pressAnim = TBDMotion.spring
 
   var body: some View {
     Button(action: {

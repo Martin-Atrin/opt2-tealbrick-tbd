@@ -107,7 +107,7 @@ extension MainView {
         timelineCalendarPopoverOverlay(panelWidth: geo.size.width)
       }
     }
-    .animation(.spring(response: 0.32, dampingFraction: 0.9), value: goalFlowPresentation?.id)
+    .animation(TBDMotion.spring, value: goalFlowPresentation?.id)
     .onPreferenceChange(TimelineCalendarButtonFramePreferenceKey.self) { frame in
       timelineCalendarButtonFrame = frame
     }
@@ -238,7 +238,7 @@ extension MainView {
 
       if timelineMode == .day, reviewPromptCount > 0 {
         CardsToReviewButton(count: reviewPromptCount) {
-          withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+          withAnimation(TBDMotion.spring) {
             showTimelineReview = true
           }
         }
@@ -305,12 +305,12 @@ extension MainView {
         },
         onReviewTap: {
           guard reviewPromptCount > 0 else { return }
-          withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+          withAnimation(TBDMotion.spring) {
             showTimelineReview = true
           }
         },
         onShowGoalFlow: { presentation in
-          withAnimation(.spring(response: 0.32, dampingFraction: 0.9)) {
+          withAnimation(TBDMotion.spring) {
             goalFlowPresentation = presentation
           }
         }
@@ -465,7 +465,7 @@ extension MainView {
           .transition(.asymmetric(insertion: enterTransition, removal: exitTransition))
         }
       }
-      .animation(.spring(response: 0.3, dampingFraction: 0.85), value: copyTimelineState)
+      .animation(TBDMotion.spring, value: copyTimelineState)
       .fixedSize(horizontal: true, vertical: false)
       .padding(.horizontal, 8)
       .frame(minWidth: stylePreviewAfter ? 122 : 104)

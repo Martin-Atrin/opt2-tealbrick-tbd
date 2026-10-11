@@ -55,7 +55,7 @@ struct ActivityCard: View {
           .id(activity.id)
           .transition(
             .blurReplace.animation(
-              .easeOut(duration: 0.2)
+              TBDMotion.quick
             )
           )
 
@@ -67,13 +67,13 @@ struct ActivityCard: View {
               commitCategorySelection(selectedCategory, for: activity)
             },
             onNavigateToEditor: {
-              withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+              withAnimation(TBDMotion.spring) {
                 showCategoryPicker = false
               }
               onNavigateToCategoryEditor?()
             },
             onDismiss: {
-              withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+              withAnimation(TBDMotion.spring) {
                 showCategoryPicker = false
               }
             }
@@ -81,9 +81,9 @@ struct ActivityCard: View {
           .transition(
             .asymmetric(
               insertion: .move(edge: .top).combined(with: .opacity)
-                .animation(.spring(response: 0.3, dampingFraction: 0.85)),
+                .animation(TBDMotion.spring),
               removal: .move(edge: .top).combined(with: .opacity)
-                .animation(.easeIn(duration: 0.3))
+                .animation(TBDMotion.standard)
             )
           )
           .zIndex(1)
@@ -240,7 +240,7 @@ struct ActivityCard: View {
               if !isFailedCard(activity) {
                 CategoryEditCircleButton(
                   action: {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+                    withAnimation(TBDMotion.spring) {
                       showCategoryPicker.toggle()
                     }
                   },
@@ -515,7 +515,7 @@ struct ActivityCard: View {
       .lowercased()
     let normalizedNew = category.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
 
-    withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+    withAnimation(TBDMotion.spring) {
       showCategoryPicker = false
     }
 

@@ -99,7 +99,7 @@ struct WeekTimelineActivityCard: View {
 
   var body: some View {
     Button(action: {
-      withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+      withAnimation(TBDMotion.spring) {
         onTap()
       }
     }) {

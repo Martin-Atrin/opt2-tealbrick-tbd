@@ -135,7 +135,7 @@ struct PausePillView: View {
         }
       }
       .allowsHitTesting(false)
-      .animation(.easeInOut(duration: 0.35), value: phase)
+      .animation(TBDMotion.gentle, value: phase)
 
       if showsPrimaryContent || showsChips {
         HStack(spacing: 0) {
@@ -166,7 +166,7 @@ struct PausePillView: View {
           lineWidth: phase == .paused && stylePreviewAfter ? 1 : 0.75
         )
         .allowsHitTesting(false)
-        .animation(.easeInOut(duration: 0.35), value: phase)
+        .animation(TBDMotion.gentle, value: phase)
     }
     .frame(width: pillWidth, height: 32)
     .clipShape(RoundedRectangle(cornerRadius: TBDTokens.Radius.base))
@@ -253,7 +253,7 @@ struct PausePillView: View {
     .scaleEffect(CGFloat(chipScaleVal[i]))
     .blur(radius: chipBlurVal[i])
     .onHover { h in
-      withAnimation(.easeInOut(duration: 0.15)) {
+      withAnimation(TBDMotion.instant) {
         hoveredChip = h ? i : nil
       }
     }
@@ -294,7 +294,7 @@ struct PausePillView: View {
     phase = .menu
     resetChips()
 
-    withAnimation(.spring(duration: 0.5, bounce: 0.15)) {
+    withAnimation(TBDMotion.spring) {
       pillWidth = 250
     }
 
@@ -302,7 +302,7 @@ struct PausePillView: View {
     Task { @MainActor in
       for i in (0..<4).reversed() {
         let delay = 0.06 + Double(3 - i) * 0.05
-        withAnimation(.interpolatingSpring(stiffness: 500, damping: 25).delay(delay)) {
+        withAnimation(TBDMotion.spring.delay(delay)) {
           chipOpacity[i] = 1
           chipOffsetX[i] = 0
           chipScaleVal[i] = 1
@@ -318,7 +318,7 @@ struct PausePillView: View {
     phase = .idle
     exitChips()
 
-    withAnimation(.spring(duration: 0.45, bounce: 0.2).delay(0.12)) {
+    withAnimation(TBDMotion.spring.delay(0.12)) {
       pillWidth = 73
     }
   }
@@ -331,12 +331,12 @@ struct PausePillView: View {
 
     exitChips()
 
-    withAnimation(.spring(duration: 0.5, bounce: 0.2)) {
+    withAnimation(TBDMotion.spring) {
       pillWidth = 84
     }
 
     // Pause content exits (scale down + blur out)
-    withAnimation(.spring(duration: 0.2, bounce: 0)) {
+    withAnimation(TBDMotion.quick) {
       pauseOpacity = 0
       pauseScale = 0.7
       pauseBlur = 5
@@ -352,7 +352,7 @@ struct PausePillView: View {
     // 280ms for Resume and 350ms for the status-text cascade keeps the new
     // content from visibly intersecting the shrinking capsule.
     Task { @MainActor in
-      withAnimation(.spring(duration: 0.35, bounce: 0.25).delay(0.28)) {
+      withAnimation(TBDMotion.spring.delay(0.28)) {
         resumeOpacity = 1
         resumeScale = 1
         resumeBlur = 0
@@ -370,15 +370,15 @@ struct PausePillView: View {
   }
 
   private func animatePausedToIdle() {
-    hideStatusText(animation: .spring(duration: 0.2, bounce: 0))
+    hideStatusText(animation: TBDMotion.quick)
 
     // Pill shrinks to idle
-    withAnimation(.spring(duration: 0.4, bounce: 0.35)) {
+    withAnimation(TBDMotion.spring) {
       pillWidth = 73
     }
 
     // Resume content exits
-    withAnimation(.spring(duration: 0.18, bounce: 0)) {
+    withAnimation(TBDMotion.quick) {
       resumeOpacity = 0
       resumeScale = 0.85
       resumeBlur = 4
@@ -394,7 +394,7 @@ struct PausePillView: View {
     // 280ms lands re-entry near the shrink's visual trough so the old/new content
     // don't visibly intersect while the capsule is still resizing.
     Task { @MainActor in
-      withAnimation(.spring(duration: 0.3, bounce: 0.3).delay(0.28)) {
+      withAnimation(TBDMotion.spring.delay(0.28)) {
         pauseOpacity = 1
         pauseScale = 1
         pauseBlur = 0
@@ -430,11 +430,11 @@ struct PausePillView: View {
     phase = .paused
     exitChips()
 
-    withAnimation(.spring(duration: 0.5, bounce: 0.2)) {
+    withAnimation(TBDMotion.spring) {
       pillWidth = 84
     }
 
-    withAnimation(.spring(duration: 0.2, bounce: 0)) {
+    withAnimation(TBDMotion.quick) {
       pauseOpacity = 0
       pauseScale = 0.7
       pauseBlur = 5
@@ -455,7 +455,7 @@ struct PausePillView: View {
     // Same rationale as startPause — let the pill shrink mostly settle before
     // Resume enters (280ms) and the status text cascades (350ms).
     Task { @MainActor in
-      withAnimation(.spring(duration: 0.35, bounce: 0.25).delay(0.28)) {
+      withAnimation(TBDMotion.spring.delay(0.28)) {
         resumeOpacity = 1
         resumeScale = 1
         resumeBlur = 0
@@ -471,7 +471,7 @@ struct PausePillView: View {
 
   private func exitChips() {
     for i in 0..<4 {
-      withAnimation(.spring(duration: 0.2, bounce: 0)) {
+      withAnimation(TBDMotion.quick) {
         chipOpacity[i] = 0
         chipOffsetX[i] = 4
         chipBlurVal[i] = 2
@@ -537,7 +537,7 @@ struct PausePillView: View {
     statusY = 6
     statusBlurVal = 6
 
-    withAnimation(.spring(duration: 0.3, bounce: 0).delay(animationDelay)) {
+    withAnimation(TBDMotion.spring.delay(animationDelay)) {
       statusOpacity = 1
       statusY = 0
       statusBlurVal = 0
@@ -548,7 +548,7 @@ struct PausePillView: View {
     }
   }
 
-  private func hideStatusText(animation: Animation = .easeOut(duration: 0.22)) {
+  private func hideStatusText(animation: Animation = TBDMotion.quick) {
     cancelStatusVisibilityTask()
     guard isStatusPresented else { return }
 
@@ -570,7 +570,7 @@ struct PausePillView: View {
     statusVisibilityTask = Task { @MainActor in
       try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
       guard !Task.isCancelled else { return }
-      hideStatusText(animation: .easeOut(duration: 0.22))
+      hideStatusText(animation: TBDMotion.quick)
     }
   }
 

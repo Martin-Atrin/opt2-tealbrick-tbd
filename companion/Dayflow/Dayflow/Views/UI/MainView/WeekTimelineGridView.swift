@@ -138,13 +138,13 @@ struct WeekTimelineGridView: View {
   private var hoverAnimation: Animation {
     reduceMotion
       ? .linear(duration: 0.1)
-      : .spring(response: 0.28, dampingFraction: 0.88)
+      : TBDMotion.spring
   }
 
   private var collapseAnimation: Animation {
     reduceMotion
       ? .linear(duration: 0.08)
-      : .spring(response: 0.28, dampingFraction: 0.88).speed(1.4)
+      : TBDMotion.spring.speed(1.4)
   }
 
   var body: some View {
@@ -181,7 +181,7 @@ struct WeekTimelineGridView: View {
             // content). The 0.18s easeOut softens the reveal so the Week
             // view doesn't pop in hard.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-              withAnimation(.easeOut(duration: 0.18)) {
+              withAnimation(TBDMotion.quick) {
                 hasPerformedInitialScroll = true
               }
             }
@@ -714,7 +714,7 @@ struct WeekTimelineGridView: View {
 
     DispatchQueue.main.async {
       if animated {
-        withAnimation(.easeInOut(duration: 0.26)) {
+        withAnimation(TBDMotion.standard) {
           action()
         }
       } else {

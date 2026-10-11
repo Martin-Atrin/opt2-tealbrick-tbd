@@ -59,7 +59,7 @@ final class VideoExpansionState: ObservableObject {
     self.heroId = "heroVideo_\(videoURL)"
 
     // Immediate expansion with spring animation - no delays
-    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+    withAnimation(TBDMotion.spring) {
       self.isExpanded = true
       self.animationPhase = .expanded
     }
@@ -265,9 +265,9 @@ struct VideoExpansionOverlay: View {
         )
       }
     }
-    .animation(.spring(response: 0.25, dampingFraction: 0.8), value: expansionState.isHoveringVideo)
+    .animation(TBDMotion.spring, value: expansionState.isHoveringVideo)
     .onHover { hovering in expansionState.isHoveringVideo = hovering }
-    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: viewModel.isPlaying)
+    .animation(TBDMotion.spring, value: viewModel.isPlaying)
   }
 
   @ViewBuilder
@@ -400,7 +400,7 @@ struct ScaleButtonStyle: ButtonStyle {
       .dayflowPressScale(
         configuration.isPressed,
         pressedScale: 0.97,
-        animation: .spring(response: 0.2, dampingFraction: 0.6)
+        animation: TBDMotion.spring
       )
       .pointingHandCursor()
   }
@@ -685,7 +685,7 @@ struct VideoPlayerModal: View {
                 )
               }
             }
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: viewModel.isPlaying)
+            .animation(TBDMotion.spring, value: viewModel.isPlaying)
             .frame(width: vw, height: vh)
             .overlay(alignment: .bottomTrailing) {
               // Playback speed chip with animated appearance (Emil Kowalski: purposeful reveal)
@@ -710,7 +710,7 @@ struct VideoPlayerModal: View {
                 )
               }
             }
-            .animation(.spring(response: 0.25, dampingFraction: 0.8), value: isHoveringVideo)
+            .animation(TBDMotion.spring, value: isHoveringVideo)
             .onHover { hovering in isHoveringVideo = hovering }
             Spacer(minLength: 0)
           }

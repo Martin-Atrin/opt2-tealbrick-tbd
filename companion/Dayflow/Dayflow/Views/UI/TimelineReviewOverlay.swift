@@ -482,7 +482,7 @@ struct TimelineReviewOverlay: View {
     }
 
     if animated {
-      withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { reset() }
+      withAnimation(TBDMotion.spring) { reset() }
     } else {
       reset()
     }

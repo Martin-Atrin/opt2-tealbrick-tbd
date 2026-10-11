@@ -103,7 +103,7 @@ struct TimelineRateSummaryView: View {
 
         ThumbRatingButtons(selectedDirection: selectedDirection, isEnabled: isEnabled) {
           direction in
-          withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+          withAnimation(TBDMotion.spring) {
             selectedDirection = direction
           }
           onRate?(direction)
@@ -194,7 +194,7 @@ struct TimelineRateSummaryView: View {
     .buttonStyle(.plain)
     .disabled(!canDelete)
     .pointingHandCursorOnHover(enabled: canDelete, reassertOnPressEnd: true)
-    .animation(.easeInOut(duration: 0.22), value: deleteButtonState)
+    .animation(TBDMotion.quick, value: deleteButtonState)
     .accessibilityLabel(
       Text(
         deleteButtonState == .confirming
@@ -211,7 +211,7 @@ struct TimelineRateSummaryView: View {
 
     switch deleteButtonState {
     case .idle:
-      withAnimation(.easeInOut(duration: 0.22)) {
+      withAnimation(TBDMotion.quick) {
         deleteButtonState = .confirming
       }
       deleteResetTask = Task {
@@ -219,13 +219,13 @@ struct TimelineRateSummaryView: View {
         guard !Task.isCancelled else { return }
         await MainActor.run {
           guard deleteButtonState == .confirming else { return }
-          withAnimation(.easeInOut(duration: 0.22)) {
+          withAnimation(TBDMotion.quick) {
             deleteButtonState = .idle
           }
         }
       }
     case .confirming:
-      withAnimation(.easeInOut(duration: 0.22)) {
+      withAnimation(TBDMotion.quick) {
         deleteButtonState = .deleting
       }
       onDelete?()
@@ -234,7 +234,7 @@ struct TimelineRateSummaryView: View {
         guard !Task.isCancelled else { return }
         await MainActor.run {
           guard deleteButtonState == .deleting else { return }
-          withAnimation(.easeInOut(duration: 0.22)) {
+          withAnimation(TBDMotion.quick) {
             deleteButtonState = .idle
           }
         }

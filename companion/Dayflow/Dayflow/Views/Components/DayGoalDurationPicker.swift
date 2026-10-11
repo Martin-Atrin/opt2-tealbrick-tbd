@@ -264,7 +264,7 @@ private struct GoalNumberColumn: View {
       return
     }
 
-    withAnimation(.spring(duration: 0.22, bounce: 0)) {
+    withAnimation(TBDMotion.quick) {
       wheelOffset = 0
     }
   }

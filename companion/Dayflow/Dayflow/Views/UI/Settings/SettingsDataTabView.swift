@@ -37,7 +37,7 @@ struct SettingsDataTabView: View {
             isExpanded: activeExportDatePicker == .start,
             accessibilityLabel: String(localized: "Export start date"),
             onTap: {
-              withAnimation(.easeOut(duration: 0.2)) {
+              withAnimation(TBDMotion.quick) {
                 activeExportDatePicker = activeExportDatePicker == .start ? nil : .start
                 isReprocessDatePickerExpanded = false
               }
@@ -54,7 +54,7 @@ struct SettingsDataTabView: View {
             isExpanded: activeExportDatePicker == .end,
             accessibilityLabel: String(localized: "Export end date"),
             onTap: {
-              withAnimation(.easeOut(duration: 0.2)) {
+              withAnimation(TBDMotion.quick) {
                 activeExportDatePicker = activeExportDatePicker == .end ? nil : .end
                 isReprocessDatePickerExpanded = false
               }
@@ -66,7 +66,7 @@ struct SettingsDataTabView: View {
           inlineCalendar(
             date: exportDateBinding(for: activeExportDatePicker),
             onDateSelected: {
-              withAnimation(.easeOut(duration: 0.2)) {
+              withAnimation(TBDMotion.quick) {
                 self.activeExportDatePicker = nil
               }
             }
@@ -131,7 +131,7 @@ struct SettingsDataTabView: View {
           accessibilityLabel: String(localized: "Reprocess day"),
           disabled: viewModel.isReprocessingDay,
           onTap: {
-            withAnimation(.easeOut(duration: 0.2)) {
+            withAnimation(TBDMotion.quick) {
               isReprocessDatePickerExpanded.toggle()
               activeExportDatePicker = nil
             }
@@ -143,7 +143,7 @@ struct SettingsDataTabView: View {
             date: $viewModel.reprocessDayDate,
             disabled: viewModel.isReprocessingDay,
             onDateSelected: {
-              withAnimation(.easeOut(duration: 0.2)) {
+              withAnimation(TBDMotion.quick) {
                 isReprocessDatePickerExpanded = false
               }
             }

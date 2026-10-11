@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import TBDDesign
 
 private func hslToRGB(_ h: Double, _ s: Double, _ l: Double) -> (r: Double, g: Double, b: Double) {
   // Normalize hue to [0, 360)
@@ -219,7 +220,7 @@ struct ColorPickerView: View {
             .frame(width: size, height: size)
             .clipShape(Circle())
             .opacity(showColorWheel ? 1 : 0)
-            .animation(.easeInOut(duration: 0.2), value: showColorWheel)
+            .animation(TBDMotion.quick, value: showColorWheel)
         } else {
           // Lazy placeholder before image is built
           Circle().fill(Color.clear).frame(width: size, height: size)
@@ -361,7 +362,7 @@ struct ColorSwatch: View {
         .overlay(RoundedRectangle(cornerRadius: 6).stroke(.white, lineWidth: 2))
         .frame(width: 60, height: 36)
         .offset(y: hovering ? -2 : 0)
-        .animation(.easeInOut(duration: 0.15), value: hovering)
+        .animation(TBDMotion.instant, value: hovering)
 
       if showHint && hovering {
         Text("Drag to category")

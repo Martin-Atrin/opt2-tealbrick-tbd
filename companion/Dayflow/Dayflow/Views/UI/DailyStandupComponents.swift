@@ -162,7 +162,7 @@ struct DailyBulletCard: View {
       )
       .onChange(of: pendingScrollTargetID) { _, newValue in
         guard let newValue else { return }
-        withAnimation(.easeOut(duration: 0.15)) {
+        withAnimation(TBDMotion.instant) {
           proxy.scrollTo(newValue, anchor: .bottom)
         }
         pendingScrollTargetID = nil
@@ -348,7 +348,7 @@ struct DailyListItemDropDelegate: DropDelegate {
       return
     }
 
-    withAnimation(.easeInOut(duration: 0.14)) {
+    withAnimation(TBDMotion.instant) {
       items.move(
         fromOffsets: IndexSet(integer: fromIndex),
         toOffset: toIndex > fromIndex ? toIndex + 1 : toIndex
@@ -380,7 +380,7 @@ struct DailyListDropToEndDelegate: DropDelegate {
     let endIndex = items.count
     guard fromIndex != endIndex - 1 else { return }
 
-    withAnimation(.easeInOut(duration: 0.14)) {
+    withAnimation(TBDMotion.instant) {
       items.move(fromOffsets: IndexSet(integer: fromIndex), toOffset: endIndex)
     }
   }

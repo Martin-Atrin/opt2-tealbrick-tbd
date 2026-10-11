@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import SwiftUI
+import TBDDesign
 
 extension MainView {
   func handleCategoryChange(to category: TimelineCategory, for activity: TimelineActivity) {
@@ -47,7 +48,7 @@ extension MainView {
     feedbackShareLogs = true
     feedbackMode = .form
 
-    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+    withAnimation(TBDMotion.spring) {
       feedbackModalVisible = true
     }
 
@@ -60,7 +61,7 @@ extension MainView {
     else { return }
 
     feedbackMessage = ""
-    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+    withAnimation(TBDMotion.spring) {
       feedbackMode = .thanks
     }
   }
@@ -77,7 +78,7 @@ extension MainView {
     }
 
     if animated {
-      withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
+      withAnimation(TBDMotion.spring) {
         reset()
       }
     } else {
@@ -165,7 +166,7 @@ extension MainView {
 
     copyTimelineTask?.cancel()
 
-    withAnimation(.snappy(duration: 0.3)) {
+    withAnimation(TBDMotion.spring) {
       copyTimelineState = .copying
     }
 
@@ -173,7 +174,7 @@ extension MainView {
       defer {
         Task { @MainActor in
           if copyTimelineState == .copying {
-            withAnimation(.snappy(duration: 0.3)) {
+            withAnimation(TBDMotion.spring) {
               copyTimelineState = .idle
             }
           }
@@ -224,7 +225,7 @@ extension MainView {
         pasteboard.clearContents()
         pasteboard.setString(clipboardText, forType: .string)
 
-        withAnimation(.snappy(duration: 0.3)) {
+        withAnimation(TBDMotion.spring) {
           copyTimelineState = .copied
         }
       }
@@ -234,7 +235,7 @@ extension MainView {
       guard !Task.isCancelled else { return }
 
       await MainActor.run {
-        withAnimation(.snappy(duration: 0.3)) {
+        withAnimation(TBDMotion.spring) {
           copyTimelineState = .idle
         }
       }

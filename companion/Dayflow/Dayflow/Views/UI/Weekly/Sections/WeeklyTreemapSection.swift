@@ -1,4 +1,5 @@
 import SwiftUI
+import TBDDesign
 
 let weeklyTreemapContentCoordinateSpace = "weekly-treemap-content"
 
@@ -70,7 +71,7 @@ struct WeeklyTreemapSection: View {
           WeeklyTreemapCategoryCard(
             category: placement.item,
             onLeafHover: { state in
-              withAnimation(.easeOut(duration: 0.14)) {
+              withAnimation(TBDMotion.instant) {
                 hoveredLeaf = state
               }
             }

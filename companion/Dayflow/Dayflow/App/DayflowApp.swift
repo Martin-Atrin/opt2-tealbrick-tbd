@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import TBDDesign
 
 struct AppRootView: View {
   @AppStorage("didOnboard") private var didOnboard = false
@@ -32,7 +33,7 @@ struct AppRootView: View {
       DayGoalFlowOverlay(
         presentation: goalFlowPresentation,
         onDismiss: {
-          withAnimation(.spring(response: 0.28, dampingFraction: 0.9)) {
+          withAnimation(TBDMotion.spring) {
             self.goalFlowPresentation = nil
           }
         }
