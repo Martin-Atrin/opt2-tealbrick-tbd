@@ -2,8 +2,16 @@ import XCTest
 @testable import TBDModels
 
 final class TBDModelRegistryTests: XCTestCase {
+    private var suites: [String] = []
+    override func tearDown() {
+        for name in suites { UserDefaults.standard.removePersistentDomain(forName: name) }
+        suites = []
+        super.tearDown()
+    }
     private func registry() -> (TBDModelRegistry, TBDMemorySecretStore) {
-        let defaults = UserDefaults(suiteName: "tbd.tests.\(UUID().uuidString)")!
+        let name = "tbd.tests.\(UUID().uuidString)"
+        suites.append(name)
+        let defaults = UserDefaults(suiteName: name)!
         let store = TBDMemorySecretStore()
         return (TBDModelRegistry(defaults: defaults, credentials: store), store)
     }

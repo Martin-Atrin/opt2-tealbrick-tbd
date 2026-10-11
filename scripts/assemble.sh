@@ -29,6 +29,15 @@ tbd_assemble() {
   cp "$derived/native/release/tbd-listen" "$TBD_APP/Contents/Helpers/tbd-listen"
   cp "$root/companion/LICENSE" "$TBD_APP/Contents/Resources/Licenses/Companion-MIT.txt"
   cp "$root/chat/LICENSE" "$TBD_APP/Contents/Resources/Licenses/Chat-MIT.txt"
+  # Third-party Swift package licences (FluidAudio, WhisperKit, GRDB, ...).
+  local dir name
+  for dir in "$derived/native/checkouts"/*; do
+    [ -d "$dir" ] || continue
+    name="$(basename "$dir")"
+    for f in "$dir"/LICENSE* "$dir"/LICENCE* "$dir"/COPYING*; do
+      if [ -f "$f" ]; then cp "$f" "$TBD_APP/Contents/Resources/Licenses/$name.txt"; break; fi
+    done
+  done
   local node_license; node_license="$(dirname "$(dirname "$node_bin")")/LICENSE"
   [ -f "$node_license" ] && cp "$node_license" "$TBD_APP/Contents/Resources/Licenses/Node.txt"
   export TBD_APP

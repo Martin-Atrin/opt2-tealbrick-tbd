@@ -300,6 +300,12 @@ final class TBDChatRuntime: NSObject, ObservableObject, WKScriptMessageHandler, 
       guard (try? await center.requestAuthorization(options: [.alert, .sound])) == true else { return NSNull() }
       let content = UNMutableNotificationContent(); content.title = options["title"] ?? "TBD"; content.body = options["body"] ?? ""
       try? await center.add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)); return NSNull()
+    // Agent key (K4): the private key stays in the Keychain; the helper only gets public keys and signatures.
+    case "agentKeyCreate": return try TBDAgentKeys.create(label: text)
+    case "agentKeyPublic": return try TBDAgentKeys.publicJwk(label: text)
+    case "agentKeySign": return try TBDAgentKeys.sign(label: text, signingInput: args.dropFirst().first as? String ?? "")
+    case "agentKeyRename": return try { try TBDAgentKeys.rename(from: text, to: args.dropFirst().first as? String ?? ""); return NSNull() }()
+    case "agentKeyDelete": return try { try TBDAgentKeys.delete(label: text); return NSNull() }()
     default: throw failure("Unsupported native operation: \(method)")
     }
   }

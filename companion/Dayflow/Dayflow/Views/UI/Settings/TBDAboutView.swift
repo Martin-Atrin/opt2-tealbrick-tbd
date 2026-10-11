@@ -20,7 +20,7 @@ struct TBDAboutView: View {
       Text("Storage manages screenshots and timelapses. System manages speech history, audio retention and downloads. Voice notes keep their raw transcript alongside optional cleanup; interrupted note audio remains in Listening/VoiceNotes for recovery.")
       Divider()
       Text("Open-source components").font(.headline)
-      Text("Companion includes Dayflow (MIT); Listening includes MacParakeet (GPL-3.0). Licenses remain bundled with this app.").font(.callout)
+      Text("Companion includes Dayflow (MIT); Chat started from an MIT-licensed chat client; Listening is a Teal Brick rewrite of MacParakeet's features and uses FluidAudio (Apache-2.0), WhisperKit (MIT) and GRDB (MIT). Licences are bundled with this app.").font(.callout)
     }
   }
 }
