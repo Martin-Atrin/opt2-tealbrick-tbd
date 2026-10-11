@@ -11,7 +11,7 @@ function fixture(selectedId=null) {
     controlPlanes:async()=>({activeId:'hosted',profiles:[{id:'hosted',issuer:'https://portal.example'}]}),
     session:async()=>({email:'fixture@example.test'}),portalWorkspaces:async()=>directory,
     listAgents:async()=>{calls.push('agents');return [{id:'agent',name:'Eve',url:null}];},
-    listSessions:async()=>[],listRooms:async()=>[],
+    
     loadState:async()=>{calls.push('restore');return null;},
     saveState:async()=>{},selectPortalWorkspace:async(id)=>{directory.selectedId=id;},
   },{get:(target,key)=>target[key]??(()=>Promise.resolve(null))});
@@ -31,7 +31,7 @@ test('selected workspace restores history then loads agents; switch clears immed
   assert.equal(f.store.getState().portalWorkspaceId,'one');assert.ok(f.calls.indexOf('restore')<f.calls.indexOf('agents'));
   let finish;f.api.selectPortalWorkspace=()=>new Promise(r=>{finish=r});
   const switching=f.store.getState().switchPortalWorkspace('two');
-  assert.equal(f.store.getState().agents.length,0);assert.equal(f.store.getState().rooms.length,0);
+  assert.equal(f.store.getState().agents.length,0);
   assert.equal(Object.keys(f.store.getState().conversations).length,0);assert.equal(f.store.getState().portalWorkspaceId,null);
   f.directory.selectedId='two';finish();await switching;
   assert.equal(f.store.getState().portalWorkspaceId,'two');

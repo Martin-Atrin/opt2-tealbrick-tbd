@@ -6,21 +6,13 @@ import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { app, safeStorage, shell } from "electron";
-import type { RemoteAgent, RemoteRoom } from "@shared/ipc";
-import { type AuthSession as Session, legacyPortalExecutionEnabled, CUSTOMER_EXECUTION_REQUIRED, debugStreamEnabled, streamDiagnostic } from "./portalPrivacy";
+import type { RemoteAgent } from "@shared/ipc";
+import { type AuthSession as Session, debugStreamEnabled, streamDiagnostic } from "./portalPrivacy";
 
 import { currentControlPlane } from "./controlPlanes";
 import { readPeerEvents, type PeerState } from "./peerEvents";
 import { NOT_GRANTED_MESSAGE, retryAfterGrantRefresh } from "./agentGrant";
-import {
-  CREDENTIALS_WITHHELD,
-  createAgentAuth,
-  credentialDecision,
-  chatTokensEnabled,
-  resolveRemoteAgent,
-  sessionUserId,
-  type ResolvedAgent,
-} from "./agentCredentials";
+import { CREDENTIALS_WITHHELD, createAgentAuth, resolveRemoteAgent, type ResolvedAgent } from "./agentCredentials";
 
 /**
  * Control-plane identity for KYBER Studio.
@@ -37,7 +29,7 @@ import {
  * again next launch.
  */
 
-export type { RemoteAgent, RemoteRoom, Session };
+export type { RemoteAgent, Session };
 
 export const ISSUER = currentControlPlane().issuer;
 export function issuer(): string { return ISSUER; }
@@ -362,7 +354,6 @@ export async function activeSession(): Promise<Session | null> {
 
 export function signOut(): void {
   resetPortalWorkspace();
-  agentAuth.clear();
   clients.clear();
   directory.agents = new Map();
   directory.scope = "";
@@ -448,51 +439,14 @@ export async function resolveAgent(agentId: unknown): Promise<ResolvedAgent> {
   return fresh;
 }
 
-const agentAuth = createAgentAuth({
-  session: activeSession,
-  record: currentRecord,
-  mintChatToken,
-  // Plain http to localhost/127.0.0.1 only in development builds.
-  allowLoopbackHttp: () => !app.isPackaged,
-});
+const agentAuth = createAgentAuth();
 
-/**
- * The headers for one request to an agent, and the single choke point for
- * agent-bound credentials. See agentCredentials.ts for the policy.
- */
+/** The headers for one request to an agent. Never a person credential (PRD §4). */
 export const agentAuthHeaders = agentAuth.agentAuthHeaders;
 
-/** The per-agent chat token (feature-flagged); exported for tests and diagnostics. */
-export const agentToken = agentAuth.agentToken;
-
 /**
- * POST /api/agents/chat-token {agentId} → {token, expiresAt, audience}.
- * Portal-bound, so it carries the session; the token it returns is the only
- * thing an agent then sees.
- */
-async function mintChatToken(agent: ResolvedAgent): Promise<{ status: number; body: unknown } | null> {
-  const s = await activeSession();
-  if (!s) return null;
-  try {
-    const res = await fetch(`${issuer()}/api/agents/chat-token`, {
-      method: "POST",
-      headers: authHeaders(s, { json: true }),
-      body: JSON.stringify({ agentId: agent.id }),
-      signal: AbortSignal.timeout(15_000),
-    });
-    // 404: not the user's agent. 409 agent_origin_not_allowed: owned, but off
-    // a Teal Brick origin — "needs an updated connection". Neither is retried.
-    if (!res.ok) console.log(`[auth] chat token refused (${res.status})`);
-    return { status: res.status, body: await res.json().catch(() => null) };
-  } catch {
-    return null;
-  }
-}
-
-/**
- * One request to an agent with whatever credential policy allows, retried
- * once with a re-minted chat token when the agent answers 401. Null headers
- * (nothing may be sent) short-circuit to `null` so callers can say why.
+ * One request to an agent. Returns null while TBD has no agent-bound
+ * credential to send (v2 pairing), so callers can say why.
  */
 export async function agentFetch(
   agent: ResolvedAgent,
@@ -502,30 +456,13 @@ export async function agentFetch(
 ): Promise<Response | null> {
   const headers = await agentAuthHeaders(agent, url, opts);
   if (!headers.authorization) return null;
-  const res = await fetch(url, { redirect: "manual", ...init, headers });
-  if (res.status !== 401 || !chatTokensEnabled()) return res;
-  agentAuth.invalidate(agent.id);
-  const renewed = await agentAuthHeaders(agent, url, opts);
-  if (!renewed.authorization) return res;
-  return await fetch(url, { redirect: "manual", ...init, headers: renewed });
+  return await fetch(url, { redirect: "manual", ...init, headers });
 }
 
-function connectionFor(agent: RemoteAgent, s: Session): RemoteAgent["connection"] {
+function connectionFor(agent: RemoteAgent, _s: Session): RemoteAgent["connection"] {
   const record = resolveRemoteAgent(agent);
   if (!record) return { mode: "withheld", note: "This agent has no address yet." };
-  const chatTokens = chatTokensEnabled();
-  // Portal mints chat tokens for owned agents only (Core #128), so the hint
-  // applies the owner rule in both modes; the mint itself stays authoritative.
-  const decision = credentialDecision({
-    agent: record,
-    record,
-    requestUrl: record.url,
-    userId: sessionUserId(s.token),
-    chatTokens: false,
-    allowLoopbackHttp: !app.isPackaged,
-  });
-  if (decision.mode === "none") return { mode: "withheld", note: CREDENTIALS_WITHHELD };
-  return { mode: chatTokens ? "chat-token" : "owner-session" };
+  return { mode: "withheld", note: CREDENTIALS_WITHHELD };
 }
 
 /**
@@ -533,60 +470,13 @@ function connectionFor(agent: RemoteAgent, s: Session): RemoteAgent["connection"
  * with the sentence that says why instead of a 401 from the far side.
  */
 async function requireAgentCredentials(agent: ResolvedAgent, requestUrl: string): Promise<void> {
-  const decision = await agentAuth.decide(agent, requestUrl);
-  if (decision.mode !== "none") return;
-  if (decision.reason === "signed-out") throw new Error("Not signed in.");
-  if (decision.reason === "no-bundle") {
-    throw new Error(
-      "Your session has no policy bundle, so no agent can check your grants. Sign out and sign in again.",
-    );
-  }
+  await agentAuth.decide(agent, requestUrl);
   throw new Error(CREDENTIALS_WITHHELD);
 }
 
 /** After an agent refused a credential: drop its chat token and renew the session. */
-async function renewAgentCredentials(agent: ResolvedAgent): Promise<boolean> {
-  agentAuth.invalidate(agent.id);
+async function renewAgentCredentials(_agent: ResolvedAgent): Promise<boolean> {
   return Boolean(await forceRefresh());
-}
-
-export async function listRooms(): Promise<RemoteRoom[]> {
-  const s = await activeSession();
-  if (!s) return [];
-  try {
-    const res = await fetch(`${issuer()}/api/rooms?workspaceId=${encodeURIComponent(selectedPortalWorkspace())}`, {
-      headers: authHeaders(s),
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (!res.ok) return [];
-    const body = await res.json() as { rooms?: RemoteRoom[]; workspaceId?: string };
-    return body.workspaceId === selectedPortalWorkspace() ? body.rooms ?? [] : [];
-  } catch {
-    return [];
-  }
-}
-
-/** Best effort: the room exists here already; the account learns of it on the next try if not now. */
-export async function saveRoom(input: {
-  id: string;
-  name?: string | null;
-  members?: string[];
-  policy?: "all" | "lead" | "silent";
-  pinned?: boolean | null;
-  archived?: boolean;
-}): Promise<void> {
-  const s = await activeSession();
-  if (!s) return;
-  try {
-    await fetch(`${issuer()}/api/rooms?workspaceId=${encodeURIComponent(selectedPortalWorkspace())}`, {
-      method: "POST",
-      headers: authHeaders(s, { json: true }),
-      body: JSON.stringify(input),
-      signal: AbortSignal.timeout(15_000),
-    });
-  } catch {
-    /* best effort */
-  }
 }
 
 /**
@@ -600,7 +490,6 @@ export async function saveAgentProfile(input: {
   avatar?: string | null;
   pinned?: boolean | null;
   hidden?: boolean | null;
-  voice?: string | null;
 }): Promise<void> {
   const s = await activeSession();
   if (!s) return;
@@ -1708,27 +1597,6 @@ export async function watchSession(input: {
   }
 }
 
-/**
- * "This desktop is driving this session." Sent as a turn begins so the control
- * plane rings no phone for it: the device that asked owns the notification,
- * and this one tells its own screen. Best effort; a missed claim costs one
- * extra buzz, not a turn.
- */
-export async function claimDriver(sessionId: string): Promise<void> {
-  const s = await activeSession();
-  if (!s) return;
-  try {
-    await fetch(`${issuer()}/api/sessions/driver`, {
-      method: "POST",
-      headers: authHeaders(s, { json: true }),
-      body: JSON.stringify({ sessionId, deviceId: deviceId(), platform: "desktop" }),
-      signal: AbortSignal.timeout(10_000),
-    });
-  } catch {
-    /* best effort */
-  }
-}
-
 export async function cancelTurn(input: {
   agentId: string;
   sessionId: string;
@@ -1772,247 +1640,6 @@ export async function resetSession(input: { agentId: string; sessionId?: string 
 
 export function currentSession(): Session | null {
   return loadSession();
-}
-
-/**
- * Management calls against an agent's own /eve/v1/kyb routes.
- *
- * These carry the SAME identity and policy bundle as every other call to the
- * agent. Installing software on an agent is governed by the same grant as
- * talking to it — there is no separate key, because a credential a user has to
- * copy out of a server's env file is not authentication.
- */
-/** Where a management path lands on the agent. Native adapters report Portal-granted apps read-only. */
-export function manageEndpoint(url: string, path: string, write: boolean): string | null {
-  const base = url.replace(/\/$/, "");
-  if (path === "/tealbrick/capabilities") return write ? null : `${base}/tealbrick/v1/capabilities`;
-  if (path === "/tealbrick/management") return `${base}/eve/v1/tealbrick/management`;
-  return `${base}/eve/v1/kyb${path}`;
-}
-
-export async function manageCall(input: {
-  agentId: string;
-  path: string;
-  body?: unknown;
-}): Promise<{ ok: boolean; status: number; data: unknown }> {
-  let agent: ResolvedAgent;
-  try {
-    agent = await resolveAgent(input.agentId);
-  } catch (error) {
-    return { ok: false, status: 404, data: { error: error instanceof Error ? error.message : String(error) } };
-  }
-  if (typeof input.path !== "string" || !input.path.startsWith("/")) {
-    return { ok: false, status: 400, data: { error: "invalid_path" } };
-  }
-  const endpoint = manageEndpoint(agent.url, input.path, input.body !== undefined);
-  if (!endpoint) return { ok: false, status: 405, data: { error: "read_only" } };
-  const decision = await agentAuth.decide(agent, endpoint);
-  if (decision.mode === "none") {
-    // 440, not 401: the agent never saw this request. Reporting it as the
-    // agent's refusal sends someone to check grants for a session that expired
-    // on this side. 428: TBD kept its credentials back (F4-1).
-    return decision.reason === "signed-out" || decision.reason === "no-bundle"
-      ? { ok: false, status: 440, data: { error: "Your sign-in has expired." } }
-      : { ok: false, status: 428, data: { error: CREDENTIALS_WITHHELD, code: "credentials_withheld" } };
-  }
-  const res = await agentFetch(agent, endpoint, {
-    method: input.body === undefined ? "GET" : "POST",
-    body: input.body === undefined ? undefined : JSON.stringify(input.body),
-    // Installs run npm and a full rebuild; a short timeout here would report a
-    // failure for work that is actually still going.
-    signal: AbortSignal.timeout(input.body === undefined ? 15_000 : 420_000),
-  }, { json: input.body !== undefined });
-  if (!res) {
-    return { ok: false, status: 428, data: { error: CREDENTIALS_WITHHELD, code: "credentials_withheld" } };
-  }
-  const data = await res.json().catch(() => null);
-  if (!res.ok) {
-    // Which kind of credential went, never its value.
-    console.log(`[manage] credential mode=${decision.mode}`);
-    // The agent's own words, not our summary. A 401 from a manage route can be
-    // an expired token, a bundle that does not match, or a missing grant, and
-    // those need three different fixes.
-    console.log(`[manage] request failed HTTP ${res.status} (response body omitted)`);
-  }
-  return { ok: res.ok, status: res.status, data };
-}
-
-/**
- * Ask an agent whether it is voice-capable (has @kybernesis/voice mounted), and
- * how it should sound. Same control-plane identity as every other door; null
- * when the agent has no voice route or the grant/sign-in does not allow it, so
- * the caller simply shows no orb.
- */
-export async function voiceManifest(
-  agentId: string,
-): Promise<{ enabled: boolean; voice?: string; displayName?: string } | null> {
-  try {
-    const agent = await resolveAgent(agentId);
-    const res = await agentFetch(agent, `${agent.url}/eve/v1/voice/manifest`, {
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!res?.ok) return null;
-    const data = (await res.json().catch(() => null)) as
-      | { enabled?: boolean; voice?: string; displayName?: string }
-      | null;
-    if (!data?.enabled) return null;
-    return { enabled: true, voice: data.voice, displayName: data.displayName };
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Mint a realtime voice session on the agent, which uses ITS OWN OpenAI key. We
- * relay only the browser's SDP offer and get the answer back — the key never
- * reaches this app. Authenticated with the same token + bundle as manageCall.
- */
-export async function voiceSession(input: {
-  agentId: string;
-  sdp: string;
-  voice?: string;
-}): Promise<{ sdp: string }> {
-  const agent = await resolveAgent(input.agentId);
-  const target = `${agent.url}/eve/v1/voice/session`;
-  await requireAgentCredentials(agent, target);
-  const res = await agentFetch(agent, target, {
-    method: "POST",
-    body: JSON.stringify({ sdp: input.sdp, ...(input.voice ? { voice: input.voice } : {}) }),
-    signal: AbortSignal.timeout(30_000),
-  }, { json: true });
-  if (!res) throw new Error(CREDENTIALS_WITHHELD);
-  const data = (await res.json().catch(() => null)) as
-    | { ok?: boolean; sdp?: string; error?: string }
-    | null;
-  if (!res.ok || !data?.ok || !data.sdp) {
-    throw new Error(data?.error ?? `The agent's voice route answered ${res.status}.`);
-  }
-  return { sdp: data.sdp };
-}
-
-/**
- * Give an agent what it needs to reach this machine, without anyone touching a
- * credential.
- *
- * Three things have to be true before an agent can work on someone's files: it
- * must be able to prove which agent it is, the person must have allowed it on
- * this machine, and the desktop must be reachable. Only the middle one is a
- * decision — the other two are plumbing, and plumbing is not something to hand
- * a user as a setup checklist.
- *
- * Studio is the one place where all three are already available: it is signed
- * in as the owner, so it can mint from the control plane; it talks to the agent
- * over an authenticated channel, so it can install; and it IS the device, so it
- * knows what it is granting. The credential passes between two pieces of
- * software and is never displayed, logged, or persisted here.
- */
-export async function provisionLocalAccess(input: {
-  agentId: string;
-}): Promise<{ ok: boolean; error?: string; restarted?: boolean }> {
-  if (!legacyPortalExecutionEnabled(issuer())) return { ok: false, error: CUSTOMER_EXECUTION_REQUIRED };
-  const s = await activeSession();
-  if (!s?.bundle) return { ok: false, error: "Not signed in." };
-  let agent: ResolvedAgent;
-  try {
-    agent = await resolveAgent(input.agentId);
-  } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error) };
-  }
-  const name = agent.name;
-  // Check BEFORE minting: a credential minted for an agent we will not talk to
-  // is a credential with nowhere safe to go.
-  const installTarget = `${agent.url}/eve/v1/kyb/credential`;
-  const agentHeaders = await agentAuthHeaders(agent, installTarget, { json: true });
-  if (!agentHeaders.authorization) return { ok: false, error: CREDENTIALS_WITHHELD };
-
-  // 1. Mint. Owner-or-manage only, enforced at the control plane.
-  const minted = await fetch(`${issuer()}/api/agents/credential`, {
-    method: "POST",
-    headers: authHeaders(s, { bundle: true, json: true }),
-    body: JSON.stringify({ agent: name }),
-    signal: AbortSignal.timeout(30_000),
-  });
-  if (!minted.ok) {
-    const detail = await minted.text().catch(() => "");
-    return {
-      ok: false,
-      error:
-        minted.status === 403
-          ? `You need manage access to "${name}" to connect it to this computer.`
-          : `The control plane would not issue a credential for "${name}" (${minted.status}). ${detail.slice(0, 160)}`,
-    };
-  }
-  const { credential } = (await minted.json()) as { credential?: string };
-  if (!credential) return { ok: false, error: "The control plane returned no credential." };
-
-  // 2. Install it on the agent, over the channel it already authenticates.
-  const installed = await fetch(installTarget, {
-    method: "POST",
-    headers: agentHeaders,
-    redirect: "manual",
-    body: JSON.stringify({ key: "KYBERNESIS_AGENT_CREDENTIAL", value: credential }),
-    signal: AbortSignal.timeout(60_000),
-  });
-  if (!installed.ok) {
-    const detail = await installed.text().catch(() => "");
-    return {
-      ok: false,
-      error:
-        installed.status === 404
-          ? `${name} has no management routes — @kybernesis/manage is not installed ` +
-            `or not deployed. On the agent: npx eve add @kybernesis/manage, then redeploy.`
-          : `${name} refused the credential (${installed.status}). ${detail.slice(0, 160)}`,
-    };
-  }
-  const result = (await installed.json().catch(() => ({}))) as { restarted?: boolean };
-
-  // 3. Record the standing permission. Deliberately last: an agent that is
-  // allowed but cannot identify itself is a grant that does nothing, and a
-  // half-finished setup should look unfinished rather than allowed.
-  const granted = await fetch(`${issuer()}/api/local-exec/grant`, {
-    method: "POST",
-    headers: authHeaders(s, { bundle: true, json: true }),
-    body: JSON.stringify({ agent: name, deviceId: deviceId() }),
-    signal: AbortSignal.timeout(30_000),
-  });
-  if (!granted.ok) {
-    return { ok: false, error: `Could not record the permission (${granted.status}).` };
-  }
-
-  return { ok: true, restarted: result.restarted };
-}
-
-/** Whether this agent is already allowed to work on this machine. */
-export async function localAccessGranted(agent: string): Promise<boolean> {
-  const s = await activeSession();
-  if (!s?.bundle) return false;
-  try {
-    const res = await fetch(
-      `${issuer()}/api/local-exec/grant?deviceId=${encodeURIComponent(deviceId())}`,
-      {
-        headers: authHeaders(s, { bundle: true }),
-        signal: AbortSignal.timeout(20_000),
-      },
-    );
-    if (!res.ok) return false;
-    const body = (await res.json()) as { grants?: { agent: string }[] };
-    return (body.grants ?? []).some((g) => g.agent === agent);
-  } catch {
-    return false;
-  }
-}
-
-/** Withdraw it. The agent keeps its credential; what it loses is permission. */
-export async function revokeLocalAccess(agent: string): Promise<boolean> {
-  const s = await activeSession();
-  if (!s?.bundle) return false;
-  const res = await fetch(`${issuer()}/api/local-exec/grant`, {
-    method: "POST",
-    headers: authHeaders(s, { bundle: true, json: true }),
-    body: JSON.stringify({ agent, deviceId: deviceId(), revoke: true }),
-    signal: AbortSignal.timeout(20_000),
-  });
-  return res.ok;
 }
 
 export interface ConnectorCard {
@@ -2069,176 +1696,3 @@ async function asDataUrl(url: string): Promise<string | undefined> {
   }
 }
 
-export async function listConnectors(
-  agent: string,
-): Promise<{ configured: boolean; connectors: ConnectorCard[] }> {
-  const s = await activeSession();
-  if (!s?.bundle) return { configured: false, connectors: [] };
-  try {
-    const res = await fetch(`${issuer()}/api/connectors?agent=${encodeURIComponent(agent)}`, {
-      headers: authHeaders(s, { bundle: true }),
-      signal: AbortSignal.timeout(30_000),
-    });
-    if (!res.ok) return { configured: false, connectors: [] };
-    const body = (await res.json()) as { configured: boolean; connectors: ConnectorCard[] };
-    const connectors = await Promise.all(
-      body.connectors.map(async (c) =>
-        c.logo?.startsWith('http') ? { ...c, logo: await asDataUrl(c.logo) } : c,
-      ),
-    );
-    return { ...body, connectors };
-  } catch {
-    return { configured: false, connectors: [] };
-  }
-}
-
-/**
- * Begin connecting a service: opens the user's own browser and reports back.
- *
- * Sign-in happens where their sessions and password manager already are. An
- * in-app window asking for a Google password is indistinguishable from the
- * thing every security training tells people not to trust, and we are not going
- * to teach customers to ignore that instinct.
- */
-export async function connectService(input: {
-  agent: string;
-  slug: string;
-  /**
-   * What to call this account when the person already has one of this service.
-   * It becomes the suffix on the tool names, so an agent can be told which
-   * mailbox to send from rather than picking whichever the broker defaults to.
-   */
-  label?: string;
-}): Promise<{ ok: boolean; error?: string }> {
-  if (!legacyPortalExecutionEnabled(issuer())) return { ok: false, error: CUSTOMER_EXECUTION_REQUIRED };
-  const s = await activeSession();
-  if (!s?.bundle) return { ok: false, error: "Not signed in." };
-
-  const res = await fetch(`${issuer()}/api/connectors/link`, {
-    method: "POST",
-    headers: authHeaders(s, { bundle: true, json: true }),
-    body: JSON.stringify(input),
-    signal: AbortSignal.timeout(30_000),
-  });
-  const body = (await res.json().catch(() => ({}))) as { redirectUrl?: string; error?: string };
-  if (!res.ok) return { ok: false, error: body.error ?? `The control plane refused (${res.status}).` };
-  if (!body.redirectUrl) {
-    return { ok: false, error: "No sign-in URL came back for that service." };
-  }
-  await shell.openExternal(body.redirectUrl);
-  return { ok: true };
-}
-
-export async function disconnectService(input: {
-  agent: string;
-  slug: string;
-  shared?: boolean;
-  /** One account, when the service has more than one connected. */
-  account?: string;
-}): Promise<{ ok: boolean; error?: string }> {
-  const s = await activeSession();
-  if (!s?.bundle) return { ok: false, error: "Not signed in." };
-  const res = await fetch(`${issuer()}/api/connectors/disconnect`, {
-    method: "POST",
-    headers: authHeaders(s, { bundle: true, json: true }),
-    body: JSON.stringify(input),
-    signal: AbortSignal.timeout(30_000),
-  });
-  if (!res.ok) return { ok: false, error: `Could not disconnect (${res.status}).` };
-  return { ok: true };
-}
-
-/** Add a remote MCP server the user pasted, and connect it in one step. */
-export async function addCustomConnector(input: {
-  agent: string;
-  name: string;
-  url: string;
-  token?: string;
-  shared?: boolean;
-}): Promise<{ ok: boolean; error?: string; slug?: string; needsSignIn?: boolean }> {
-  if (!legacyPortalExecutionEnabled(issuer())) return { ok: false, error: CUSTOMER_EXECUTION_REQUIRED };
-  const s = await activeSession();
-  if (!s?.bundle) return { ok: false, error: "Not signed in." };
-  const res = await fetch(`${issuer()}/api/connectors/custom`, {
-    method: "POST",
-    headers: authHeaders(s, { bundle: true, json: true }),
-    body: JSON.stringify(input),
-    signal: AbortSignal.timeout(30_000),
-  });
-  const body = (await res.json().catch(() => ({}))) as { error?: string };
-  if (!res.ok) return { ok: false, error: body.error ?? `The control plane refused (${res.status}).` };
-  return { ok: true };
-}
-
-/**
- * Sign in to a remote MCP server that asks for OAuth.
- *
- * @remarks
- * The server-side half discovers everything from the URL — where to register,
- * where to send the person, where to redeem the code — so this only has to open
- * a browser and get out of the way. The tokens never come here: they are held
- * and refreshed by the control plane, which is what lets the agent use the
- * server from Slack or a workspace at a time when this app is not running.
- */
-export async function startMcpSignIn(input: {
-  slug: string;
-  agent: string;
-  shared?: boolean;
-}): Promise<{ ok: boolean; error?: string }> {
-  if (!legacyPortalExecutionEnabled(issuer())) return { ok: false, error: CUSTOMER_EXECUTION_REQUIRED };
-  const s = await activeSession();
-  if (!s?.bundle) return { ok: false, error: "Not signed in." };
-  const res = await fetch(`${issuer()}/api/connectors/mcp/oauth/start`, {
-    method: "POST",
-    headers: authHeaders(s, { bundle: true, json: true }),
-    body: JSON.stringify(input),
-    signal: AbortSignal.timeout(30_000),
-  });
-  const body = (await res.json().catch(() => ({}))) as { authorizeUrl?: string; error?: string };
-  if (!res.ok || !body.authorizeUrl) {
-    return { ok: false, error: body.error ?? `The control plane refused (${res.status}).` };
-  }
-  await shell.openExternal(body.authorizeUrl);
-  return { ok: true };
-}
-
-/** Ask the control plane whether a remote MCP server actually answers. */
-export async function testRemoteMcp(
-  slug: string,
-): Promise<{ ok: boolean; tools?: string[]; error?: string }> {
-  if (!legacyPortalExecutionEnabled(issuer())) return { ok: false, error: CUSTOMER_EXECUTION_REQUIRED };
-  const s = await activeSession();
-  if (!s?.bundle) return { ok: false, error: "Not signed in." };
-  try {
-    const res = await fetch(`${issuer()}/api/connectors/mcp/test`, {
-      method: "POST",
-      headers: authHeaders(s, { bundle: true, json: true }),
-      body: JSON.stringify({ slug }),
-      signal: AbortSignal.timeout(40_000),
-    });
-    const body = (await res.json().catch(() => ({}))) as {
-      ok?: boolean;
-      tools?: string[];
-      error?: string;
-    };
-    if (!res.ok) return { ok: false, error: body.error ?? `The control plane answered ${res.status}.` };
-    return { ok: Boolean(body.ok), tools: body.tools, error: body.error };
-  } catch {
-    return { ok: false, error: "Could not reach the control plane." };
-  }
-}
-/** Fixed, owner-authenticated Codex route; credentials never enter the renderer. */
-export async function codexAccess(input: {agentId:string;sessionId:string;mode?:'restricted'|'native'|'full';revision?:number;confirmed?:boolean}):Promise<import('../shared/ipc').CodexAccessState>{
- const agent=await resolveAgent(input.agentId);
- if(typeof input.sessionId!=='string'||! /^[a-zA-Z0-9-]{1,100}$/.test(input.sessionId))throw Error('Invalid agent endpoint or session');
- const target=`${agent.url}/eve/v1/session/${encodeURIComponent(input.sessionId)}/access`;
- await requireAgentCredentials(agent,target);
- const res=await agentFetch(agent,target,{
-  method:input.mode?'POST':'GET',redirect:'error',
-  body:input.mode?JSON.stringify({mode:input.mode,revision:input.revision,confirmed:input.confirmed}):undefined,signal:AbortSignal.timeout(180000)
- },{json:!!input.mode});
- if(!res)throw Error(CREDENTIALS_WITHHELD);
- const data=await res.json() as import('../shared/ipc').CodexAccessState & {error?:string};
- if(!res.ok)throw Error(data.error??`Access settings unavailable (${res.status})`);
- return data;
-}

@@ -4,10 +4,7 @@ import { app, BrowserWindow, Notification, ipcMain, shell, type WebContents } fr
 import { activateControlPlane, addControlPlane, controlPlanes, removeControlPlane } from "./controlPlanes";
 import { assertPlaneSwitchAllowed } from "./controlPlaneProfiles";
 import type { Attachment } from "../shared/ipc";
-import type { VoiceContext } from "../shared/ipc";
-import { closeOrbWindow, createLiveSession, moveOrbWindow, toggleOrbWindow, voiceAsk, voiceContext } from "./voice";
 import { loadState, pickFolder, saveState } from "./store";
-import { dictationAvailable, transcribe } from "./dictation";
 import {
   localFileExists,
   openLocalFile,
@@ -15,43 +12,21 @@ import {
   revealLocalFile,
   saveRemoteFile,
 } from "./deliveredFile";
-import { listSessions, recordSession, replaySession } from "./sessionIndex";
-import { type LocalMcpServer, authenticate, listServers, saveServers, testServer } from "./localMcp";
-import {
-  type LocalAction,
-  type LocalPermission,
-  answerAsk,
-  readPermissions,
-  setPermission,
-} from "./localExec";
+import { replaySession } from "./sessionIndex";
+import { answerAsk } from "./asks";
 import {
   type DeviceStart,
   agentHealth,
   agentInfo,
-  codexAccess,
-  addCustomConnector,
-  startMcpSignIn,
   cancelTurn,
-  connectService,
-  disconnectService,
-  listConnectors,
-  localAccessGranted,
-  manageCall,
-  voiceManifest,
-  provisionLocalAccess,
-  revokeLocalAccess,
   currentSession,
   listAgents,
   saveAgentProfile,
-  listRooms,
-  saveRoom,
-  claimDriver,
   watchSession,
   pollDeviceAuth,
   resetSession,
   sendTurn,
   signOut,
-  testRemoteMcp,
   startDeviceAuth,
   cancelDeviceAuth,
 } from "./controlPlane";
@@ -107,8 +82,6 @@ export function registerIpc(): void {
 
   ipcMain.handle("studio:listAgents", (_event, opts?: { refreshSession?: boolean }) =>
     listAgents({ refreshSession: opts?.refreshSession === true }));
-  ipcMain.handle("studio:listRooms", () => listRooms());
-  ipcMain.handle("studio:saveRoom", (_e, input: Parameters<typeof saveRoom>[0]) => saveRoom(input));
   ipcMain.handle(
     "studio:saveAgentProfile",
     (_e, input: Parameters<typeof saveAgentProfile>[0]) => saveAgentProfile(input),
@@ -118,17 +91,6 @@ export function registerIpc(): void {
   // resolves the address from Portal's records, so web content cannot make
   // this app send a credential somewhere of its choosing.
   ipcMain.handle("studio:agentInfo", (_e, agentId: string) => agentInfo(agentId));
-  ipcMain.handle(
-    "studio:codexAccess",
-    (_e, input: Parameters<typeof codexAccess>[0]) =>
-      codexAccess({
-        agentId: input?.agentId,
-        sessionId: input?.sessionId,
-        mode: input?.mode,
-        revision: input?.revision,
-        confirmed: input?.confirmed,
-      }),
-  );
 
   ipcMain.handle("studio:agentHealth", (_e, agentId: string) => agentHealth(agentId));
 
@@ -138,13 +100,7 @@ export function registerIpc(): void {
       answerAsk(input.id, input.allow, input.remember);
     },
   );
-  ipcMain.handle("studio:localPermissions", () => readPermissions());
 
-  ipcMain.handle("studio:listSessions", (_e, agent?: string) => listSessions(agent));
-  ipcMain.handle(
-    "studio:recordSession",
-    (_e, entry: Parameters<typeof recordSession>[0]) => recordSession(entry),
-  );
   ipcMain.handle(
     "studio:replaySession",
     (_e, input: { agentId: string; sessionId: string; limit?: number }) =>
@@ -157,61 +113,14 @@ export function registerIpc(): void {
   });
   ipcMain.handle("studio:pickFolder", () => pickFolder());
 
-  ipcMain.handle(
-    "studio:manage",
-    (_e, input: { agentId: string; path: string; body?: unknown }) =>
-      manageCall({ agentId: input?.agentId, path: input?.path, body: input?.body }),
-  );
-  ipcMain.handle(
-    "studio:setLocalPermission",
-    (_e, input: { action: LocalAction; value: LocalPermission }) => {
-      setPermission(input.action, input.value);
-      return readPermissions();
-    },
-  );
 
-  ipcMain.handle(
-    "studio:provisionLocal",
-    (_e, input: { agentId: string }) => provisionLocalAccess({ agentId: input?.agentId }),
-  );
 
-  // Sign-in happens in the user's real browser, where their sessions and
-  // password manager already are — never in an app window pretending to be one.
-  ipcMain.handle("studio:connectors", (_e, agent: string) => listConnectors(agent));
-  ipcMain.handle(
-    "studio:connectService",
-    (_e, input: { agent: string; slug: string; label?: string }) => connectService(input),
-  );
-  ipcMain.handle(
-    "studio:disconnectService",
-    (_e, input: { agent: string; slug: string; shared?: boolean; account?: string }) =>
-      disconnectService(input),
-  );
 
-  ipcMain.handle(
-    "studio:addCustomConnector",
-    (
-      _e,
-      input: { agent: string; name: string; url: string; token?: string; shared?: boolean },
-    ) => addCustomConnector(input),
-  );
 
-  ipcMain.handle(
-    "studio:startMcpSignIn",
-    (_event, input: { slug: string; agent: string; shared?: boolean }) => startMcpSignIn(input),
-  );
 
-  ipcMain.handle("studio:testRemoteMcp", (_e, slug: string) => testRemoteMcp(slug));
 
-  ipcMain.handle("studio:connectMcpServer", (_e, id: string) => authenticate(id));
 
-  ipcMain.handle("studio:testMcpServer", (_e, id: string) => testServer(id));
 
-  ipcMain.handle("studio:mcpServers", () => listServers());
-  ipcMain.handle("studio:saveMcpServers", (_e, servers: LocalMcpServer[]) => {
-    saveServers(servers);
-    return listServers();
-  });
 
   ipcMain.handle("studio:openExternal", (_e, url: string) => shell.openExternal(url));
 
@@ -219,10 +128,6 @@ export function registerIpc(): void {
   // clicked; none of these take an instruction from the model.
   ipcMain.handle("studio:fileExists", (_e, path: string) => localFileExists(path));
 
-  // Dictation. The audio arrives as samples and leaves as text; nothing is
-  // written to disk and nothing goes to a network.
-  ipcMain.handle("studio:dictationAvailable", () => dictationAvailable());
-  ipcMain.handle("studio:transcribe", (_e, samples: Float32Array) => transcribe(samples));
   ipcMain.handle("studio:openLocalFile", (_e, path: string) => openLocalFile(path));
   ipcMain.handle("studio:revealLocalFile", (_e, path: string) => revealLocalFile(path));
   ipcMain.handle(
@@ -234,9 +139,7 @@ export function registerIpc(): void {
     (_e, input: { url: string; suggestedName: string }) => openRemoteFile(input),
   );
 
-  ipcMain.handle("studio:localAccess", (_e, agent: string) => localAccessGranted(agent));
 
-  ipcMain.handle("studio:revokeLocal", (_e, agent: string) => revokeLocalAccess(agent));
 
   ipcMain.handle(
     "studio:cancelTurn",
@@ -329,7 +232,6 @@ export function registerIpc(): void {
     });
     n.show();
   });
-  ipcMain.handle("studio:claimDriver", (_e, sessionId: string) => claimDriver(sessionId));
   ipcMain.handle("studio:unwatch", (_e, streamId: string) => {
     watchers.get(streamId)?.abort();
     watchers.delete(streamId);
@@ -407,13 +309,6 @@ export function registerIpc(): void {
     },
   );
 
-  ipcMain.handle("studio:toggleOrb", (_e, input: VoiceContext) => toggleOrbWindow(input));
 
 
-  ipcMain.handle("studio:closeOrb", () => closeOrbWindow());
-  ipcMain.handle("studio:voiceConnect", (_e, input: { sdp: string }) => createLiveSession(input));
-  ipcMain.handle("studio:voiceManifest", (_e, agentId: string) => voiceManifest(agentId));
-  ipcMain.on("studio:moveOrb", (_e, d: { dx: number; dy: number }) => moveOrbWindow(d?.dx ?? 0, d?.dy ?? 0));
-  ipcMain.handle("studio:voiceContext", () => voiceContext());
-  ipcMain.handle("studio:voiceAsk", (_e, input: { text: string }) => voiceAsk(input));
 }

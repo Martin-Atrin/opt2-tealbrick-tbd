@@ -3,13 +3,12 @@ import { type ReactNode, useEffect } from "react";
 import { Conversation } from "./components/Conversation";
 import { Palette } from "./components/Palette";
 import { Panel } from "./components/Panel";
-import { Plugins } from "./components/Plugins";
 import { Sidebar } from "./components/Sidebar";
 import { SignIn } from "./components/SignIn";
 import { useStore } from "./lib/store";
 
 export function App(): ReactNode {
-  const { portalWorkspaceId, workspaceLoading, setPaletteOpen, paletteOpen, bootstrap, authState, agents, rooms, authError, refreshAgents } = useStore();
+  const { portalWorkspaceId, workspaceLoading, setPaletteOpen, paletteOpen, bootstrap, authState, agents, authError, refreshAgents } = useStore();
 
   useEffect(() => {
     void bootstrap();
@@ -46,14 +45,13 @@ export function App(): ReactNode {
   return (
     <div className="app">
       <Sidebar />
-      {agents.length === 0 && rooms.length === 0 ? <main className="tb-empty">
+      {agents.length === 0 ? <main className="tb-empty">
         <img src="./brand/teal-brick-colour.png" width="48" height="48" alt="" />
         <h1>Your agents will appear here</h1>
         <p role="status">{authError ?? "Loading the agents available to your account…"}</p>
         <button className="btn" onClick={() => void refreshAgents({ refreshSession: true })}>Refresh agents</button>
       </main> : <Conversation />}
       <Panel />
-      <Plugins />
       <Palette />
     </div>
   );

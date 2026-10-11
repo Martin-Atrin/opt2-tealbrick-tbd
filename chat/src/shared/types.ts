@@ -43,8 +43,6 @@ export interface Agent {
   avatar?: string;
   /** Sidebar organization. */
   pinned?: boolean;
-  /** Spoken voice for this agent's voice orb (OpenAI Live voice name). */
-  voice?: string;
   hidden?: boolean;
   unread?: boolean;
   notifications?: boolean;
@@ -55,36 +53,6 @@ export interface Agent {
 }
 
 export type MessageRole = "user" | "agent";
-
-/**
- * A conversation with more than one agent in it.
- *
- * The desktop app is the room: each member keeps its own session with its own
- * deployment — they are separate services and must not share one — and this
- * app puts what is said in front of all of them. Nothing about a room exists
- * on any agent, which is what makes it work with any agent a customer has,
- * governed or not, ours or theirs.
- */
-export interface Room {
-  id: string;
-  /** Agent ids, in the order they were added. */
-  memberIds: string[];
-  createdAt: number;
-  /** Set when the user renames it; otherwise the members' names are the name. */
-  name?: string;
-  /** What happens to a message that names nobody. See RoomPolicy. */
-  policy?: "all" | "lead" | "silent";
-  lastMessageAt?: number;
-  lastMessagePreview?: string;
-  unread?: boolean;
-  pinned?: boolean;
-}
-
-/** Rooms and agents share the sidebar and the conversation map, so ids must not collide. */
-export const ROOM_PREFIX = `room:`;
-export function isRoomId(id: string): boolean {
-  return id.startsWith(ROOM_PREFIX);
-}
 
 /** One rendered block in a conversation. */
 export type Block =

@@ -92,11 +92,10 @@ public final class TBDModelRegistry: @unchecked Sendable {
     }
 
     static func isPrivateHost(_ host: String) -> Bool {
-        if ["localhost", "127.0.0.1", "[::1]", "::1"].contains(host) || host.hasSuffix(".local") || host.hasSuffix(".ts.net") { return true }
+        if ["localhost", "127.0.0.1", "[::1]", "::1"].contains(host) || host.hasSuffix(".local") { return true }
         let p = host.split(separator: ".").compactMap { Int($0) }
         guard p.count == 4, p.allSatisfy({ (0...255).contains($0) }) else { return false }
         return p[0] == 10 || (p[0] == 192 && p[1] == 168) || (p[0] == 172 && (16...31).contains(p[1]))
-            || (p[0] == 100 && (64...127).contains(p[1]))
     }
 
     static func isLoopback(_ url: URL) -> Bool {

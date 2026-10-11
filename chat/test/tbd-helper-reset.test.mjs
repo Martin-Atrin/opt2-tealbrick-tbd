@@ -17,7 +17,7 @@ for (const switchID of [2, -101]) test(`only reset owner ${switchID} can reset; 
       export function registerIpc(){
         handlers.set('slow',async()=>{await new Promise(r=>setTimeout(r,50));return 'old result'});
         handlers.set('switch',()=>{app.emit('tbd:reset-session')});
-      }` : a.path.endsWith('/localExec') ? 'export const startLocalExec=()=>{};export const stopLocalExec=()=>{};export const setLocalExecWindow=()=>{};' : a.path.endsWith('/localMcp') ? 'export const stopAll=()=>{};' : '',loader:'ts',resolveDir:process.cwd()}));
+      }` : a.path.endsWith('/asks') ? 'export const setAskWindow=()=>{};export const refuseAll=()=>{};' : '',loader:'ts',resolveDir:process.cwd()}));
   }}]});
   const p=spawn(process.execPath,[bundle],{env:{...process.env,TBD_CHAT_DATA:dir},stdio:['pipe','pipe','pipe']});
   const received=[];const readers=[];

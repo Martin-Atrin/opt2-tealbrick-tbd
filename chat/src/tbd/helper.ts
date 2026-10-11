@@ -34,12 +34,11 @@ lines.on('line', async (line) => {
       configure(message.key, send);
       await import('../main/controlPlanes');
       const { registerIpc } = await import('../main/ipc');
-      const { startLocalExec, stopLocalExec, setLocalExecWindow } = await import('../main/localExec');
-      const { stopAll } = await import('../main/localMcp');
+      const { setAskWindow, refuseAll } = await import('../main/asks');
       registerIpc();
-      setLocalExecWindow(sender as any);
-      stop = () => { sender.emit('destroyed'); stopLocalExec(); stopAll(); };
-      startLocalExec(); initialized = true; send({ type: 'ready' }); return;
+      setAskWindow(sender);
+      stop = () => { sender.emit('destroyed'); refuseAll(); };
+      initialized = true; send({ type: 'ready' }); return;
     }
     if (message.type === 'nativeReply') { nativeReply(message); return; }
     if (message.type === 'shutdown') { shutdown(); return; }

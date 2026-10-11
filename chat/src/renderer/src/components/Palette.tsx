@@ -15,14 +15,13 @@ export type PaletteScope =
   | "All"
   | "Messages"
   | "Agents"
-  | "Groups"
   | "Routines"
   | "Actions";
 
 // Every scope here must have something that produces it. "Files" and "Links"
 // never did: they were permanently empty tabs that answered every search with
 // "Nothing matches".
-const SCOPES: PaletteScope[] = ["All", "Messages", "Agents", "Groups", "Routines", "Actions"];
+const SCOPES: PaletteScope[] = ["All", "Messages", "Agents", "Routines", "Actions"];
 
 interface Item {
   id: string;
@@ -36,7 +35,6 @@ interface Item {
 export function Palette(): ReactNode {
   const {
     agents,
-    rooms,
     details,
     conversations,
     paletteOpen,
@@ -44,7 +42,6 @@ export function Palette(): ReactNode {
     select,
     openRoutine,
     setPanel,
-    setPluginsOpen,
   } = useStore();
   const [q, setQ] = useState("");
   const [scope, setScope] = useState<PaletteScope>("All");
@@ -62,21 +59,6 @@ export function Palette(): ReactNode {
 
   const items = useMemo((): Item[] => {
     const out: Item[] = [];
-
-    for (const r of rooms) {
-      const members = r.memberIds
-        .map((id) => agents.find((a) => a.id === id))
-        .filter((a): a is (typeof agents)[number] => Boolean(a));
-      out.push({
-        id: `room:${r.id}`,
-        title: r.name ?? members.map((m) => m.name).join(", "),
-        subtitle: `${members.length} member${members.length === 1 ? "" : "s"}`,
-        scope: "Groups",
-        icon: <Icon name="users" size={16} />,
-        run: () => select(r.id),
-      });
-    }
-
     for (const a of agents.filter((x) => !x.hidden)) {
       out.push({
         id: `agent:${a.id}`,
@@ -135,11 +117,10 @@ export function Palette(): ReactNode {
     out.push(action("Chat Settings", "Current chat", () => setPanel("settings")));
     // Channels are a section of Overview; "channels" opened Settings, which has none.
     out.push(action("Channels", "Current agent", () => setPanel("overview")));
-    out.push(action("Plugins", "Marketplace", () => setPluginsOpen(true), "plug"));
     out.push(action("Agent panel", "Show or hide", () => setPanel("overview"), "monitor"));
 
     return out;
-  }, [agents, details, conversations, select, openRoutine, setPanel, setPluginsOpen]);
+  }, [agents, details, conversations, select, openRoutine, setPanel]);
 
   const query = q.trim().toLowerCase();
   const results = items

@@ -1,5 +1,3 @@
-import { selectedPortalWorkspace } from "./portalWorkspaces";
-import { sessionDirectoryRecord } from "./portalPrivacy";
 import { activeSession, agentFetch, authHeaders, issuer, resolveAgent } from "./controlPlane";
 import {
   blocksFromEvents,
@@ -13,113 +11,9 @@ export { blocksFromEvents };
 export type { Replayed, ReplayedBlock, ReplayedPeerBlock };
 
 /**
- * The same conversations on every machine you sign in from.
- *
- * Studio kept the map of "this chat is that session" in a JSON file next to the
- * app. Everything else about an account is central — the agents, the grants,
- * the connections — so signing in on a second machine produced an app that was
- * correct in every respect except that it had never met you. The conversations
- * were not lost; nothing knew where to look for them.
- *
- * Two halves, deliberately separate:
- *
- *   - This file keeps a DIRECTORY in the control plane: which sessions are
- *     mine, with which agent, last touched when. Small, per-person, and free of
- *     conversation content.
- *   - {@link replaySession} reads the CONVERSATION from the agent, which has
- *     had it all along — the event stream is durable and replays from the
- *     start with stable ids.
- *
- * Keeping them apart is what stops the control plane accumulating a second
- * copy of everyone's conversations, and it means a device that has been away
- * for a month catches up by asking the agent rather than by syncing a diff.
+ * Rebuild a conversation from the agent that holds it ({@link replaySession}).
+ * The agent's event stream is durable and replays from the start with stable ids.
  */
-
-export interface IndexedSession {
-  agent: string;
-  sessionId: string;
-  label?: string | null;
-  title?: string | null;
-  lastMessageAt?: string | null;
-  lastMessagePreview?: string | null;
-}
-
-/** This person's threads, newest first. Empty on any failure — never fatal. */
-export async function listSessions(agent?: string): Promise<IndexedSession[]> {
-  const s = await activeSession();
-  // Logged at both ends: "asked and got nothing" and "never asked" are
-  // different faults with the same symptom, and guessing between them is how
-  // an afternoon goes.
-  if (!s) {
-    console.log("[index] list skipped — no active control-plane session");
-    return [];
-  }
-  console.log(`[index] listing threads${agent ? ` for ${agent}` : ""} …`);
-  try {
-    const url = new URL(`${issuer()}/api/sessions`);
-    url.searchParams.set("workspaceId", selectedPortalWorkspace());
-    if (agent) url.searchParams.set("agent", agent);
-    const res = await fetch(url, {
-      headers: authHeaders(s),
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (!res.ok) {
-      console.log(`[index] list failed ${res.status}`);
-      return [];
-    }
-    const body = (await res.json()) as { sessions?: IndexedSession[]; workspaceId?: string };
-    if (body.workspaceId !== selectedPortalWorkspace()) return [];
-    const rows = body.sessions ?? [];
-    console.log(`[index] ${rows.length} thread(s) known to this account`);
-    return rows;
-  } catch (error) {
-    // A directory that cannot be reached must not stop someone using the app
-    // on the machine they are already sitting at.
-    console.log("[index] list request failed");
-    return [];
-  }
-}
-
-/** Record or update one thread. Fire and forget: the local copy is authoritative. */
-export async function recordSession(entry: {
-  agent: string;
-  sessionId: string;
-  label?: string;
-  title?: string;
-  lastMessageAt?: number;
-  lastMessagePreview?: string;
-  archived?: boolean;
-}): Promise<void> {
-  const s = await activeSession();
-  if (!s) {
-    console.log("[index] not signed in — thread not recorded");
-    return;
-  }
-  try {
-    const res = await fetch(`${issuer()}/api/sessions`, {
-      method: "POST",
-      headers: authHeaders(s, { json: true }),
-      body: JSON.stringify(sessionDirectoryRecord(entry, selectedPortalWorkspace())),
-      signal: AbortSignal.timeout(15_000),
-    });
-    /**
-     * Say when this fails.
-     *
-     * Recording is non-blocking on purpose, and the first version swallowed the
-     * outcome entirely — so a rejected call looked exactly like a working one
-     * until someone opened their other machine and found nothing there. A sync
-     * that fails quietly is worse than one that fails loudly: it costs you the
-     * trust you had in it retroactively, for every thread you assumed was safe.
-     */
-    if (!res.ok) {
-      console.log(`[index] record failed HTTP ${res.status}`);
-      return;
-    }
-    console.log(`[index] recorded ${entry.agent} ${entry.sessionId.slice(0, 20)}`);
-  } catch (error) {
-    console.log("[index] record request failed");
-  }
-}
 
 /**
  * Rebuild a conversation from the agent's own event stream.

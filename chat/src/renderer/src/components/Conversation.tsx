@@ -285,7 +285,6 @@ export function Conversation(): ReactNode {
     panel,
     setPanel,
     details,
-    setPluginsOpen,
     answerQuestion,
     inflight,
     queued,
@@ -298,51 +297,13 @@ export function Conversation(): ReactNode {
     setWorkspace,
   } = useStore();
   const agent = agents.find((a) => a.id === activeAgentId);
-  const rooms = useStore((s) => s.rooms);
   const sessions = useStore((s) => s.sessions);
-  const openOrb = (): void => {
-    if (!agent?.url) return;
-    void window.studio.toggleOrb({
-      agentId: agent.id,
-      agentName: agent.name,
-      sessionId: sessions[activeAgentId],
-      voice: agent.voice ?? "marin",
-    });
-  };
-  const [voiceCapable, setVoiceCapable] = useState(false);
-  useEffect(() => {
-    let cancelled = false;
-    setVoiceCapable(false);
-    const url = agent?.url;
-    if (url && agent) {
-      void window.studio.voiceManifest(agent.id).then((m) => {
-        if (!cancelled) setVoiceCapable(Boolean(m?.enabled));
-      });
-    }
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeAgentId, agent?.url]);
-  const sendToRoom = useStore((s) => s.sendToRoom);
-  const stopRoom = useStore((s) => s.stopRoom);
-  const roomQueue = useStore((s) => s.roomQueue);
-  const setRoomPolicy = useStore((s) => s.setRoomPolicy);
-  const room = rooms.find((r) => r.id === activeAgentId);
-  const roomMembers = (room?.memberIds ?? [])
-    .map((id) => agents.find((a) => a.id === id))
-    .filter((a): a is NonNullable<typeof a> => Boolean(a));
   // Who this agent can be asked to talk to — the control plane's list, reused
   // for both the @ menu and for drawing mentions in what was sent.
-  const mentionable = room
-    ? [
-        ...roomMembers.map((m) => ({ name: m.name, accent: m.accent })),
-        { name: "everyone", accent: "#8b91a0" },
-      ]
-    : (agent?.peers ?? []).map((peer) => ({
-        name: peer.name,
-        accent: agents.find((a) => a.id === peer.id || a.name === peer.name)?.accent,
-      }));
+  const mentionable = (agent?.peers ?? []).map((peer) => ({
+    name: peer.name,
+    accent: agents.find((a) => a.id === peer.id || a.name === peer.name)?.accent,
+  }));
   const blocks = conversations[activeAgentId] ?? [];
   const [draft, setDraft] = useState("");
   const [acCursor, setAcCursor] = useState(0);
@@ -429,19 +390,8 @@ export function Conversation(): ReactNode {
   const model = models[activeAgentId];
   // A turn in flight, which is a stronger fact than an activity label: the
   // label goes quiet between steps, but the session is still not accepting.
-  /**
-   * A room is busy while ANY member is still working.
-   *
-   * Flight is tracked per member (`<roomId>::<agentId>`), so asking about the
-   * room id alone always says "idle" — and the stop button never appears while
-   * four agents are mid-hand-off, which is exactly when it is wanted.
-   */
-  const roomFlightKeys = (room?.memberIds ?? []).map((id) => `${room?.id}::${id}`);
-  const busyMembers = roomFlightKeys.filter((k) => inflight[k]);
-  const running = room ? busyMembers.length > 0 : Boolean(inflight[activeAgentId]);
-  const waiting = room
-    ? roomFlightKeys.reduce((n, k) => n + (roomQueue[k]?.length ?? 0), 0)
-    : (queued[activeAgentId]?.length ?? 0);
+  const running = Boolean(inflight[activeAgentId]);
+  const waiting = queued[activeAgentId]?.length ?? 0;
 
 
   /**
@@ -469,7 +419,6 @@ export function Conversation(): ReactNode {
       const actions: Suggestion[] = [
         { id: "act:settings", title: "Chat Settings", detail: "Current chat", type: "Action" },
         { id: "act:channels", title: "Channels", detail: "Current agent", type: "Action" },
-        { id: "act:plugins", title: "Plugins", detail: "Marketplace", type: "Action" },
       ].filter((a) => match(a.title)) as Suggestion[];
       return [...fromSkills, ...actions].slice(0, 8);
     }
@@ -482,33 +431,7 @@ export function Conversation(): ReactNode {
      * stops being suggested here, and tagging someone it cannot reach is not
      * offered in the first place.
      */
-    // In a room the people you can address are the members — plus everyone at
-    // once. Outside a room they are the peers this agent may CALL, from the
-    // control plane. Same gesture, two different sets, because tagging someone
-    // who is not here does nothing and tagging someone unreachable is worse.
-    const fromPeers: Suggestion[] = room
-      ? [
-          ...(match("everyone")
-            ? [
-                {
-                  id: "agent:everyone",
-                  title: "everyone",
-                  detail: "Everyone in this group",
-                  type: "Agent" as const,
-                },
-              ]
-            : []),
-          ...roomMembers
-            .filter((m) => match(m.name))
-            .map((m) => ({
-              id: `agent:${m.id}`,
-              title: m.name,
-              detail: m.title,
-              type: "Agent" as const,
-              accent: m.accent,
-            })),
-        ]
-      : (agent?.peers ?? [])
+    const fromPeers: Suggestion[] = (agent?.peers ?? [])
           .filter((peer) => match(peer.name))
           .map((peer) => ({
             id: `agent:${peer.id}`,
@@ -544,8 +467,7 @@ export function Conversation(): ReactNode {
       composerDom.removeTrigger(el);
       setDraft(composerDom.serialize(el));
       setCaretTrigger(null);
-      if (s.id === "act:plugins") setPluginsOpen(true);
-      else if (s.id === "act:channels") setPanel("overview");
+      if (s.id === "act:channels") setPanel("overview");
       else setPanel("settings");
       return;
     }
@@ -563,7 +485,7 @@ export function Conversation(): ReactNode {
     el.focus();
   };
 
-  if (!agent && !room) return <div className="main" />;
+  if (!agent) return <div className="main" />;
 
   /**
    * Attaching a file is the user handing something over deliberately.
@@ -622,10 +544,7 @@ export function Conversation(): ReactNode {
     setVoice("transcribing");
     setLevel(0);
     const epoch = dictationEpoch.current;
-    const result: { text?: string; error?: string } = recorder.finishText ? await recorder.finishText() : await (async () => {
-      const samples = await recorder.stop();
-      return samples.length ? window.studio.transcribe(samples) : { text: "" };
-    })();
+    const result: { text?: string; error?: string } = await recorder.finishText();
     if (dictationEpoch.current !== epoch) return;
     setVoice("idle");
     if (result.error) {
@@ -653,17 +572,7 @@ export function Conversation(): ReactNode {
     // A file with no words is still a message — dragging a document in and
     // pressing enter means "look at this", and refusing it as empty is wrong.
     if (!text && pending.length === 0) return;
-    if (room) {
-      // Rooms fan one message out to several agents; attachments are not
-      // carried there yet, so say so rather than dropping them silently.
-      if (pending.length > 0) {
-        setAttachError("Files can be attached in a direct conversation, not in a group yet.");
-        return;
-      }
-      sendToRoom(room.id, text);
-    } else if (agent) {
-      send(agent.id, text, false, pending.length > 0 ? pending : undefined);
-    }
+    if (agent) send(agent.id, text, false, pending.length > 0 ? pending : undefined);
     setDraft("");
     setPending([]);
     setAttachError(null);
@@ -674,36 +583,8 @@ export function Conversation(): ReactNode {
     <div className="main" style={{ position: "relative" }}>
       <ExchangeView />
       <div className="topbar">
-        {room ? (
-          <>
-            <span className="stack">
-              {roomMembers.map((m) => (
-                <Avatar key={m.id} name={m.name} accent={m.accent} size={22} />
-              ))}
-            </span>
-            <span className="topbar__title">
-              {room.name ?? roomMembers.map((m) => m.name).join(", ")}
-            </span>
-            {/* Who answers when you tag nobody. The default is the first
-                member, which is how a team works — you talk to whoever runs
-                it, and they bring the others in. */}
-            <select
-              className="policy"
-              value={room.policy ?? "lead"}
-              title="Who replies when you do not tag anyone"
-              onChange={(e) => setRoomPolicy(room.id, e.target.value as "all" | "lead" | "silent")}
-            >
-              <option value="lead">{roomMembers[0]?.name ?? "Lead"} answers</option>
-              <option value="all">Everyone answers</option>
-              <option value="silent">Only who I tag</option>
-            </select>
-          </>
-        ) : (
-          <>
-            <Avatar name={agent!.name} accent={agent!.accent} src={agent!.avatar} size={22} />
-            <span className="topbar__title">{agent!.name}</span>
-          </>
-        )}
+        <Avatar name={agent!.name} accent={agent!.accent} src={agent!.avatar} size={22} />
+        <span className="topbar__title">{agent!.name}</span>
         <div className="topbar__spacer" />
         {workspaces[activeAgentId] ? (
           <div className="workspace-wrap">
@@ -794,11 +675,7 @@ export function Conversation(): ReactNode {
                   onAnswer={(answer) => answerQuestion(activeAgentId, b.id, answer)}
                 />
               );
-              // In a room, every agent turn says who is speaking. Without it a
-              // run of replies from three agents is one anonymous wall.
-              // Who said it, above what they said, with their avatar beside the
-              // bubble. In a room this is not decoration: two grey bubbles in a
-              // row are unreadable when three agents can produce them.
+              // Who said it, above what they said, when the turn names a speaker.
               return b.speaker ? (
                 <div key={b.id} className="said">
                   <div className="said__who">{b.speaker.name}</div>
@@ -839,9 +716,7 @@ export function Conversation(): ReactNode {
           })}
           {blocks.length === 0 ? (
             <div className="empty">
-              {room
-                ? `No messages yet. Say something to ${roomMembers.map((m) => m.name).join(" and ")}.`
-                : `No messages yet. Say hello to ${agent?.name}.`}
+              {`No messages yet. Say hello to ${agent?.name}.`}
             </div>
           ) : null}
           {busy ? (
@@ -946,7 +821,7 @@ export function Conversation(): ReactNode {
             role="textbox"
             aria-multiline="true"
             suppressContentEditableWarning
-            data-placeholder={room ? "Message the group" : `Message ${agent?.name}`}
+            data-placeholder={`Message ${agent?.name}`}
             onInput={() => {
               const el = inputRef.current;
               if (!el) return;
@@ -1027,10 +902,7 @@ export function Conversation(): ReactNode {
               // While a turn runs, this is a stop button. A user watching a turn
               // that has gone nowhere for two minutes needs a way out that does
               // not involve quitting the app.
-              if (running) {
-                if (room) stopRoom(room.id);
-                else stopTurn(activeAgentId);
-              }
+              if (running) stopTurn(activeAgentId);
               // Recording: this click ends it and transcribes.
               else if (voice === "recording") void finishDictation();
               else if (draft.trim() || pending.length > 0) submit();
@@ -1050,29 +922,6 @@ export function Conversation(): ReactNode {
               <Icon name={draft.trim() || pending.length > 0 ? "arrowUp" : "mic"} />
             )}
           </button>
-          {voiceCapable ? (
-          <button
-            className="icon-btn"
-            type="button"
-            title="Open Listening"
-            disabled={!agent?.url}
-            onClick={openOrb}
-            style={{ alignSelf: "center", marginRight: 7, transform: "translateY(-1px)" }}
-          >
-            <span
-              aria-hidden
-              style={{
-                display: "block",
-                width: 30,
-                height: 30,
-                borderRadius: "50%",
-                background:
-                  "conic-gradient(from 0deg, oklch(75% 0.15 350), oklch(80% 0.12 200), oklch(78% 0.14 280), oklch(75% 0.15 350))",
-                boxShadow: "0 0 4px rgba(147, 51, 234, 0.4)",
-              }}
-            />
-          </button>
-          ) : null}
         </div>
         {model || busy ? (
           <div className="composer__meta">

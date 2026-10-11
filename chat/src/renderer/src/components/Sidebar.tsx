@@ -1,7 +1,6 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { UpdateRow } from "./UpdateRow";
-import type { Agent, Block, Room } from "@shared/types";
+import type { Agent, Block } from "@shared/types";
 import { useStore } from "@/lib/store";
 import { workspaceFooterLabel } from "@/lib/workspaceLabel";
 import { Avatar, Icon, timeLabel } from "./primitives";
@@ -18,10 +17,8 @@ function useRailTooltip(name: string): { events: { onMouseEnter: (event: React.M
   };
 }
 
-/** The right-click menu is about one row, and a row is an agent or a group. */
-type MenuState =
-  | { x: number; y: number; agent: Agent; room?: never }
-  | { x: number; y: number; room: Room; agent?: never };
+/** The right-click menu is about one agent row. */
+type MenuState = { x: number; y: number; agent: Agent };
 
 function ContextMenu({
   state,
@@ -30,11 +27,8 @@ function ContextMenu({
   state: MenuState;
   onClose(): void;
 }): ReactNode {
-  const { patchAgent, setPanel, select, patchRoom, deleteRoom } = useStore();
-  const { agent, room } = state;
-  // Deleting a group throws away its transcript, and a context menu is one
-  // slip of the wrist away from any item on it. Ask once.
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const { patchAgent, setPanel, select } = useStore();
+  const { agent } = state;
 
   useEffect(() => {
     const dismiss = (): void => onClose();
@@ -60,42 +54,7 @@ function ContextMenu({
   );
 
   // Keep the menu on screen when the click lands near the bottom edge.
-  const top = Math.min(state.y, window.innerHeight - (room ? 150 : 330));
-
-  if (room) {
-    const members = room.memberIds.length;
-    return (
-      <div className="menu" style={{ left: state.x, top }} onClick={(e) => e.stopPropagation()}>
-        {item("pin", room.pinned ? "Unpin" : "Pin", () =>
-          patchRoom(room.id, { pinned: !room.pinned }),
-        )}
-        <div className="menu__sep" />
-        {item("copy", "Copy conversation ID", () => {
-          void navigator.clipboard.writeText(room.id);
-        })}
-        <div className="menu__sep" />
-        {/* Not routed through item(): the first click must NOT close the menu,
-            because the whole point is that the second click is deliberate. */}
-        <button
-          className="menu__item menu__item--danger"
-          onClick={(e) => {
-            e.stopPropagation();
-            if (!confirmDelete) {
-              setConfirmDelete(true);
-              return;
-            }
-            deleteRoom(room.id);
-            onClose();
-          }}
-        >
-          <Icon name="trash" />
-          {confirmDelete
-            ? `Delete this group and its messages?`
-            : `Delete group${members ? ` of ${members}` : ""}`}
-        </button>
-      </div>
-    );
-  }
+  const top = Math.min(state.y, window.innerHeight - 330);
 
   return (
     <div className="menu" style={{ left: state.x, top }} onClick={(e) => e.stopPropagation()}>
@@ -171,133 +130,11 @@ function Row({
   );
 }
 
-/**
- * A room in the list: every member's avatar, and their names as the title.
- *
- * Rooms are not given names by default and should not be — a customer who has
- * put three agents in a room knows it by who is in it, and asking them to name
- * it first is a form to fill in before the useful thing.
- */
-function RoomRow({ room, onMenu }: { room: Room; onMenu(state: MenuState): void }): ReactNode {
-  const { agents, activeAgentId, select, conversations } = useStore();
-  const members = room.memberIds
-    .map((id: string) => agents.find((a) => a.id === id))
-    .filter((a): a is Agent => Boolean(a));
-  const last = lastOf(conversations[room.id]);
-  const title = room.name ?? members.map((m: Agent) => m.name).join(", ");
-
-  const tooltip = useRailTooltip(title);
-
-  return (
-    <div
-      {...tooltip.events}
-      role="button" tabIndex={0} aria-label={title}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(room.id); } }}
-      className={`row${activeAgentId === room.id ? " row--active" : ""}`}
-      onClick={() => select(room.id)}
-      onContextMenu={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        onMenu({ x: e.clientX, y: e.clientY, room });
-      }}
-    >
-      {tooltip.label}
-      <span className="stack">
-        {members.slice(0, 3).map((m: Agent) => (
-          <Avatar key={m.id} name={m.name} accent={m.accent} src={m.avatar} size={34} />
-        ))}
-      </span>
-      <div className="row__body">
-        <div className="row__line">
-          <span className="row__name">{title}</span>
-          {room.pinned ? <Icon name="pin" size={12} /> : null}
-          {last ? <span className="row__time">{timeLabel(last.at)}</span> : null}
-        </div>
-        <div className="row__preview">{last?.text ?? "No messages yet"}</div>
-      </div>
-    </div>
-  );
-}
-
-/**
- * Choosing who is in a new room.
- *
- * Opens with nobody selected and creates nothing until at least two agents are
- * chosen: a "room" with one member is just a conversation, and making one by
- * accident leaves a duplicate of a chat the user already has.
- */
-function NewRoom({ onClose }: { onClose: () => void }): ReactNode {
-  const { agents, createRoom } = useStore();
-  const [picked, setPicked] = useState<string[]>([]);
-  const available = agents.filter((a) => !a.hidden);
-
-  const toggle = (id: string): void =>
-    setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
-
-  return (
-    <div className="newroom">
-      <div className="newroom__head">
-        <span className="newroom__label">To:</span>
-        <div className="newroom__picked">
-          {picked.length === 0 ? (
-            <span className="muted">Choose two or more agents</span>
-          ) : (
-            picked.map((id) => {
-              const a = agents.find((x) => x.id === id);
-              if (!a) return null;
-              return (
-                <button key={id} className="agent-chip" onClick={() => toggle(id)} title="Remove">
-                  <span className="mention__icon" style={{ background: a.accent }}>
-                    {a.name.trim().charAt(0).toUpperCase()}
-                  </span>
-                  {a.name}
-                </button>
-              );
-            })
-          )}
-        </div>
-      </div>
-
-      <div className="newroom__list">
-        {available.map((a) => (
-          <button
-            key={a.id}
-            className={`newroom__opt${picked.includes(a.id) ? " newroom__opt--on" : ""}`}
-            onClick={() => toggle(a.id)}
-          >
-            <Avatar name={a.name} accent={a.accent} src={a.avatar} size={20} />
-            <span>{a.name}</span>
-            {picked.includes(a.id) ? <Icon name="check" size={14} /> : null}
-          </button>
-        ))}
-      </div>
-
-      <div className="newroom__foot">
-        <button className="btn" onClick={onClose}>
-          Cancel
-        </button>
-        <button
-          className="btn btn--primary"
-          disabled={picked.length < 2}
-          onClick={() => {
-            createRoom(picked);
-            onClose();
-          }}
-        >
-          Start
-        </button>
-      </div>
-    </div>
-  );
-}
-
 export function Sidebar(): ReactNode {
-  const { agents, setPluginsOpen, setPaletteOpen, account, signOut, refreshAgents, issuer, patchAgent, authError } =
+  const { agents, setPaletteOpen, account, signOut, refreshAgents, issuer, patchAgent, authError } =
     useStore();
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [accountMenu, setAccountMenu] = useState(false);
-  const [newRoom, setNewRoom] = useState(false);
-  const rooms = useStore((s) => s.rooms);
   const workspaceName = useStore((s) => workspaceFooterLabel(s.portalWorkspaces, s.portalWorkspaceId));
 
   // Hiding is reversible, so the count has to be visible somewhere.
@@ -315,17 +152,6 @@ export function Sidebar(): ReactNode {
 
   return (
     <aside className="sidebar">
-      <div className="sidebar__top">
-        <button
-          className="topbar__btn"
-          title="New group conversation"
-          style={{ WebkitAppRegion: "no-drag" } as never}
-          onClick={() => setNewRoom((v) => !v)}
-        >
-          <Icon name="plus" />
-        </button>
-      </div>
-
       <div className="tb-sidebar-brand"><img src="./brand/teal-brick-colour.png" alt="" /> <span>Teal Brick</span></div>
       <div className="sidebar__search">
         <button className="search search--button" onClick={() => setPaletteOpen(true)}>
@@ -335,20 +161,7 @@ export function Sidebar(): ReactNode {
         </button>
       </div>
 
-      {newRoom ? <NewRoom onClose={() => setNewRoom(false)} /> : null}
-
       <div className="sidebar__list">
-        {rooms.length > 0 ? (
-          <>
-            <div className="section-head">Groups</div>
-            {[...rooms]
-              .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)))
-              .map((r) => (
-                <RoomRow key={r.id} room={r} onMenu={setMenu} />
-              ))}
-            <div className="section-head">Agents</div>
-          </>
-        ) : null}
         {pinned.length > 0 ? (
           <>
             <div className="section-head">Pinned</div>
@@ -374,12 +187,6 @@ export function Sidebar(): ReactNode {
       </div>
 
       <div className="sidebar__foot">
-        {/* Above Plugins, and only when there is something to do. */}
-        <UpdateRow />
-        <button className="foot-row" onClick={() => setPluginsOpen(true)}>
-          <Icon name="plug" />
-          <span className="foot-row__label">Plugins</span>
-        </button>
         <button className="foot-row account-rail-button" title="Account and workspace" aria-label="Account and workspace" onClick={() => setAccountMenu((v) => !v)}>
           <Avatar name={account?.email ?? "?"} accent="#1b3a34" size={28} />
         </button>

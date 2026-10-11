@@ -1,27 +1,11 @@
-import { observeSchedule } from "./scheduleActivation";
 import { create } from "zustand";
 import type { PendingAttachment } from "./attachments";
 import type { AgentSummary } from "@shared/ipc";
 import { summarize } from "./agentInfo";
-import type { Agent, Block, PeerEvent, Room } from "@shared/types";
-import { ROOM_PREFIX, isRoomId } from "@shared/types";
-import { recipientsFor, type RoomPolicy } from "@shared/addressing";
+import type { Agent, Block, PeerEvent } from "@shared/types";
 import { reconcile } from "@shared/sessionReplay";
 
 /** Snapshot from a native adapter's /tealbrick/v1/capabilities (no credentials). */
-export interface AppGrantsData {
-  schema: 1;
-  sync: { status: string; revision?: string; expiresAt?: number; lastSyncAt?: number; error?: string };
-  apps: { registrationId: string; appId: string; actions: string[]; available: boolean; operations: string[] }[];
-  marketplace: {
-    enabled: boolean;
-    status: string;
-    error?: string;
-    grants: { registrationId: string; consentId: string; state: string; plugin: string; action: string; operations: string[] }[];
-  };
-}
-export type AppGrants = { ok: true; data: AppGrantsData } | { ok: false; error: string };
-
 /**
  * Renderer state.
  *
@@ -107,12 +91,9 @@ function ensureListeners(
   window.studio.onTurn(({ streamId, sessionId, turnId }) => {
     const agentId = streamOwners.get(streamId);
     if (!agentId) return;
-    const first = get().inflight[agentId]?.sessionId !== sessionId;
     set((s) => ({
       inflight: { ...s.inflight, [agentId]: { streamId, sessionId, turnId } },
     }));
-    // Our turn, our notifications: the phone stays quiet for it.
-    if (first && sessionId) void window.studio?.claimDriver(sessionId);
   });
 
   window.studio.onReset(({ streamId }) => {
@@ -304,192 +285,7 @@ function ensureListeners(
   });
 }
 
-/** Send the next message that was waiting on this member. */
-function flushRoomQueue(
-  get: () => State,
-  set: (partial: Partial<State> | ((s: State) => Partial<State>)) => void,
-  room: Room,
-  member: Agent,
-): void {
-  const key = `${room.id}::${member.id}`;
-  const pending = get().roomQueue[key];
-  if (!pending?.length) return;
-  const [next, ...rest] = pending;
-  set((s) => ({ roomQueue: { ...s.roomQueue, [key]: rest } }));
-  if (next) {
-    setTimeout(() => void deliverToMember(get, set, room, member, next.text, next.from, next.relayDepth), 0);
-  }
-}
-
-/**
- * One member's turn inside a room.
- *
- * Deliberately a thin wrapper over the same transport a one-to-one chat uses:
- * a room is a routing decision, not a second way of talking to an agent, and
- * anything special-cased here would drift from the path that gets exercised
- * every day.
- */
 type Speaker = { id: string; name: string; accent: string };
-
-/** A pair that addresses each other every turn has to stop somewhere. */
-const MAX_RELAY_DEPTH = 3;
-
-/**
- * What an agent is told about the room, once per turn.
- *
- * Sent as text rather than as structured context because it has to work with
- * ANY agent — one we wrote, one a customer wrote, one running a different
- * framework. An agent that has never heard of this app still reads a line at
- * the top of the message it was sent.
- *
- * It is short on purpose. This is prepended to every turn, so anything wordy
- * here is paid for on every message in every room forever.
- */
-function roomPreamble(room: Room, members: Agent[], me: Agent, speaker?: string): string {
-  const others = members.filter((m) => m.id !== me.id).map((m) => m.name);
-  const who = others.length ? others.join(", ") : "no one else yet";
-  return [
-    `[Group chat. You are "${me.name}". Also here: ${who}.`,
-    `Address someone by writing @TheirName — that is what delivers a message to them.`,
-    `Only reply to what was sent to you; do not repeat another agent's answer back to the room.`,
-    speaker ? `This message is from ${speaker}, not from the user.]` : `]`,
-  ].join(" ");
-}
-
-/**
- * What was said in the room while this member was not being spoken to.
- *
- * Without it a hand-off is incoherent: the engineer is tagged with "can you
- * build this?" and has never seen what "this" is, so it asks the room for
- * context the room already has. With it, being brought into a conversation
- * works the way it does for a person who has been listening.
- *
- * Bounded on purpose. This is prepended to a turn, so an unbounded transcript
- * is an unbounded bill; the last dozen messages is what a person would skim.
- */
-function catchUp(blocks: Block[] | undefined, since: number, upToId: string): string | null {
-  const missed = (blocks ?? [])
-    .filter((b) => b.kind === "text" && b.at > since && b.id !== upToId)
-    .slice(-12)
-    .map((b) => {
-      if (b.kind !== "text") return "";
-      const who = b.role === "user" ? "User" : (b.speaker?.name ?? "Agent");
-      const text = b.text.length > 400 ? `${b.text.slice(0, 400)}…` : b.text;
-      return `${who}: ${text}`;
-    })
-    .filter(Boolean);
-  if (missed.length === 0) return null;
-  return `[Since you last spoke:\n${missed.join("\n")}]`;
-}
-
-async function deliverToMember(
-  get: () => State,
-  set: (partial: Partial<State> | ((s: State) => Partial<State>)) => void,
-  room: Room,
-  member: Agent,
-  text: string,
-  from: { id: string; name: string; accent: string } | undefined,
-  relayDepth: number,
-): Promise<void> {
-  if (!window.studio || !member.url) return;
-  const key = `${room.id}::${member.id}`;
-
-  // One turn at a time per member. A second message arriving mid-turn waits
-  // rather than being posted into a session that has not parked.
-  if (get().inflight[key]) {
-    set((s) => ({
-      roomQueue: {
-        ...s.roomQueue,
-        [key]: [...(s.roomQueue[key] ?? []), { text, from, relayDepth }],
-      },
-    }));
-    return;
-  }
-  const at = Date.now();
-  const streamId = `s${at}-${member.id}`;
-  const bubbleId = `a${at}-${member.id}`;
-  const speaker = { id: member.id, name: member.name, accent: member.accent };
-
-  ensureListeners(get, set);
-  streamOwners.set(streamId, room.id);
-  streamSpeakers.set(streamId, speaker);
-  armDeadMan(get, set, key, room.id, speaker);
-  set((s) => ({
-    inflight: { ...s.inflight, [key]: { streamId } },
-    streaming: { ...s.streaming, [streamId]: "" },
-  }));
-
-  const write = (body: string): void => {
-    upsertBlock(get, set, room.id, bubbleId, body, speaker);
-    set((s) => ({
-      rooms: s.rooms.map((r) =>
-        r.id === room.id ? { ...r, lastMessageAt: Date.now(), lastMessagePreview: body } : r,
-      ),
-    }));
-  };
-
-  try {
-    const members = room.memberIds
-      .map((id) => get().agents.find((a) => a.id === id))
-      .filter((a): a is Agent => Boolean(a));
-    const missed = catchUp(get().conversations[room.id], get().roomSeen[key] ?? 0, bubbleId);
-    const body = [
-      roomPreamble(room, members, member, from?.name),
-      missed,
-      from ? `${from.name}: ${text}` : text,
-    ]
-      .filter(Boolean)
-      .join("\n\n");
-
-    const res = await window.studio.send({
-      agentId: member.id,
-      text: body,
-      sessionId: get().sessions[key],
-      streamIndex: get().streamIndexes[key],
-      streamId,
-    });
-    set((s) => ({
-      sessions: { ...s.sessions, [key]: res.sessionId },
-      streamIndexes: { ...s.streamIndexes, [key]: res.streamIndex },
-    }));
-    // Filed under the room, by the member's registered name: the phone reads
-    // the room's transcript from each member's own session.
-    void window.studio.recordSession({
-      agent: member.registeredName ?? member.id,
-      sessionId: res.sessionId ?? "",
-      label: room.id,
-      lastMessageAt: Date.now(),
-      lastMessagePreview: (res.reply ?? "").slice(0, 200),
-    });
-    const reply = res.reply?.trim();
-    if (reply) {
-      write(reply);
-      // Carry it to anyone this agent addressed by name — and only them.
-      get().sendToRoom(room.id, reply, speaker, relayDepth + 1);
-    }
-  } catch (error) {
-    write(`(${member.name} could not be reached: ${(error as Error).message})`);
-  } finally {
-    disarmDeadMan(key);
-    set((s) => {
-      const inflight = { ...s.inflight };
-      delete inflight[key];
-      const streaming = { ...s.streaming };
-      delete streaming[streamId];
-      return {
-        inflight,
-        streaming,
-        // Everything up to now has been put in front of this member.
-        roomSeen: { ...s.roomSeen, [key]: Date.now() },
-        activity: { ...s.activity, [room.id]: null },
-      };
-    });
-    streamOwners.delete(streamId);
-    streamSpeakers.delete(streamId);
-    get().persist();
-    flushRoomQueue(get, set, room, member);
-  }
-}
 
 /**
  * Tell the person, if they are not already looking.
@@ -663,7 +459,6 @@ interface State {
   activeAgentId: string;
   panel: PanelView;
   activeRoutineId: string | null;
-  pluginsOpen: boolean;
   paletteOpen: boolean;
 
   authState: "loading" | "signed-in" | "signed-out";
@@ -691,44 +486,8 @@ interface State {
       accent?: string;
       /** The picture chosen for this agent, as a data URL. */
       avatar?: string;
-      /** Spoken voice for this agent's voice orb. Account-wide, like the picture. */
-      voice?: string;
     }
   >;
-  /**
-   * Conversations with more than one agent in them.
-   *
-   * A room lives entirely in this app. Each member keeps its OWN session with
-   * its own deployment — they are separate services and sharing a session
-   * between them would mean one agent's context leaking into another's — and
-   * this app is what puts a message in front of all of them.
-   */
-  rooms: Room[];
-  /**
-   * Deliveries waiting on a member that is mid-turn.
-   *
-   * Keyed by `<roomId>::<agentId>` like everything else per-member. A room
-   * without this drops messages on the floor: a hand-off arriving while that
-   * agent is still answering someone else simply never happens, and nothing
-   * anywhere says so.
-   */
-  roomQueue: Record<string, { text: string; from?: Speaker; relayDepth: number }[]>;
-  /** The last moment each member was shown the room, so catch-up has a floor. */
-  roomSeen: Record<string, number>;
-  /** Cancel every member still working in this room. */
-  stopRoom: (roomId: string) => void;
-  setRoomPolicy: (roomId: string, policy: "all" | "lead" | "silent") => void;
-  /** The user's decisions about a room — pinned, renamed, read. */
-  patchRoom: (roomId: string, patch: Partial<Room>) => void;
-  sendToRoom: (
-    roomId: string,
-    text: string,
-    from?: { id: string; name: string; accent: string },
-    relayDepth?: number,
-  ) => void;
-  createRoom: (memberIds: string[]) => string;
-  setRoomMembers: (roomId: string, memberIds: string[]) => void;
-  deleteRoom: (roomId: string) => void;
   /**
    * The agent-to-agent exchange being read, if any.
    *
@@ -766,28 +525,6 @@ interface State {
    */
   details: Record<string, AgentSummary | undefined>;
   infoError: string | null;
-  syncRoutineDeliveries(): Promise<void>;
-  /** The agent's install catalog: what can be added, and what already is. */
-  catalog: Record<
-    string,
-    | {
-        items: { name: string; title?: string; description?: string; dependencies?: string[] }[];
-        installed: string[];
-        writable: boolean;
-        reason: string | null;
-      }
-    | undefined
-  >;
-  /**
-   * What Portal grants a native-adapter agent (Knowledge apps, Marketplace consents),
-   * read from its /tealbrick/v1/capabilities. Undefined until loaded.
-   */
-  grants: Record<string, AppGrants | undefined>;
-  loadGrants(agentId: string): Promise<void>;
-  /** Item name currently installing, so the UI can show which row is working. */
-  installing: string | null;
-  manageError: string | null;
-  scheduleNotice: { agentId: string; message: string } | null;
   /** Per-agent project folder on this machine, sent as context each turn. */
   workspaces: Record<string, string | undefined>;
   streaming: Record<string, string>;
@@ -800,12 +537,8 @@ interface State {
    * the turns that happened somewhere else.
    */
   hydrate(agentId: string, mode?: "fill" | "merge"): Promise<void>;
-  /** Learn which threads this account has, from the control-plane directory. */
-  syncSessions(): Promise<void>;
   /** Pick up turns that happened on another device. Cheap; safe to call often. */
   refreshFromOthers(): Promise<void>;
-  /** Rooms from the account: adopt what other devices made, publish what this one has. */
-  refreshRooms(): Promise<void>;
   /** The thread being followed live, if this device is not the one talking in it. */
   watching: { agentId: string; sessionId: string; streamId: string } | null;
   /** Follow the active agent's thread while nothing of ours is in flight there; stop any other. */
@@ -813,7 +546,6 @@ interface State {
   stopWatching(): void;
   setPanel(v: PanelView): void;
   openRoutine(id: string): void;
-  setPluginsOpen(open: boolean): void;
   setPaletteOpen(open: boolean): void;
 
   send(agentId: string, text: string, fromQueue?: boolean, attachments?: PendingAttachment[]): void;
@@ -844,11 +576,6 @@ interface State {
   /** Ask each agent whether it answers, and record it as their status. */
   refreshLiveness(): Promise<void>;
   loadAgentInfo(agentId: string): Promise<void>;
-  loadCatalog(agentId: string): Promise<void>;
-  install(agentId: string, item: string): Promise<void>;
-  updateSchedule(agentId: string, name: string, patch: {cron?:string;instruction?:string;enabled?:boolean;wake?:boolean}, expectedRevision?: number): Promise<boolean>;
-  createSchedule(agentId: string, input: { name: string; cron: string; instruction: string; wake?: boolean }): Promise<boolean>;
-  deleteSchedule(agentId: string, name: string): Promise<boolean>;
   setWorkspace(agentId: string, path: string | null): void;
   chooseWorkspace(agentId: string): Promise<void>;
   signIn(onCode: (code: string, verificationUri?: string) => void): Promise<boolean>;
@@ -903,7 +630,7 @@ function refreshAgentInfoAcrossRestart(get: () => State, agentId: string): void 
 
 /** Never retain agent metadata, queued input or local folder choices across workspace boundaries. */
 function emptyWorkspaceView(): Partial<State> {
-  return { agents: [], rooms: [], conversations: {}, sessions: {}, streamIndexes: {}, prefs: {}, details: {}, infoError: null, models: {}, workspaces: {}, activity: {}, inflight: {}, queued: {}, roomQueue: {}, roomSeen: {}, catalog: {}, grants: {}, streaming: {}, exchange: null, installing: null, manageError: null, scheduleNotice: null, activeAgentId: '', panel: 'none', activeRoutineId: null, paletteOpen: false, pluginsOpen: false };
+  return { agents: [], conversations: {}, sessions: {}, streamIndexes: {}, prefs: {}, details: {}, infoError: null, models: {}, workspaces: {}, activity: {}, inflight: {}, queued: {}, streaming: {}, exchange: null, activeAgentId: '', panel: 'none', activeRoutineId: null, paletteOpen: false };
 }
 
 export const useStore = create<State>((set, get) => ({
@@ -913,7 +640,6 @@ export const useStore = create<State>((set, get) => ({
   activeAgentId: "",
   panel: "none",
   activeRoutineId: null,
-  pluginsOpen: false,
   paletteOpen: false,
 
   authState: "loading",
@@ -922,9 +648,6 @@ export const useStore = create<State>((set, get) => ({
   account: null,
   sessions: {},
   streamIndexes: {},
-  rooms: [],
-  roomQueue: {},
-  roomSeen: {},
   exchange: null,
   prefs: {},
   activity: {},
@@ -933,11 +656,6 @@ export const useStore = create<State>((set, get) => ({
   models: {},
   infoError: null,
   details: {},
-  catalog: {},
-  grants: {},
-  installing: null,
-  manageError: null,
-  scheduleNotice: null,
   workspaces: {},
   streaming: {},
 
@@ -959,130 +677,6 @@ export const useStore = create<State>((set, get) => ({
    * news about threads this machine has never met, never as a correction of
    * one it has.
    */
-  syncRoutineDeliveries: async () => {
-    const workspace = get().portalWorkspaceId;
-    await Promise.all(get().agents.filter(a => a.url).map(async agent => {
-      try {
-        const res = await window.studio.manage({agentId:agent.id,path:"/tealbrick/management"});
-        if(get().portalWorkspaceId!==workspace || !res.ok)return;
-        const rows=(res.data as {deliveries?:{id:string;text:string;at:number;name:string}[]})?.deliveries;
-        if(!Array.isArray(rows))return;
-        set(state => {
-          const existing=state.conversations[agent.id] ?? [];
-          const ids=new Set(existing.map(b=>b.id));
-          const added:Block[]=rows.filter(r=>typeof r.id==='string'&&typeof r.text==='string'&&Number.isFinite(r.at)&&!ids.has(`routine:${r.id}`)).map(r=>({kind:"text",id:`routine:${r.id}`,role:"agent",text:r.text,at:r.at}));
-          return added.length ? {conversations:{...state.conversations,[agent.id]:[...existing,...added].sort((a,b)=>a.at-b.at)}} : {};
-        });
-      } catch { /* Offline agents retry on the next ordinary refresh. */ }
-    }));
-  },
-  syncSessions: async () => {
-    void get().syncRoutineDeliveries();
-    if (!window.studio) return;
-    const indexed = await window.studio.listSessions();
-
-    // Directory rows name the agent by its registered name; older rows from
-    // this app carry its id. Resolve either to the local agent, and skip what
-    // is not one of ours (a room, an agent no longer granted).
-    const resolve = (name: string): Agent | undefined =>
-      get().agents.find((a) => a.registeredName === name || a.id === name || a.name === name);
-    const localLastAt = (agentId: string): number => {
-      const local = get().conversations[agentId] ?? [];
-      return local.length ? Math.max(...local.map((b) => b.at)) : 0;
-    };
-
-    // Only the NEWEST row per agent is a candidate. The directory keeps every
-    // thread a person has had with an agent; walking all of them adopted one,
-    // then the next, on every tick — a conversation that emptied and refilled
-    // itself every thirty seconds.
-    /**
-     * A member's session in a room is filed under the room id as its label.
-     * It is adopted only where this machine has none — a room's transcript is
-     * assembled here from what each member said, so replacing a member's
-     * session would orphan the part of the transcript that came from it.
-     */
-    for (const entry of indexed) {
-      if (!entry.label || !isRoomId(entry.label)) continue;
-      const roomHere = get().rooms.find((r) => r.id === entry.label);
-      const agent = resolve(entry.agent);
-      if (!roomHere || !agent) continue;
-      const key = `${roomHere.id}::${agent.id}`;
-      if (!get().sessions[key]) set((s) => ({ sessions: { ...s.sessions, [key]: entry.sessionId } }));
-    }
-
-    const newest = new Map<string, (typeof indexed)[number]>();
-    for (const entry of indexed) {
-      if (entry.label && isRoomId(entry.label)) continue;
-      const agent = resolve(entry.agent);
-      if (!agent) continue;
-      const at = entry.lastMessageAt ? Date.parse(entry.lastMessageAt) : 0;
-      const held = newest.get(agent.id);
-      const heldAt = held?.lastMessageAt ? Date.parse(held.lastMessageAt) : 0;
-      if (!held || at > heldAt) newest.set(agent.id, entry);
-    }
-
-    const seen = new Set<string>();
-    for (const entry of newest.values()) {
-      const agent = resolve(entry.agent);
-      if (!agent) continue;
-      seen.add(agent.id);
-      const localSession = get().sessions[agent.id];
-      const localAt = localLastAt(agent.id);
-      const remoteAt = entry.lastMessageAt ? Date.parse(entry.lastMessageAt) : 0;
-      if (localSession === entry.sessionId) continue;
-
-      /**
-       * Two-way. The account's thread is adopted when it is the newer one;
-       * when THIS machine's is newer, it is published so the other devices
-       * adopt it instead. Without the second half a desktop that had been
-       * talking all afternoon lost to a phone that said one thing later, and
-       * a thread this app had never recorded under the shared name was
-       * invisible everywhere else.
-       *
-       * Adopting replaces this device's view of the older thread. Nothing is
-       * destroyed — that session is still durable on the agent — but it is no
-       * longer what this agent's chat shows.
-       */
-      if (localSession && localAt >= remoteAt) {
-        void window.studio.recordSession({
-          agent: agent.registeredName ?? agent.id,
-          sessionId: localSession,
-          label: agent.id,
-          lastMessageAt: localAt || Date.now(),
-          lastMessagePreview: [...(get().conversations[agent.id] ?? [])].reverse().find((b) => b.kind === "text")?.["text" as never] ?? undefined,
-        });
-        continue;
-      }
-
-      set((s) => {
-        const streamIndexes = { ...s.streamIndexes };
-        // The cursor belongs to the session being replaced; carrying it over
-        // would post the next message into a thread this device is no longer on.
-        delete streamIndexes[agent.id];
-        return {
-          sessions: { ...s.sessions, [agent.id]: entry.sessionId },
-          conversations: { ...s.conversations, [agent.id]: [] },
-          streamIndexes,
-        };
-      });
-      await get().hydrate(agent.id);
-    }
-
-    // Threads this machine holds that the directory has never heard of.
-    for (const agent of get().agents) {
-      const localSession = get().sessions[agent.id];
-      if (!localSession || seen.has(agent.id) || isRoomId(agent.id)) continue;
-      const localAt = localLastAt(agent.id);
-      if (!localAt) continue;
-      void window.studio.recordSession({
-        agent: agent.registeredName ?? agent.id,
-        sessionId: localSession,
-        label: agent.id,
-        lastMessageAt: localAt,
-      });
-    }
-    get().persist();
-  },
 
   /**
    * Rebuild a conversation from the agent that has been holding it.
@@ -1188,43 +782,10 @@ export const useStore = create<State>((set, get) => ({
    */
   watching: null,
 
-  refreshRooms: async () => {
-    if (!window.studio) return;
-    const remote = await window.studio.listRooms();
-    const agents = get().agents;
-    const byName = (name: string): Agent | undefined =>
-      agents.find((a) => a.registeredName === name || a.name === name || a.id === name);
-    const nameOf = (id: string): string => agents.find((a) => a.id === id)?.registeredName ?? id;
-
-    set((s) => {
-      const local = new Map(s.rooms.map((r) => [r.id, r]));
-      const merged: Room[] = s.rooms.map((r) => {
-        const rr = remote.find((x) => x.id === r.id);
-        if (!rr) return r;
-        // The account's arrangement wins: name, members, policy, pinned.
-        const memberIds = rr.members.map((m) => byName(m)?.id).filter((id): id is string => Boolean(id));
-        return { ...r, name: rr.name ?? undefined, memberIds: memberIds.length ? memberIds : r.memberIds, policy: rr.policy, pinned: rr.pinned ?? r.pinned };
-      });
-      for (const rr of remote) {
-        if (local.has(rr.id)) continue;
-        const memberIds = rr.members.map((m) => byName(m)?.id).filter((id): id is string => Boolean(id));
-        if (memberIds.length === 0) continue;
-        merged.push({ id: rr.id, memberIds, createdAt: Date.parse(rr.createdAt) || Date.now(), name: rr.name ?? undefined, policy: rr.policy, pinned: rr.pinned ?? undefined });
-      }
-      return { rooms: merged };
-    });
-
-    // Rooms this machine made before the account held them are carried up once.
-    for (const r of get().rooms) {
-      if (remote.some((x) => x.id === r.id)) continue;
-      void window.studio.saveRoom({ id: r.id, name: r.name ?? null, members: r.memberIds.map(nameOf), policy: r.policy ?? "lead", pinned: r.pinned ?? null });
-    }
-    get().persist();
-  },
 
   watchActive: () => {
     const { activeAgentId, watching, agents, sessions, inflight, streamIndexes } = get();
-    const agent = activeAgentId && !isRoomId(activeAgentId) ? agents.find((a) => a.id === activeAgentId) : undefined;
+    const agent = activeAgentId ? agents.find((a) => a.id === activeAgentId) : undefined;
     const sessionId = agent ? sessions[agent.id] : undefined;
     const wanted = agent && agent.url && sessionId && !inflight[agent.id] ? { agentId: agent.id, sessionId } : null;
     if (watching && wanted && watching.agentId === wanted.agentId && watching.sessionId === wanted.sessionId) return;
@@ -1256,115 +817,20 @@ export const useStore = create<State>((set, get) => ({
   refreshFromOthers: async () => {
     if (!window.studio) return;
     ensureListeners(get, set);
-    await get().refreshRooms();
-    await get().syncSessions();
     const active = get().activeAgentId;
     // The open conversation only. Refreshing every thread would multiply the
     // cost by the size of the sidebar to update something nobody is looking at.
-    if (active && !isRoomId(active) && !get().inflight[active]) {
+    if (active && !get().inflight[active]) {
       await get().hydrate(active, "merge");
     }
   },
 
   setPanel: (panel) => set({ panel, activeRoutineId: null }),
   openRoutine: (id) => set({ panel: "routine", activeRoutineId: id }),
-  setPluginsOpen: (pluginsOpen) => set({ pluginsOpen }),
   setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
-  createRoom: (memberIds) => {
-    const id = `${ROOM_PREFIX}${Date.now().toString(36)}`;
-    set((s) => ({
-      rooms: [...s.rooms, { id, memberIds, createdAt: Date.now(), policy: "lead" }],
-      activeAgentId: id,
-    }));
-    get().persist();
-    void window.studio?.saveRoom({ id, members: memberIds.map((m) => get().agents.find((a) => a.id === m)?.registeredName ?? m), policy: "lead" });
-    return id;
-  },
-  setRoomMembers: (roomId, memberIds) => {
-    set((s) => ({
-      rooms: s.rooms.map((r) => (r.id === roomId ? { ...r, memberIds } : r)),
-    }));
-    get().persist();
-    void window.studio?.saveRoom({ id: roomId, members: memberIds.map((m) => get().agents.find((a) => a.id === m)?.registeredName ?? m) });
-  },
-  deleteRoom: (roomId) => {
-    set((s) => {
-      const conversations = { ...s.conversations };
-      delete conversations[roomId];
-      return {
-        rooms: s.rooms.filter((r) => r.id !== roomId),
-        conversations,
-        activeAgentId: s.activeAgentId === roomId ? (s.agents[0]?.id ?? "") : s.activeAgentId,
-      };
-    });
-    get().persist();
-    void window.studio?.saveRoom({ id: roomId, archived: true });
-  },
   openExchange: (agentId, blockId) => set({ exchange: { agentId, blockId } }),
   closeExchange: () => set({ exchange: null }),
 
-  /**
-   * Put a message in front of every member of a room, and carry what they say
-   * back to each other.
-   *
-   * The app is the router. Each member is a separate deployment with its own
-   * session — `<roomId>::<agentId>` — so a room never contaminates the
-   * one-to-one conversation with the same agent, and two agents in a room never
-   * share a context.
-   *
-   * Relay is driven by ADDRESSING, not by chatter. When an agent's reply names
-   * another member, that member hears it; when it does not, the round ends.
-   * Without that rule two agents politely acknowledging each other is an
-   * infinite loop, billed per turn. `relayDepth` is the backstop for a pair
-   * that addresses each other every time.
-   */
-  sendToRoom: (roomId, text, from, relayDepth = 0) => {
-    const room = get().rooms.find((r) => r.id === roomId);
-    if (!room) return;
-    const at = Date.now();
-
-    if (!from) {
-      set((s) => ({
-        conversations: {
-          ...s.conversations,
-          [roomId]: [
-            ...(s.conversations[roomId] ?? []),
-            { kind: "text", id: `u${at}`, role: "user", text, at },
-          ],
-        },
-        rooms: s.rooms.map((r) =>
-          r.id === roomId ? { ...r, lastMessageAt: at, lastMessagePreview: text } : r,
-        ),
-      }));
-      get().persist();
-    }
-
-    const members = room.memberIds
-      .map((id) => get().agents.find((a) => a.id === id))
-      .filter((a): a is Agent => Boolean(a?.url));
-    if (members.length === 0) return;
-
-    /**
-     * An agent's message reaches another agent ONLY when it names them.
-     *
-     * A person's unaddressed message can fall back to the room's policy —
-     * they are in the room and expect to be heard. An agent's cannot: with a
-     * fallback, one reply becomes a reply from everyone, each of which is
-     * another message that could trigger another round. That is not a
-     * conversation, it is a fork bomb with a billing account.
-     */
-    const policy: RoomPolicy = from ? "silent" : (room.policy ?? "lead");
-    const recipients = recipientsFor(text, members, policy).filter((id) => id !== from?.id);
-
-    // A hand-off chain is fine; a pair addressing each other forever is not.
-    if (from && relayDepth >= MAX_RELAY_DEPTH) return;
-    if (recipients.length === 0) return;
-
-    for (const id of recipients) {
-      const member = members.find((m) => m.id === id);
-      if (member) void deliverToMember(get, set, room, member, text, from, relayDepth);
-    }
-  },
 
   send: (agentId, text, fromQueue, attachments) => {
     const at = Date.now();
@@ -1487,25 +953,6 @@ export const useStore = create<State>((set, get) => ({
           sessions: { ...s.sessions, [agentId]: res.sessionId },
           streamIndexes: { ...s.streamIndexes, [agentId]: res.streamIndex },
         }));
-        /**
-         * Tell the account where this conversation lives.
-         *
-         * Fire and forget, never awaited: this machine already has the thread,
-         * and the only thing at stake is whether the person's OTHER devices can
-         * find it. A directory that is briefly stale is a much smaller problem
-         * than a reply that waits on a call to a third service.
-         */
-        void window.studio?.recordSession({
-          // The agent's REGISTERED name, not this app's id for it: the directory
-          // is shared with the phone and the terminal client, which know the
-          // agent by name. Recording the id here meant each device only ever
-          // saw its own rows and "continue on your phone" silently never did.
-          agent: get().agents.find((a) => a.id === agentId)?.registeredName ?? agentId,
-          sessionId: res.sessionId ?? "",
-          label: agentId,
-          lastMessageAt: Date.now(),
-          lastMessagePreview: (res.reply ?? "").slice(0, 200),
-        });
         if (res.reply) {
           if (!res.askedQuestion) retireStaleQuestions(get, set, agentId);
           upsertBlock(get, set, agentId, bubbleId, res.reply);
@@ -1542,50 +989,8 @@ export const useStore = create<State>((set, get) => ({
       });
   },
 
-  patchRoom: (roomId, patch) => {
-    set((s) => ({ rooms: s.rooms.map((r) => (r.id === roomId ? { ...r, ...patch } : r)) }));
-    if ("name" in patch || "pinned" in patch || "policy" in patch) {
-      void window.studio?.saveRoom({
-        id: roomId,
-        ...("name" in patch ? { name: patch.name ?? null } : {}),
-        ...("pinned" in patch ? { pinned: patch.pinned ?? null } : {}),
-        ...("policy" in patch ? { policy: patch.policy } : {}),
-      });
-    }
-    get().persist();
-  },
 
-  setRoomPolicy: (roomId, policy) => {
-    set((s) => ({ rooms: s.rooms.map((r) => (r.id === roomId ? { ...r, policy } : r)) }));
-    void window.studio?.saveRoom({ id: roomId, policy });
-    get().persist();
-  },
 
-  stopRoom: (roomId) => {
-    const room = get().rooms.find((r) => r.id === roomId);
-    if (!room) return;
-    for (const memberId of room.memberIds) {
-      const key = `${roomId}::${memberId}`;
-      const live = get().inflight[key];
-      const agent = get().agents.find((a) => a.id === memberId);
-      if (live?.sessionId && agent?.url && window.studio) {
-        void window.studio
-          .cancelTurn({ agentId: agent.id, sessionId: live.sessionId, turnId: live.turnId })
-          .catch(() => undefined);
-      }
-      disarmDeadMan(key);
-      set((s) => {
-        const flight = { ...s.inflight };
-        delete flight[key];
-        // Anything still waiting on this member is dropped too: stop means
-        // stop, not "stop this one and start the next".
-        const queue = { ...s.roomQueue };
-        delete queue[key];
-        return { inflight: flight, roomQueue: queue };
-      });
-    }
-    set((s) => ({ activity: { ...s.activity, [roomId]: null } }));
-  },
 
   stopTurn: (agentId) => {
     const live = get().inflight[agentId];
@@ -1716,21 +1121,16 @@ export const useStore = create<State>((set, get) => ({
           ...("notifications" in patch ? { notifications: patch.notifications } : {}),
           ...("accent" in patch ? { accent: patch.accent } : {}),
           ...("avatar" in patch ? { avatar: patch.avatar } : {}),
-          ...("voice" in patch ? { voice: patch.voice } : {}),
         },
       },
     }));
     get().persist();
 
-    // The picture, the name, the colour, the arrangement and the voice are the
-    // account's, not this machine's: the phone draws the same list and speaks in
-    // the same voice. Sent as a patch — absent leaves a field alone, null clears
-    // it — so changing one never clobbers another chosen elsewhere.
-    //
-    // Every field sent below must also appear in this condition. "voice" was
-    // added to the payload but not to the gate, so a voice-only change never
-    // entered this block and never left the Mac at all.
-    if ("name" in patch || "accent" in patch || "avatar" in patch || "pinned" in patch || "hidden" in patch || "voice" in patch) {
+    // The picture, the name, the colour and the arrangement are the account's,
+    // not this machine's. Sent as a patch — absent leaves a field alone, null
+    // clears it — so changing one never clobbers another chosen elsewhere.
+    // Every field sent below must also appear in this condition.
+    if ("name" in patch || "accent" in patch || "avatar" in patch || "pinned" in patch || "hidden" in patch) {
       const agent = get().agents.find((a) => a.id === id);
       if (agent) {
         void window.studio?.saveAgentProfile({
@@ -1740,199 +1140,16 @@ export const useStore = create<State>((set, get) => ({
           ...("avatar" in patch ? { avatar: patch.avatar ?? null } : {}),
           ...("pinned" in patch ? { pinned: patch.pinned ?? null } : {}),
           ...("hidden" in patch ? { hidden: patch.hidden ?? null } : {}),
-          ...("voice" in patch ? { voice: patch.voice ?? null } : {}),
         });
       }
     }
   },
 
-  loadGrants: async (agentId) => {
-    const agent = get().agents.find((a) => a.id === agentId);
-    if (!window.studio || !agent?.url) return;
-    const res = await window.studio.manage({ agentId: agent.id, path: "/tealbrick/capabilities" }).catch(() => null);
-    const value: AppGrants = res?.ok && res.data && typeof res.data === "object" && (res.data as { schema?: number }).schema === 1
-      ? { ok: true, data: res.data as AppGrantsData }
-      : {
-          ok: false,
-          error: !res
-            ? "Could not reach this agent."
-            : res.status === 440
-              ? "Your sign-in expired and could not be renewed. Sign out and back in."
-              : res.status === 404
-                ? "This agent's runtime does not report app grants yet. Update its Teal Brick kit."
-                : res.status === 401 || res.status === 403
-                  ? "This agent did not accept your sign-in."
-                  : `The agent answered ${res.status} for its app grants.`,
-        };
-    set((s) => ({ grants: { ...s.grants, [agentId]: value } }));
-  },
 
-  loadCatalog: async (agentId) => {
-    const agent = get().agents.find((a) => a.id === agentId);
-    if (!window.studio || !agent?.url) return;
-    // Native adapters have no Eve install catalog; their plugins are Portal grants.
-    if (get().details[agentId]?.native) { await get().loadGrants(agentId); return; }
-    set({ manageError: null });
-    const res = await window.studio.manage({ agentId: agent.id, path: "/catalog" });
-    if (!res.ok) {
-      set({
-        manageError:
-          res.status === 440
-            ? "Your sign-in expired and could not be renewed. Sign out and back in."
-            : res.status === 401
-              ? "This agent did not accept your sign-in. You may not have a grant for it."
-              : `The agent's management routes answered ${res.status}.`,
-      });
-      return;
-    }
-    const data = res.data as {
-      catalog?: { items?: { name: string; title?: string; description?: string }[] };
-      installed?: string[];
-      writable?: boolean;
-      reason?: string | null;
-    };
-    set((s) => ({
-      catalog: {
-        ...s.catalog,
-        [agentId]: {
-          items: data.catalog?.items ?? [],
-          installed: data.installed ?? [],
-          writable: Boolean(data.writable),
-          reason: data.reason ?? null,
-        },
-      },
-    }));
-  },
 
-  install: async (agentId, item) => {
-    const agent = get().agents.find((a) => a.id === agentId);
-    if (!window.studio || !agent?.url) return;
-    set({ installing: item, manageError: null });
-    try {
-      const res = await window.studio.manage({
-        agentId: agent.id,
-        path: "/install",
-        body: { item },
-      });
-      const data = (res.data ?? {}) as { ok?: boolean; error?: string; output?: string; note?: string };
-      if (!res.ok || !data.ok) {
-        // Show the agent's own output. An install failure is usually npm saying
-        // something specific, and hiding it behind "install failed" wastes the
-        // one piece of information that would fix it.
-        set({
-          manageError:
-            data.error ??
-            `Install failed${data.output ? `: ${data.output.slice(-400)}` : "."}`,
-        });
-        return;
-      }
-      // The agent is restarting; give it a moment before asking what it has now.
-      await new Promise((r) => setTimeout(r, 6000));
-      await get().loadCatalog(agentId);
-      await get().loadAgentInfo(agentId);
-    } finally {
-      set({ installing: null });
-    }
-  },
 
-  updateSchedule: async (agentId, name, patch, expectedRevision) => {
-    const state=get(),agent=state.agents.find(a=>a.id===agentId),workspace=state.portalWorkspaceId;
-    const row=state.details[agentId]?.schedules.find(s=>s.name===name);
-    if(!agent?.url || !row?.dynamic)return false;
-    set({manageError:null});
-    try {
-      const res=await window.studio.manage({agentId:agent.id,path:"/tealbrick/management",body:{operation:"update",name,revision:expectedRevision ?? row.revision,...patch,requestId:crypto.randomUUID()}});
-      if(get().portalWorkspaceId!==workspace)return false;
-      const data=res.data as {ok?:boolean;error?:string;wakePending?:boolean};
-      if(!res.ok || !data?.ok){set({manageError:data?.error==='revision_conflict'?"This routine changed elsewhere. Refresh and review it before saving again.":data?.error??"Could not save routine."});await get().loadAgentInfo(agentId);return false;}
-      set({scheduleNotice:{agentId,message:data.wakePending?"Routine saved. Host wake reconciliation is pending.":"Routine saved. Eve will read the updated definition; no restart is needed."}});
-      await get().loadAgentInfo(agentId);return true;
-    }catch{if(get().portalWorkspaceId===workspace)set({manageError:"Save response was interrupted. Refresh before retrying."});return false;}
-  },
 
-  createSchedule: async (agentId, input) => {
-    const agent = get().agents.find((a) => a.id === agentId);
-    if (!window.studio || !agent?.url) return false;
-    const workspaceId = get().portalWorkspaceId;
-    set({ manageError: null, scheduleNotice: null });
-    try {
-      const capability = await window.studio.manage({ agentId: agent.id, path: "/tealbrick/management" });
-      if (get().portalWorkspaceId !== workspaceId) return false;
-      if (!capability.ok) {
-        set({ manageError: "Routine activation is unavailable. Install and configure the Teal Brick management channel on this agent before saving routines." });
-        return false;
-      }
-      const name = input.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48) || "schedule";
-      const res = await window.studio.manage({ agentId: agent.id, path: "/tealbrick/management", body: { ...input, name, operation: "upsert", requestId: crypto.randomUUID() } });
-      if (get().portalWorkspaceId !== workspaceId) return false;
-      const data = (res.data ?? {}) as { ok?: boolean; error?: string; restarted?: boolean; saved?: boolean; dynamic?:boolean; wakePending?:boolean };
-      if (!res.ok || !data.ok) {
-        set({ manageError: data.saved ? "Routine saved, but the agent could not restart. Check with your administrator, then use Restart agent. Do not create the routine again." : data.error ?? `Could not create the routine (${res.status}). Check its saved state before retrying.` });
-        return false;
-      }
-      if(data.dynamic){set({scheduleNotice:{agentId,message:data.wakePending?"Routine saved. Host wake reconciliation is pending.":"Routine saved in the shared host registry. No restart is needed."}});await get().loadAgentInfo(agentId);return true;}
-      set({ scheduleNotice: { agentId, message: data.restarted === false
-        ? "Routine saved, but not activated: this agent has no restart configured. Its host must rebuild/reload the production scheduler. Do not create it again."
-        : "Routine saved. Scheduler activation and execution are not confirmed. Check the host scheduler and run history; a saved definition alone does not mean it will fire." } });
-      if (data.restarted !== false) {
-        const notice = get().scheduleNotice;
-        const name = input.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48) || "schedule";
-        void observeSchedule({
-          read: () => window.studio.agentInfo(agent.id),
-          current: () => get().portalWorkspaceId === workspaceId && get().scheduleNotice === notice,
-          name, cron: input.cron, instruction: input.instruction, handler: Boolean((capability.data as {delivery?:boolean})?.delivery),
-        }).then(result => {
-          if (result === "cancelled" || get().scheduleNotice !== notice) return;
-          set({ scheduleNotice: { agentId, message: result === "loaded"
-            ? "Routine loaded by the production agent. Its first execution and delivery are not yet verified."
-            : result === "development"
-              ? "Routine saved, but this agent is running in development mode and cannot run it automatically. Ask your administrator to enable scheduled runs."
-              : "Routine saved, but the production agent has not confirmed loading it. Check the host restart configuration; do not create a duplicate." } });
-          if (result === "loaded" || result === "development") void get().loadAgentInfo(agentId);
-        });
-      }
-      await get().loadAgentInfo(agentId);
-      return true;
-    } catch {
-      if (get().portalWorkspaceId === workspaceId) set({ manageError: "The schedule request was interrupted. It may already be saved. Refresh and check the host before retrying." });
-      return false;
-    }
-  },
 
-  deleteSchedule: async (agentId, name) => {
-    const agent = get().agents.find((a) => a.id === agentId);
-    if (!window.studio || !agent?.url) return false;
-    const workspaceId = get().portalWorkspaceId;
-    set({ manageError: null, scheduleNotice: null });
-    try {
-      const res = await window.studio.manage({ agentId: agent.id, path: "/tealbrick/management", body: { name, ...(get().details[agentId]?.schedules.find(s=>s.name===name)?.dynamic?{revision:get().details[agentId]?.schedules.find(s=>s.name===name)?.revision}:{}), operation: "delete", requestId: crypto.randomUUID() } });
-      if (get().portalWorkspaceId !== workspaceId) return false;
-      const data = (res.data ?? {}) as { ok?: boolean; error?: string; saved?: boolean; dynamic?:boolean };
-      if (!res.ok || !data.ok) {
-        set({ manageError: data.saved ? "Removal saved, but the agent could not restart. Check with your administrator, then use Restart agent." : data.error ?? `Could not remove the routine (${res.status}).` });
-        return false;
-      }
-      if(data.dynamic){set({scheduleNotice:{agentId,message:"Routine removed from the shared registry. Already-running work is unaffected."}});await get().loadAgentInfo(agentId);return true;}
-      set({ scheduleNotice: { agentId, message: "Routine removal saved. Waiting for the production agent to unload it. Any separate host wake schedule must also be removed." } });
-      const notice = get().scheduleNotice;
-      void observeSchedule({
-        read: () => window.studio.agentInfo(agent.id),
-        current: () => get().portalWorkspaceId === workspaceId && get().scheduleNotice === notice,
-        name, removed: true,
-      }).then(result => {
-        if (result === "cancelled" || get().scheduleNotice !== notice) return;
-        set({ scheduleNotice: { agentId, message: result === "loaded"
-          ? "Routine removed from the production agent. Already-running work and separate host wake schedules are unaffected."
-          : "Removal saved, but production activation is not confirmed. Check the host before retrying." } });
-        if (result === "loaded") void get().loadAgentInfo(agentId);
-      });
-      await get().loadAgentInfo(agentId);
-      return true;
-    } catch {
-      if (get().portalWorkspaceId === workspaceId) set({ manageError: "The removal request was interrupted. Check the routine and host scheduler before retrying." });
-      return false;
-    }
-  },
 
   setWorkspace: (agentId, path) => {
     set((s) => ({ workspaces: { ...s.workspaces, [agentId]: path ?? undefined } }));
@@ -1956,9 +1173,7 @@ export const useStore = create<State>((set, get) => ({
       sessions: Record<string, string | undefined>;
       streamIndexes: Record<string, number | undefined>;
       prefs: State["prefs"];
-      rooms: Room[];
     }>("conversations.json");
-    if (saved?.rooms) set({ rooms: saved.rooms });
     if (saved?.prefs && !saved?.conversations) set({ prefs: saved.prefs });
     if (saved?.conversations) {
       set({
@@ -1966,16 +1181,11 @@ export const useStore = create<State>((set, get) => ({
         sessions: saved.sessions ?? {},
         streamIndexes: saved.streamIndexes ?? {},
         prefs: saved.prefs ?? {},
-        rooms: saved.rooms ?? [],
       });
     }
     const ws = await window.studio.loadState<Record<string, string>>("workspaces.json");
     if (ws) set({ workspaces: ws });
 
-    // After the local state, so the directory can only add threads this device
-    // does not have. Not awaited by the caller: a slow control plane must not
-    // hold up an app whose conversations are already on disk.
-    void get().syncSessions();
   },
 
   /** Write the transcript now. Cheap, and called at every point worth surviving. */
@@ -1988,7 +1198,6 @@ export const useStore = create<State>((set, get) => ({
         sessions: get().sessions,
         streamIndexes: get().streamIndexes,
         prefs: get().prefs,
-        rooms: get().rooms,
       },
     });
   },
@@ -2065,7 +1274,7 @@ export const useStore = create<State>((set, get) => ({
         // An honest empty state. Keeping the fixtures here would show a
         // customer three agents they do not have.
         set({
-          agents: [], rooms: [], activeAgentId: "",
+          agents: [], activeAgentId: "",
           authError:
             "No connected agents in this workspace yet. Bind an agent identity in the portal canvas, then refresh.",
         });
@@ -2108,7 +1317,6 @@ export const useStore = create<State>((set, get) => ({
             hidden: (profile ? profile.hidden : chosen.hidden) ?? prior?.hidden ?? undefined,
             unread: prior?.unread,
             notifications: chosen.notifications ?? prior?.notifications ?? true,
-            voice: (profile ? profile.voice : chosen.voice ?? prior?.voice) ?? undefined,
             // "unknown" until something asks the agent itself. Holding an
             // address is not being alive, and calling it "online" here is what
             // made a registration whose machine was long gone look healthy.
@@ -2127,7 +1335,7 @@ export const useStore = create<State>((set, get) => ({
         // list, out of whatever conversation or room you were reading.
         activeAgentId: (() => {
           const current = get().activeAgentId;
-          if (current && (isRoomId(current) || remote.some((r) => r.id === current))) return current;
+          if (current && remote.some((r) => r.id === current)) return current;
           return remote[0]?.id ?? current;
         })(),
       });
@@ -2148,18 +1356,8 @@ export const useStore = create<State>((set, get) => ({
           if (chosen.hidden != null) { carry.hidden = chosen.hidden; send = true; }
         }
 
-        // Voice is newer than the profile itself, so an agent that already HAS a
-        // profile can still be missing it — which is every agent, since names and
-        // pictures synced long ago. Gating the whole carry-up on "no profile yet"
-        // meant a voice chosen on this Mac could never reach the account, and the
-        // phone went on speaking in the default.
-        if (!r.profile?.voice && chosen.voice) { carry.voice = chosen.voice; send = true; }
-
         if (send) void window.studio.saveAgentProfile(carry);
       }
-
-      // Rooms need the agent list to map names to ids, so they come after it.
-      void get().refreshRooms();
 
       // Then ask the agents themselves. Deliberately after the list is already
       // on screen and deliberately not awaited into it: liveness is worth
@@ -2169,7 +1367,7 @@ export const useStore = create<State>((set, get) => ({
     } catch (e) {
       if (get().portalWorkspaceId !== workspaceId) return;
       get().stopWatching();
-      set({ agents: [], rooms: [], activeAgentId: "", authError: e instanceof Error ? e.message : String(e) });
+      set({ agents: [], activeAgentId: "", authError: e instanceof Error ? e.message : String(e) });
     }
   },
 
@@ -2212,27 +1410,6 @@ export const useStore = create<State>((set, get) => ({
     const info = summarize(raw);
     // Publish primary info immediately; optional extensions cannot block it.
     set(s=>({details:{...s.details,[agentId]:info},models:info.model?{...s.models,[agentId]:info.model}:s.models}));
-    if (info.native) { // Native adapters have no Eve-only management routes.
-      if (info.capabilities?.includes("app-capabilities")) void get().loadGrants(agentId);
-      return;
-    }
-    const management=await window.studio.manage({agentId:agent.id,path:"/tealbrick/management"}).catch(()=>null);
-    if(get().portalWorkspaceId!==workspace)return;
-    const dynamic=management?.data as {dynamic?:boolean;routines?:{name:string;cron:string;instruction:string;revision:number;enabled:boolean;wake:boolean;nextRunAt:number}[];runs?:{name:string;status:string;updatedAt:number}[]} | undefined;
-    if(management?.ok && dynamic?.dynamic && Array.isArray(dynamic.routines)){
-      info.schedules=dynamic.routines.map(r=>({name:r.name,cron:r.cron,markdown:r.instruction,dynamic:true,revision:r.revision,enabled:r.enabled,wake:r.wake,nextRunAt:r.nextRunAt,lastRun:dynamic.runs?.find(run=>run.name===r.name)}));
-      set(s=>({details:{...s.details,[agentId]:info}}));
-    }
-    const definitions=(management?.data as {definitions?:Record<string,{markdown?:string}>} | undefined)?.definitions;
-    if(management?.ok && definitions) {
-      info.schedules=info.schedules.map(r=>({...r,markdown:definitions[r.name]?.markdown ?? r.markdown}));
-      set(s=>({details:{...s.details,[agentId]:info}}));
-    }
-    void get().syncRoutineDeliveries();
-    const surfaces = await window.studio.manage({agentId:agent.id,path:"/surfaces"}).catch(()=>null);
-    if(get().portalWorkspaceId!==workspace)return;
-    const extra=(surfaces?.ok ? (surfaces.data as {surfaces?:{name:string;detail:string;live:boolean}[]})?.surfaces ?? [] : []).map(x=>({name:x.name,urlPath:x.detail,live:x.live}));
-    if(extra.length){info.channels=[...info.channels,...extra];set(s=>({details:{...s.details,[agentId]:info}}));}
   },
 
   cancelSignIn: async () => {
