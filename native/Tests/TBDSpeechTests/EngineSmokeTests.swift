@@ -31,8 +31,8 @@ final class TranscriberSmokeTests: XCTestCase {
         try XCTSkipUnless(FileManager.default.fileExists(atPath: fixture.path), "fixture missing")
         let database = try TBDListeningDatabase(inMemory: ())
         try database.save(TBDCustomWord(word: "desktop companion", replacement: "Desktop Companion"))
-        let defaults = UserDefaults(suiteName: "tbd.tests.\(UUID().uuidString)")!
-        let speech = TBDSpeechService(preferences: TBDListeningPreferences(defaults: defaults))
+        // Read-only defaults: engine and speaker detection fall back to their defaults; nothing is written.
+        let speech = TBDSpeechService(preferences: TBDListeningPreferences(defaults: .standard))
         let item = try await TBDTranscriber(speech: speech, database: database).transcribe(file: fixture)
         XCTAssertEqual(item.status, .completed)
         XCTAssertGreaterThan(item.durationMs, 1000)

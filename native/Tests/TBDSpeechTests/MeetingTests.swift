@@ -48,8 +48,8 @@ final class MeetingTests: XCTestCase {
         }
         try TBDMeetingManifest(id: "m1", title: "Crash test", startedAt: Date(), state: .recording, durationMs: 0).write(to: folder)
         let database = try TBDListeningDatabase(inMemory: ())
-        let defaults = UserDefaults(suiteName: "tbd.tests.\(UUID().uuidString)")!
-        let speech = TBDSpeechService(preferences: TBDListeningPreferences(defaults: defaults))
+        // Read-only defaults: engine and speaker detection fall back to their defaults; nothing is written.
+        let speech = TBDSpeechService(preferences: TBDListeningPreferences(defaults: .standard))
         let item = try await TBDMeetingRecorder(speech: speech).finalize(folder: folder, database: database, keepAudio: false)
         XCTAssertEqual(item.status, .completed)
         XCTAssertEqual(item.sourceKind, .meeting)
