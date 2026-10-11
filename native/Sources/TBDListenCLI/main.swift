@@ -1,4 +1,4 @@
 import Foundation
 import TBDSpeech
 
-print("tbd-listen \(TBDSpeech.version)")
+print("tbd-listen \(TBDSpeechVersion.string)")

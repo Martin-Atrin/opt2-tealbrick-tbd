@@ -1,0 +1,225 @@
+import Foundation
+import GRDB
+
+/// The Listening library (`listening.sqlite`): dictations, transcriptions, vocabulary, snippets,
+/// summaries and full-text search. Safe to share across threads.
+public final class TBDListeningDatabase: @unchecked Sendable {
+    public let writer: any DatabaseWriter
+    public let url: URL?
+
+    /// Opens (and migrates) the database at `url`. `readOnly` opens without migrating.
+    public init(url: URL = TBDListeningPaths.database, readOnly: Bool = false) throws {
+        self.url = url
+        var configuration = Configuration()
+        configuration.readonly = readOnly
+        configuration.busyMode = .timeout(5)
+        if readOnly {
+            guard FileManager.default.fileExists(atPath: url.path) else {
+                throw TBDSpeechError.audioUnreadable("No Listening library exists yet.")
+            }
+            writer = try DatabasePool(path: url.path, configuration: configuration)
+        } else {
+            try TBDListeningPaths.ensure(url.deletingLastPathComponent())
+            writer = try DatabasePool(path: url.path, configuration: configuration)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+            try Self.migrator.migrate(writer)
+        }
+    }
+
+    /// In-memory database for tests.
+    public init(inMemory: Void) throws {
+        url = nil
+        writer = try DatabaseQueue()
+        try Self.migrator.migrate(writer)
+    }
+
+    static var migrator: DatabaseMigrator {
+        var migrator = DatabaseMigrator()
+        migrator.registerMigration("v1") { db in
+            try db.create(table: "dictation") { t in
+                t.primaryKey("id", .text)
+                t.column("createdAt", .datetime).notNull().indexed()
+                t.column("durationMs", .integer).notNull()
+                t.column("rawText", .text).notNull()
+                t.column("cleanText", .text)
+                t.column("targetApp", .text)
+                t.column("audioPath", .text)
+                t.column("engine", .text)
+                t.column("wordCount", .integer).notNull().defaults(to: 0)
+            }
+            try db.create(table: "transcription") { t in
+                t.primaryKey("id", .text)
+                t.column("createdAt", .datetime).notNull().indexed()
+                t.column("updatedAt", .datetime).notNull()
+                t.column("title", .text).notNull()
+                t.column("sourceKind", .text).notNull()
+                t.column("sourcePath", .text)
+                t.column("sourceURL", .text)
+                t.column("durationMs", .integer).notNull().defaults(to: 0)
+                t.column("language", .text)
+                t.column("engine", .text)
+                t.column("status", .text).notNull()
+                t.column("errorMessage", .text)
+                t.column("rawText", .text).notNull().defaults(to: "")
+                t.column("cleanText", .text)
+                t.column("segments", .jsonText).notNull().defaults(to: "[]")
+                t.column("words", .jsonText).notNull().defaults(to: "[]")
+                t.column("speakers", .jsonText).notNull().defaults(to: "[]")
+                t.column("audioPaths", .jsonText).notNull().defaults(to: "[]")
+            }
+            try db.create(table: "customWord") { t in
+                t.primaryKey("id", .text)
+                t.column("word", .text).notNull()
+                t.column("replacement", .text)
+                t.column("isEnabled", .boolean).notNull().defaults(to: true)
+                t.column("createdAt", .datetime).notNull()
+            }
+            try db.create(table: "snippet") { t in
+                t.primaryKey("id", .text)
+                t.column("trigger", .text).notNull()
+                t.column("expansion", .text).notNull()
+                t.column("isEnabled", .boolean).notNull().defaults(to: true)
+                t.column("useCount", .integer).notNull().defaults(to: 0)
+                t.column("createdAt", .datetime).notNull()
+            }
+            try db.create(table: "summary") { t in
+                t.primaryKey("id", .text)
+                t.column("transcriptionId", .text).notNull().indexed()
+                    .references("transcription", onDelete: .cascade)
+                t.column("kind", .text).notNull()
+                t.column("prompt", .text).notNull()
+                t.column("content", .text).notNull()
+                t.column("createdAt", .datetime).notNull()
+            }
+            try db.create(virtualTable: "transcription_ft", using: FTS5()) { t in
+                t.synchronize(withTable: "transcription")
+                t.tokenizer = .unicode61()
+                t.column("title")
+                t.column("rawText")
+                t.column("cleanText")
+            }
+            try db.create(virtualTable: "dictation_ft", using: FTS5()) { t in
+                t.synchronize(withTable: "dictation")
+                t.tokenizer = .unicode61()
+                t.column("rawText")
+                t.column("cleanText")
+            }
+        }
+        return migrator
+    }
+
+    // MARK: - Dictations
+
+    public func save(_ dictation: TBDDictation) throws { try writer.write { try dictation.save($0) } }
+
+    public func dictations(limit: Int = 200, matching query: String? = nil) throws -> [TBDDictation] {
+        try writer.read { db in
+            if let pattern = Self.pattern(query) {
+                let sql = """
+                    SELECT dictation.* FROM dictation JOIN dictation_ft ON dictation_ft.rowid = dictation.rowid
+                    WHERE dictation_ft MATCH ? ORDER BY dictation.createdAt DESC LIMIT ?
+                    """
+                return try TBDDictation.fetchAll(db, sql: sql, arguments: [pattern, limit])
+            }
+            return try TBDDictation.order(Column("createdAt").desc).limit(limit).fetchAll(db)
+        }
+    }
+
+    public func deleteDictation(id: String) throws { _ = try writer.write { try TBDDictation.deleteOne($0, key: id) } }
+    public func deleteAllDictations() throws { _ = try writer.write { try TBDDictation.deleteAll($0) } }
+
+    public struct DictationStats: Sendable, Equatable {
+        public var count = 0
+        public var words = 0
+        public var durationMs = 0
+        public var today = 0
+        /// Words per minute of speech, or 0.
+        public var wordsPerMinute: Int { durationMs > 0 ? Int(Double(words) / (Double(durationMs) / 60_000)) : 0 }
+    }
+
+    public func dictationStats(now: Date = Date()) throws -> DictationStats {
+        try writer.read { db in
+            let row = try Row.fetchOne(db, sql: "SELECT COUNT(*), COALESCE(SUM(wordCount),0), COALESCE(SUM(durationMs),0) FROM dictation")
+            let startOfDay = Calendar.current.startOfDay(for: now)
+            let today = try TBDDictation.filter(Column("createdAt") >= startOfDay).fetchCount(db)
+            return DictationStats(count: row?[0] ?? 0, words: row?[1] ?? 0, durationMs: row?[2] ?? 0, today: today)
+        }
+    }
+
+    // MARK: - Transcriptions
+
+    public func save(_ transcription: TBDTranscription) throws {
+        var item = transcription
+        item.updatedAt = Date()
+        try writer.write { try item.save($0) }
+    }
+
+    public func transcription(id: String) throws -> TBDTranscription? {
+        try writer.read { db in
+            if let exact = try TBDTranscription.fetchOne(db, key: id) { return exact }
+            // Accept unique id prefixes (CLI convenience).
+            let matches = try TBDTranscription.filter(Column("id").like("\(id.lowercased())%")).limit(2).fetchAll(db)
+            return matches.count == 1 ? matches[0] : nil
+        }
+    }
+
+    public func transcriptions(limit: Int = 500, kind: TBDSourceKind? = nil, matching query: String? = nil) throws -> [TBDTranscription] {
+        try writer.read { db in
+            if let pattern = Self.pattern(query) {
+                var sql = """
+                    SELECT transcription.* FROM transcription JOIN transcription_ft ON transcription_ft.rowid = transcription.rowid
+                    WHERE transcription_ft MATCH ?
+                    """
+                var arguments: StatementArguments = [pattern]
+                if let kind { sql += " AND transcription.sourceKind = ?"; arguments += [kind.rawValue] }
+                sql += " ORDER BY transcription.createdAt DESC LIMIT ?"
+                arguments += [limit]
+                return try TBDTranscription.fetchAll(db, sql: sql, arguments: arguments)
+            }
+            var request = TBDTranscription.order(Column("createdAt").desc).limit(limit)
+            if let kind { request = request.filter(Column("sourceKind") == kind.rawValue) }
+            return try request.fetchAll(db)
+        }
+    }
+
+    public func deleteTranscription(id: String) throws {
+        _ = try writer.write { try TBDTranscription.deleteOne($0, key: id) }
+    }
+
+    /// Items left `processing` by a crash or quit become `failed` so the user can retry them.
+    public func markInterruptedTranscriptions() throws {
+        try writer.write { db in
+            try db.execute(sql: "UPDATE transcription SET status = 'failed', errorMessage = 'Interrupted before it finished.' WHERE status = 'processing' AND sourceKind != 'meeting'")
+        }
+    }
+
+    // MARK: - Vocabulary and snippets
+
+    public func customWords() throws -> [TBDCustomWord] { try writer.read { try TBDCustomWord.order(Column("word")).fetchAll($0) } }
+    public func save(_ word: TBDCustomWord) throws { try writer.write { try word.save($0) } }
+    public func deleteCustomWord(id: String) throws { _ = try writer.write { try TBDCustomWord.deleteOne($0, key: id) } }
+
+    public func snippets() throws -> [TBDSnippet] { try writer.read { try TBDSnippet.order(Column("trigger")).fetchAll($0) } }
+    public func save(_ snippet: TBDSnippet) throws { try writer.write { try snippet.save($0) } }
+    public func deleteSnippet(id: String) throws { _ = try writer.write { try TBDSnippet.deleteOne($0, key: id) } }
+    public func incrementSnippetUse(ids: Set<String>) throws {
+        guard !ids.isEmpty else { return }
+        try writer.write { db in
+            for id in ids { try db.execute(sql: "UPDATE snippet SET useCount = useCount + 1 WHERE id = ?", arguments: [id]) }
+        }
+    }
+
+    // MARK: - Summaries
+
+    public func summaries(for transcriptionId: String) throws -> [TBDSummary] {
+        try writer.read { try TBDSummary.filter(Column("transcriptionId") == transcriptionId).order(Column("createdAt")).fetchAll($0) }
+    }
+    public func save(_ summary: TBDSummary) throws { try writer.write { try summary.save($0) } }
+    public func deleteSummary(id: String) throws { _ = try writer.write { try TBDSummary.deleteOne($0, key: id) } }
+
+    /// Prefix-matching FTS pattern for free text, or nil for an empty query.
+    static func pattern(_ query: String?) -> FTS5Pattern? {
+        guard let query, !query.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
+        return FTS5Pattern(matchingAllPrefixesIn: query)
+    }
+}
