@@ -13,7 +13,7 @@ for (const switchID of [2, -101]) test(`only reset owner ${switchID} can reset; 
   await build({entryPoints:['src/tbd/helper.ts'],outfile:bundle,bundle:true,platform:'node',format:'cjs',plugins:[{name:'test-services',setup(b){
     b.onResolve({filter:/^\.\.\/main\//},a=>({path:a.path,namespace:'fixture'}));
     b.onLoad({filter:/.*/,namespace:'fixture'},a=>({contents:
-      a.path.endsWith('/ipc') ? `import { handlers, app } from ${JSON.stringify(resolve('src/tbd/platform.ts'))};
+      a.path.endsWith('/ipc') ? `import { handlers, app } from ${JSON.stringify(resolve('src/tbd/host.ts'))};
       export function registerIpc(){
         handlers.set('slow',async()=>{await new Promise(r=>setTimeout(r,50));return 'old result'});
         handlers.set('switch',()=>{app.emit('tbd:reset-session')});

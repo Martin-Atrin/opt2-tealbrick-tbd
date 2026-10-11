@@ -6,7 +6,7 @@ import type { ControlPlaneState } from "@shared/controlPlanes";
 /**
  * Device-flow sign-in (RFC 8628).
  *
- * The user approves in a browser against the Kybernesis control plane, and the
+ * The user approves in a browser against the Teal Brick Portal, and the
  * identity token that comes back is what every agent's HTTP door verifies. That
  * means Studio access is governed by exactly the same grants as Slack and
  * iMessage — revoke someone in the control plane and the desktop goes with it.

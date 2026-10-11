@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import { createInterface } from "node:readline";
-import { buildHelper } from "../scripts/tbd-helper-build.mjs";
+import { buildHelper } from "../scripts/tbd-helper-build.ts";
 
 // TBD 0.1.2: a native call nobody awaited (Notification.show -> "notify") was
 // rejected by the host when macOS refused notifications. The unhandled rejection

@@ -7,7 +7,7 @@
     "strict": true,
     "skipLibCheck": true,
     "types": [
-      "electron-vite/node"
+      "node"
     ],
     "baseUrl": ".",
     "paths": {
@@ -20,7 +20,6 @@
     "src/main/**/*",
     "src/preload/**/*",
     "src/shared/**/*",
-    "electron.vite.config.ts",
     "src/tbd/**/*"
   ]
 }

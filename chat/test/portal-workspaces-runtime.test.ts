@@ -8,8 +8,8 @@ async function fixture() {
   const calls=[], saves=new Map(), events=[];
   const state={ session:{token:'fixture'}, directory:{accountId:'a',organizationId:'o',workspaces:[{id:'one',name:'One'},{id:'two',name:'Two'}]},status:200 };
   const result=await build({entryPoints:['src/main/portalWorkspaces.ts'],bundle:true,platform:'node',format:'cjs',write:false,plugins:[{name:'fixture',setup(b){
-    b.onResolve({filter:/^(electron|\.\/controlPlane|\.\/store)$/},args=>({path:args.path,namespace:'fixture'}));
-    b.onLoad({filter:/.*/,namespace:'fixture'},args=>({contents:args.path==='electron'?`export const app={emit:(event)=>events.push(event),relaunch:()=>{throw Error('Must not relaunch')},quit:()=>{throw Error('Must not quit')}}`:args.path==='./store'?`export const loadState=(n,f)=>saves.get(n)??f;export const saveState=(n,v)=>saves.set(n,v);`:`export const issuer=()=> 'https://portal.example';export const activeSession=async()=>state.session;export const authHeaders=s=>({authorization:'Bearer '+s.token});`,loader:'js'}));
+    b.onResolve({filter:/^(\.\.\/tbd\/host|\.\/controlPlane|\.\/store)$/},args=>({path:args.path,namespace:'fixture'}));
+    b.onLoad({filter:/.*/,namespace:'fixture'},args=>({contents:args.path==='../tbd/host'?`export const app={emit:(event)=>events.push(event),relaunch:()=>{throw Error('Must not relaunch')},quit:()=>{throw Error('Must not quit')}}`:args.path==='./store'?`export const loadState=(n,f)=>saves.get(n)??f;export const saveState=(n,v)=>saves.set(n,v);`:`export const issuer=()=> 'https://portal.example';export const activeSession=async()=>state.session;export const authHeaders=s=>({authorization:'Bearer '+s.token});`,loader:'js'}));
   }}]});
   const module={exports:{}};
   vm.runInNewContext(result.outputFiles[0].text,{module,exports:module.exports,require:createRequire(import.meta.url),state,saves,events,AbortSignal,fetch:async(url,init)=>{calls.push({url,init});return {ok:state.status===200,status:state.status,json:async()=>state.directory};}});

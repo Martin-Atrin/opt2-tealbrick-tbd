@@ -155,7 +155,7 @@ export function summarize(info: unknown): AgentSummary {
 
 /** Human names for the channels we ship, so a surface reads as a surface. */
 const CHANNEL_LABELS: Record<string, string> = {
-  eve: "KYBER Studio & HTTP API",
+  eve: "Chat & HTTP API",
   photon: "iMessage",
   slack: "Slack",
   telegram: "Telegram",
@@ -164,7 +164,7 @@ const CHANNEL_LABELS: Record<string, string> = {
   twilio: "SMS",
   linear: "Linear",
   github: "GitHub",
-  kyb: "Management (KYBER Studio)",
+  kyb: "Management",
 };
 
 function groupChannels(items: unknown[]): { name: string; urlPath?: string }[] {

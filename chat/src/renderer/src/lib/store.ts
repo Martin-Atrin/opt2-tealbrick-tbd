@@ -588,7 +588,7 @@ interface State {
  * Re-read what an agent says about itself, shortly after a turn.
  *
  * An agent can change ITSELF during a conversation — "make me a routine that
- * does X" writes the routine and @kybernesis/manage restarts the agent about
+ * does X" writes the routine and the agent harness restarts the agent about
  * twenty seconds later. The new routine only reaches /eve/v1/info once that
  * rebuild lands, so a single refresh when the turn ends always reads the old
  * manifest and the sidebar stays stale until the person switches agent, signs
@@ -623,7 +623,7 @@ function refreshAgentInfoAcrossRestart(get: () => State, agentId: string): void 
     }
   };
   void look();
-  // Across the restart @kybernesis/manage performs ~20s after a change.
+  // Across the restart the agent harness performs ~20s after a change.
   for (const delay of [10_000, 25_000, 45_000]) timers.push(setTimeout(() => void look(), delay));
   infoWatches.set(agentId, timers);
 }
@@ -644,7 +644,7 @@ export const useStore = create<State>((set, get) => ({
 
   authState: "loading",
   authError: null,
-  issuer: "agent.kybernesis.ai",
+  issuer: "dev.tealbrick.com",
   account: null,
   sessions: {},
   streamIndexes: {},
@@ -1241,7 +1241,7 @@ export const useStore = create<State>((set, get) => ({
     }
     try {
       const planes = await window.studio.controlPlanes();
-      set({ issuer: planes.profiles.find((p) => p.id === planes.activeId)?.issuer ?? "https://agent.kybernesis.ai" });
+      set({ issuer: planes.profiles.find((p) => p.id === planes.activeId)?.issuer ?? "https://dev.tealbrick.com" });
       const session = await window.studio.session();
       if (!session) {
         set({ authState: "signed-out" });

@@ -1,4 +1,4 @@
-import { app } from 'electron';
+import { app } from "../tbd/host";
 import { activeSession, authHeaders, issuer } from './controlPlane';
 import { loadState, saveState } from './store';
 import { choosePortalWorkspace, parseWorkspaceDirectory, workspaceAccountKey, workspaceStateName, type WorkspaceSelection } from './workspaceSelection';

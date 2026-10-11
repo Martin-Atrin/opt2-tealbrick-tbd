@@ -1,5 +1,5 @@
 /**
- * The KYBER Studio domain model.
+ * The TBD Chat domain model.
  *
  * Studio is the customer's console for agents that already exist. Agents run
  * where they were deployed — Vercel, exe.dev, a client VM — and Studio is a

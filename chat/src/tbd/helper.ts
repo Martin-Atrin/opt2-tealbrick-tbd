@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createInterface } from 'node:readline';
-import { configure, handlers, sender, nativeReply, app } from './platform';
+import { configure, handlers, sender, nativeReply, app } from './host';
 const send = (message: unknown) => process.stdout.write(JSON.stringify(message) + '\n');
 console.log = console.info = console.debug = (...args) => console.error(...args);
 // One failed background promise or callback must not take every chat down with it:

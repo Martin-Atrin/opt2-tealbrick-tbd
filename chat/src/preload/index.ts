@@ -1,5 +1,4 @@
-import { electronAPI } from "@electron-toolkit/preload";
-import { contextBridge, ipcRenderer } from "electron";
+import { ipcRenderer } from "../tbd/webview";
 import type { StudioApi } from "../shared/ipc";
 
 /**
@@ -103,16 +102,4 @@ const studio: StudioApi = {
   },
 };
 
-if (process.contextIsolated) {
-  try {
-    contextBridge.exposeInMainWorld("electron", electronAPI);
-    contextBridge.exposeInMainWorld("studio", studio);
-  } catch (error) {
-    console.error(error);
-  }
-} else {
-  // @ts-expect-error -- contextIsolation disabled
-  window.electron = electronAPI;
-  // @ts-expect-error -- contextIsolation disabled
-  window.studio = studio;
-}
+(window as unknown as { studio: StudioApi }).studio = studio;

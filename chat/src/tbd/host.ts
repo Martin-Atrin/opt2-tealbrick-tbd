@@ -1,3 +1,8 @@
+/**
+ * The typed host protocol of the TBD Chat helper: the native app (Swift) on the
+ * other side of stdio provides storage keys, dialogs, notifications and URLs.
+ * This is the only module the helper's main code uses for host services.
+ */
 import { EventEmitter } from 'node:events';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -20,7 +25,7 @@ export function fireAndForget(method: string, ...args: unknown[]): void {
   nativeCall(method, ...args).catch((error) => console.error(`[helper:error] native ${method} failed: ${error instanceof Error ? error.message : String(error)}`));
 }
 export const app = Object.assign(new EventEmitter(), {
-  commandLine: { getSwitchValue: () => process.env.TBD_CHAT_DATA! },
+  commandLine: { getSwitchValue: (_name: string) => process.env.TBD_CHAT_DATA! },
   getPath: (name: string) => name === 'userData' ? userData : name === 'home' ? homedir() : name === 'temp' ? '/tmp' : join(homedir(), 'Library/Application Support'),
   setPath: (_name: string, path: string) => { userData = path; },
   getAppPath: () => process.cwd(), isPackaged: true,
@@ -54,5 +59,7 @@ export class Notification extends EventEmitter {
   show() { fireAndForget('notify', this.options); }
 }
 export class BrowserWindow {
-  static fromWebContents() { return { show: () => nativeCall('activate'), focus: () => nativeCall('activate'), isMinimized: () => false, restore() {} }; }
+  static fromWebContents(_contents?: unknown) { return { show: () => nativeCall('activate'), focus: () => nativeCall('activate'), isMinimized: () => false, restore() {} }; }
 }
+
+export type WebContents = typeof sender;

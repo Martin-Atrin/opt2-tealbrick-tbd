@@ -20,7 +20,7 @@ Status: opt2 build in progress. See `AGENTS.md` for the working rules.
 
 ## Donor code and licences
 
-- `chat/` started from KYBER Studio (MIT, see `chat/LICENSE`).
+- `chat/` started from an MIT-licensed upstream chat client (see `chat/LICENSE`).
 - `companion/` is a fork of Dayflow 2.5.4 (MIT, see `companion/LICENSE`).
 
 ## No secrets policy

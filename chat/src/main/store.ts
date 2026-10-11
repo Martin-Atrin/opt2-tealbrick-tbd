@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { app, dialog } from "electron";
+import { app, dialog } from "../tbd/host";
 
 /**
  * Durable state for the desktop.

@@ -2,9 +2,10 @@ import { createHash } from "node:crypto";
 import { join } from "node:path";
 import type { ControlPlaneProfile, ControlPlaneState } from "../shared/controlPlanes";
 
+/** The hosted Teal Brick Portal for this build (opt2 environment). */
 export const COMPANY_CONTROL_PLANE: ControlPlaneProfile = Object.freeze({
-  id: "tealbrick", name: "Teal Brick Portal (hosted)",
-  issuer: "https://portal.tealbrick.com", builtIn: true,
+  id: "tealbrick", name: "Teal Brick Portal",
+  issuer: "https://dev.tealbrick.com", builtIn: true,
 });
 
 export function normalizeIssuer(value: string): string {
@@ -22,7 +23,6 @@ export function normalizeIssuer(value: string): string {
 }
 
 export function profileIdForIssuer(issuer: string): string {
-  // Preserve IDs and data paths from the original August 28 custom build.
   return `plane-${createHash("sha256").update(normalizeIssuer(issuer)).digest("hex").slice(0, 16)}`;
 }
 
@@ -48,20 +48,13 @@ export function sanitizeControlPlaneRegistry(input: unknown): ControlPlaneState 
       try { state.profiles.push(createControlPlaneProfile(state, candidate)); } catch { /* Ignore invalid entries. */ }
     }
   }
-  // Preserve a previously selected upstream profile without reusing its tokens
-  // for the hosted Teal Brick issuer. It is not offered on a fresh install.
-  if (raw.activeId === "kybernesis") state.profiles.push({
-    id: "kybernesis", name: "Kybernesis (previous portal)",
-    issuer: "https://agent.kybernesis.ai", builtIn: true,
-  });
   if (raw.activeId === profileIdForIssuer(COMPANY_CONTROL_PLANE.issuer)) state.activeId = COMPANY_CONTROL_PLANE.id;
   if (typeof raw.activeId === "string" && state.profiles.some((p) => p.id === raw.activeId)) state.activeId = raw.activeId;
   return state;
 }
 
 export function profileUserData(base: string, profile: ControlPlaneProfile): string {
-  // Only the original issuer may use the historical root credentials.
-  return profile.issuer === "https://agent.kybernesis.ai" ? base : join(base, "profiles", profileIdForIssuer(profile.issuer));
+  return join(base, "profiles", profileIdForIssuer(profile.issuer));
 }
 
 export function assertPlaneSwitchAllowed(signedIn: boolean, signingIn: boolean): void {

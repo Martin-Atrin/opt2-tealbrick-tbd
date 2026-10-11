@@ -5,7 +5,7 @@ import { buildMessage } from "../shared/message";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { app, safeStorage, shell } from "electron";
+import { app, safeStorage, shell } from "../tbd/host";
 import type { RemoteAgent } from "@shared/ipc";
 import { type AuthSession as Session, debugStreamEnabled, streamDiagnostic } from "./portalPrivacy";
 
@@ -15,10 +15,10 @@ import { NOT_GRANTED_MESSAGE, retryAfterGrantRefresh } from "./agentGrant";
 import { CREDENTIALS_WITHHELD, createAgentAuth, resolveRemoteAgent, type ResolvedAgent } from "./agentCredentials";
 
 /**
- * Control-plane identity for KYBER Studio.
+ * Control-plane identity for TBD Chat.
  *
  * Studio never holds an agent's own credentials. The user signs in to the
- * Kybernesis control plane with RFC 8628 device flow, and the resulting
+ * Teal Brick Portal with RFC 8628 device flow, and the resulting
  * identity token is what every agent's HTTP door verifies — the same governance
  * path as Slack and iMessage, so revoking a grant revokes the desktop too.
  *
@@ -124,7 +124,7 @@ export function authHeaders(
         "Your session has no policy bundle, so no agent can check your grants. Sign out and sign in again.",
       );
     }
-    headers["x-kybernesis-bundle"] = s.bundle;
+    headers["x-tealbrick-bundle"] = s.bundle;
   }
   return headers;
 }
@@ -634,7 +634,7 @@ async function describeFailure(res: Response, base: string): Promise<Error> {
  * The agent changing ITSELF, named while it happens.
  *
  * A routine is a file in agent/schedules; a channel is one in agent/channels.
- * Writing one means @kybernesis/manage restarts the agent about twenty seconds
+ * Writing one means the agent harness restarts the agent about twenty seconds
  * later to pick it up, and it stops answering while it does. Saying so at the
  * moment of the write is the difference between "it is restarting, wait a
  * minute" and "it broke" — and the person asked for the routine, so the wait is

@@ -7,7 +7,7 @@ if ps -axo comm | /usr/bin/grep -Fx "$TBD_ROOT/companion/build.noindex/Build/Pro
   exit 1
 fi
 cd "$TBD_ROOT/chat"
-node scripts/build-tbd.mjs
+node scripts/build-tbd.ts
 npm run typecheck
 cd "$TBD_ROOT"
 xcodebuild -project companion/Dayflow/Dayflow.xcodeproj -scheme Dayflow -configuration Debug -derivedDataPath companion/build.noindex -skipMacroValidation CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO ARCHS=arm64 ONLY_ACTIVE_ARCH=YES build > docs/native-integration-build.log 2>&1

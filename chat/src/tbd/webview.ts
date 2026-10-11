@@ -1,3 +1,4 @@
+/** The WKWebView side of the host bridge: renderer <-> native via webkit message handlers. */
 let nextId = 0;
 const pending = new Map<number, { resolve: (v: any) => void; reject: (e: Error) => void }>();
 const listeners = new Map<string, Set<(...args: any[]) => void>>();
@@ -15,5 +16,3 @@ export const ipcRenderer = {
   message.error ? p.reject(Error(message.error)) : p.resolve(message.value);
 };
 (window as any).tbdAudio = { invoke: (method: string) => ipcRenderer.invoke('tbd:audio', method) };
-export const contextBridge = { exposeInMainWorld: (name: string, value: unknown) => { (window as any)[name] = value; } };
-export const electronAPI = {};

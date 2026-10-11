@@ -4,7 +4,7 @@ import { homedir, tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import { dialog, shell } from "electron";
+import { dialog, shell } from "../tbd/host";
 
 /**
  * Taking delivery of a file the agent produced.
@@ -132,7 +132,7 @@ export async function openRemoteFile(input: {
   url: string;
   suggestedName: string;
 }): Promise<DeliveryResult> {
-  const folder = join(tmpdir(), "kyber-studio-files");
+  const folder = join(tmpdir(), "tbd-chat-files");
   await mkdir(folder, { recursive: true });
   const target = join(folder, basename(input.suggestedName) || "file");
   const result = await download(input.url, target);

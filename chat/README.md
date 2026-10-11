@@ -2,7 +2,7 @@
 
 The Chat part of TBD: a React renderer hosted in a WKWebView, and a Node 24
 helper that the native host starts over private stdio. Adapted from the
-MIT-licensed KYBER Studio (see `LICENSE`).
+MIT-licensed upstream chat client (copyright notice in `LICENSE`).
 
 Rules:
 - TBD is not a second control plane. Portal owns identity and grants; agents own

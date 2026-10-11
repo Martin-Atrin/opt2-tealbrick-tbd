@@ -26,7 +26,7 @@ test('public session and actual session IPC never expose current or future crede
   assert.equal(publicSession(null),null);
   const handlers=new Map();
   const api=await fixture('src/main/ipc.ts',{
-    electron:{ipcMain:{handle:(name,fn)=>handlers.set(name,fn),on(){}}},
+    '../tbd/host':{ipcMain:{handle:(name,fn)=>handlers.set(name,fn),on(){}}},
     './controlPlane':{currentSession:()=>secretSession,startDeviceAuth:async()=>({userCode:'123',verificationUri:'https://example.test',deviceCode:'PRIVATE_DEVICE'}),pollDeviceAuth:async()=>secretSession},
   });
   api.registerIpc();

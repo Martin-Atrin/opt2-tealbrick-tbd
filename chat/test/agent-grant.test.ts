@@ -49,11 +49,11 @@ test("HTML 403 (deployment protection) is not a grant problem", () => {
 
 test("user-facing copy is plain and the send path and Refresh agents use the refresh", () => {
   assert.match(NOT_GRANTED_MESSAGE, /don't have access to this agent yet/);
-  assert.doesNotMatch(NOT_GRANTED_MESSAGE, /KYBERNESIS/);
+  assert.doesNotMatch(NOT_GRANTED_MESSAGE, /_ISSUER/);
   const plane = readFileSync(new URL("../src/main/controlPlane.ts", import.meta.url), "utf8");
   assert.match(plane, /retryAfterGrantRefresh\(dispatchRaw, forceRefresh/);
   assert.match(plane, /if \(opts\?\.refreshSession\) await forceRefresh\(\)/);
-  assert.doesNotMatch(plane, /must match its registered name|KYBERNESIS_ISSUER/);
+  assert.doesNotMatch(plane, /must match its registered name|[A-Z]+_ISSUER override/);
   for (const f of ["../src/renderer/src/App.tsx", "../src/renderer/src/components/Sidebar.tsx"]) {
     assert.match(readFileSync(new URL(f, import.meta.url), "utf8"), /refreshAgents\(\{ refreshSession: true \}\)/);
   }

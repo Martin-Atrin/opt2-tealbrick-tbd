@@ -43,7 +43,7 @@ mkdir -p "$LOGS" "$DIST"
 
 step "Chat bundle"
 cd "$TBD_ROOT/chat"
-node scripts/build-tbd.mjs
+node scripts/build-tbd.ts
 npm run typecheck
 cd "$TBD_ROOT"
 

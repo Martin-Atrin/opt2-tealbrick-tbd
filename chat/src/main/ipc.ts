@@ -1,6 +1,6 @@
 import { portalWorkspaces, selectPortalWorkspace, scopedStateName } from "./portalWorkspaces";
 import { publicSession } from "./portalPrivacy";
-import { app, BrowserWindow, Notification, ipcMain, shell, type WebContents } from "electron";
+import { app, BrowserWindow, Notification, ipcMain, shell, type WebContents } from "../tbd/host";
 import { activateControlPlane, addControlPlane, controlPlanes, removeControlPlane } from "./controlPlanes";
 import { assertPlaneSwitchAllowed } from "./controlPlaneProfiles";
 import type { Attachment } from "../shared/ipc";
