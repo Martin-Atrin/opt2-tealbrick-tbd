@@ -6,7 +6,7 @@
 //
 
 import SwiftUI
-import MacParakeet
+import TBDDesign
 
 struct ChatHistoryPanel: View {
   @Environment(\.dayflowTheme) private var theme

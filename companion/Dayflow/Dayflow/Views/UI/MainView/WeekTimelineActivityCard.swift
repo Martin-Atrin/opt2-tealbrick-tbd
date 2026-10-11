@@ -1,4 +1,4 @@
-import MacParakeet
+import TBDDesign
 import SwiftUI
 
 // Published by each card's hidden measurement view; collected by the parent grid.

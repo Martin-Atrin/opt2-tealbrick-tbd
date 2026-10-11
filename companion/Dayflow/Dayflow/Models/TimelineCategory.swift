@@ -161,13 +161,6 @@ final class CategoryStore: ObservableObject {
       cat.colorHex = hex
     }
     if hex != previousHex {
-      AnalyticsService.shared.capture(
-        "category_color_changed",
-        [
-          "category_name": categoryName,
-          "color_hex": hex,
-          "previous_color_hex": previousHex ?? "none",
-        ])
     }
   }
 

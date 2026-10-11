@@ -3,7 +3,7 @@ import AppKit
 import ImageIO
 import QuartzCore
 import SwiftUI
-import MacParakeet
+import TBDDesign
 
 // MARK: - Main Overlay View
 
@@ -68,15 +68,9 @@ struct TimelineReviewOverlay: View {
     .transition(.opacity)
     .onAppear {
       lastCloseSource = nil
-      AnalyticsService.shared.capture("timeline_review_opened")
       loadActivities()
     }
     .onDisappear {
-      AnalyticsService.shared.capture(
-        "timeline_review_closed",
-        [
-          "source": lastCloseSource?.rawValue ?? "unknown"
-        ])
     }
     .onChange(of: selectedDate) { _, _ in
       loadActivities()
@@ -328,7 +322,6 @@ struct TimelineReviewOverlay: View {
   private func goBackOneCard(input: TimelineReviewInput) {
     guard !isAnimatingOut, !isBackAnimating else { return }
     guard currentIndex > 0 else { return }
-    AnalyticsService.shared.capture("timeline_review_undo", ["input": input.rawValue])
     isBackAnimating = true
     currentIndex -= 1
     isPointerOverSummary = false
@@ -453,8 +446,6 @@ struct TimelineReviewOverlay: View {
     case .neutral: direction = "up"
     case .focused: direction = "right"
     }
-    AnalyticsService.shared.capture(
-      "timeline_review_swipe", ["direction": direction, "input": input.rawValue])
 
     let startTs = Int(activity.startTime.timeIntervalSince1970)
     let endTs = Int(activity.endTime.timeIntervalSince1970)

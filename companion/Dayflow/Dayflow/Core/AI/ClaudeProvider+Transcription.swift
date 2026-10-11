@@ -184,16 +184,6 @@ extension ClaudeProvider {
   ) throws -> [SegmentMergeResponse.Segment] {
     let segments = try parseSegments(from: run.stdout, stderr: run.stderr)
     if let validationError = validateSegments(segments, duration: TimeInterval(durationSeconds)) {
-      AnalyticsService.shared.captureValidationFailure(
-        provider: "chat_cli",
-        providerID: providerID,
-        operation: "transcribe_screenshots",
-        validationType: "timeline",
-        attempt: attempt,
-        model: model,
-        batchId: batchId,
-        errorDetail: validationError
-      )
       throw NSError(
         domain: "ClaudeProvider",
         code: -98,

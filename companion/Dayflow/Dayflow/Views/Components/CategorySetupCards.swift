@@ -1,5 +1,5 @@
 import SwiftUI
-import MacParakeet
+import TBDDesign
 import UniformTypeIdentifiers
 
 struct EditableCategoryCard: View {

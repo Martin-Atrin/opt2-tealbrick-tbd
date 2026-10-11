@@ -1,5 +1,5 @@
 import AppKit
-import MacParakeet
+import TBDDesign
 import SwiftUI
 import UniformTypeIdentifiers
 

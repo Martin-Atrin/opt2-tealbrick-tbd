@@ -89,12 +89,6 @@ final class FlowSessionMirror: ObservableObject {
       nudgeStreak = 0
       showToast(String(localized: "Your flow session starts now!"))
       FlowDistractionAgent.shared.start(with: newSnapshot)
-      AnalyticsService.shared.capture(
-        "flow_session_started",
-        [
-          "alert_style": newSnapshot.alertStyle.rawValue,
-          "always_on": newSnapshot.alwaysOn,
-        ])
     case (_, .onBreak):
       showBreak()
       FlowDistractionAgent.shared.pause()
@@ -155,8 +149,6 @@ final class FlowSessionMirror: ObservableObject {
   /// user. Quiet mode records nothing visible, matching the design.
   func simulateDistraction() {
     guard snapshot.phase == .active else { return }
-    AnalyticsService.shared.capture(
-      "flow_distraction_simulated", ["alert_style": snapshot.alertStyle.rawValue])
     isDistracted = true
     // Let the web UI record a distraction_started event with the backend.
     webBridge?.sendEvent("distractionSimulated", payload: [:])
@@ -188,8 +180,6 @@ final class FlowSessionMirror: ObservableObject {
   func agentNudge(message: String) {
     guard snapshot.phase == .active, snapshot.alertStyle != .quiet else { return }
     if let snoozeUntil, snoozeUntil > Date() { return }
-    AnalyticsService.shared.capture(
-      "flow_agent_nudge", ["alert_style": snapshot.alertStyle.rawValue])
     nudgeStreak += 1
     overlay = .nudge(message: message, escalated: nudgeStreak >= 2)
   }
@@ -200,7 +190,6 @@ final class FlowSessionMirror: ObservableObject {
     guard snapshot.phase == .active, !goals.isEmpty else { return }
     CompanionPlanner.shared.detectedCompletion(goals)
     webBridge?.sendEvent("tasksCompleted", payload: ["ids": goals.map(\.id)])
-    AnalyticsService.shared.capture("flow_agent_goal_completed", ["count": goals.count])
     guard snapshot.alertStyle != .quiet else { return }
     if case .nudge = overlay { return }
     let title = goals[0].title
@@ -254,7 +243,6 @@ final class FlowSessionMirror: ObservableObject {
     FlowDistractionAgent.shared.noteUserEvent(
       "The user says your nudge was a mistake — they were on task. Trust them, and be more lenient about screens like the one that triggered it.",
       markRefocused: true)
-    AnalyticsService.shared.capture("flow_agent_nudge_corrected")
     overlay = .hidden
   }
 
@@ -321,7 +309,6 @@ final class FlowSessionMirror: ObservableObject {
       overlay = .sessionEnded
       FlowSessionTimeline.shared.finish()
       FlowDistractionAgent.shared.stop()
-      AnalyticsService.shared.capture("flow_session_natural_end")
     }
 
     if snapshot.phase == .onBreak, let endsAt = snapshot.breakEndsAt, endsAt <= now {

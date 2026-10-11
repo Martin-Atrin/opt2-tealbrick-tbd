@@ -162,7 +162,6 @@ final class ProvidersSettingsViewModel: ObservableObject {
   }
 
   func handleOnAppear() {
-    DayflowAuthManager.shared.loadStoredSessionIfNeeded()
     loadRouting()
     reloadLocalProviderSettings()
     reloadOpenAICompatibleSettings()
@@ -284,12 +283,6 @@ final class ProvidersSettingsViewModel: ObservableObject {
     refreshUpgradeBannerState()
     upgradeStatusMessage = String(
       localized: "Upgraded to \(LocalModelPreset.recommended.displayName)")
-    AnalyticsService.shared.capture(
-      "local_model_upgraded",
-      [
-        "engine": engine.rawValue,
-        "model": modelId,
-      ])
 
     DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
       self?.upgradeStatusMessage = nil
@@ -343,27 +336,12 @@ final class ProvidersSettingsViewModel: ObservableObject {
 
   func beginProviderSetup(_ providerId: LLMProviderID, role: ProviderRoutingRole) {
     guard providerCatalog.contains(where: { $0.id == providerId }) else { return }
-    guard canUseProviderForRouting(providerId) else {
-      openAccountForDayflowPro(providerId)
-      return
-    }
-
     pendingSetupRole = role
     setupModalProvider = providerId
   }
 
   func editProviderConfiguration(_ providerId: LLMProviderID) {
     guard providerCatalog.contains(where: { $0.id == providerId }) else { return }
-    if providerId == .dayflow {
-      openAccountForDayflowProvider(providerId)
-      return
-    }
-
-    guard canUseProviderForRouting(providerId) else {
-      openAccountForDayflowPro(providerId)
-      return
-    }
-
     pendingSetupRole = .setupOnly
     setupModalProvider = providerId
   }
@@ -385,8 +363,6 @@ final class ProvidersSettingsViewModel: ObservableObject {
       let preference = GeminiModelPreference.load()
       selectedGeminiModel = preference.primary
       savedGeminiModel = preference.primary
-    case .dayflow:
-      break
     }
     let role = pendingSetupRole ?? .setupOnly
     let routingSucceeded: Bool
@@ -412,11 +388,6 @@ final class ProvidersSettingsViewModel: ObservableObject {
 
   func setPrimaryOrSetup(_ providerId: LLMProviderID) {
     guard canModifyRouting else { return }
-    guard canUseProviderForRouting(providerId) else {
-      openAccountForDayflowPro(providerId)
-      return
-    }
-
     if isProviderConfigured(providerId) {
       assignPrimaryProvider(providerId)
     } else {
@@ -426,11 +397,6 @@ final class ProvidersSettingsViewModel: ObservableObject {
 
   func setSecondaryOrSetup(_ providerId: LLMProviderID) {
     guard canModifyRouting else { return }
-    guard canUseProviderForRouting(providerId) else {
-      openAccountForDayflowPro(providerId)
-      return
-    }
-
     if isProviderConfigured(providerId) {
       assignSecondaryProvider(providerId)
     } else {
@@ -444,10 +410,6 @@ final class ProvidersSettingsViewModel: ObservableObject {
     requiresReadinessCheck: Bool = true
   ) -> Bool {
     guard canModifyRouting else { return false }
-    guard canUseProviderForRouting(providerId) else {
-      openAccountForDayflowPro(providerId)
-      return false
-    }
     guard providerId != routing.primary else { return true }
     if requiresReadinessCheck {
       guard isProviderConfigured(providerId) else { return false }
@@ -467,28 +429,8 @@ final class ProvidersSettingsViewModel: ObservableObject {
       savedGeminiModel = preference.primary
     }
 
-    AnalyticsService.shared.setPersonProperties([
-      "current_llm_provider": providerId.analyticsName,
-      "current_llm_provider_id": providerId.rawValue,
-    ])
     if shouldSwapWithSecondary {
-      AnalyticsService.shared.capture(
-        "provider_backup_updated",
-        [
-          "backup_provider": previousPrimary.rawValue,
-          "provider_id": previousPrimary.rawValue,
-          "primary_provider": providerId.rawValue,
-        ])
     }
-    AnalyticsService.shared.capture(
-      "provider_primary_updated",
-      [
-        "from_provider": previousPrimary.rawValue,
-        "to_provider": providerId.rawValue,
-        "underlying_provider": providerId.rawValue,
-        "provider_id": providerId.rawValue,
-        "swapped_with_secondary": shouldSwapWithSecondary,
-      ])
     return true
   }
 
@@ -498,10 +440,6 @@ final class ProvidersSettingsViewModel: ObservableObject {
     requiresReadinessCheck: Bool = true
   ) -> Bool {
     guard canModifyRouting else { return false }
-    guard canUseProviderForRouting(providerId) else {
-      openAccountForDayflowPro(providerId)
-      return false
-    }
     if requiresReadinessCheck {
       guard isProviderConfigured(providerId) else { return false }
     }
@@ -517,45 +455,11 @@ final class ProvidersSettingsViewModel: ObservableObject {
       )
       guard saveRouting(updatedRouting) else { return false }
 
-      AnalyticsService.shared.setPersonProperties([
-        "current_llm_provider": existingSecondary.analyticsName,
-        "current_llm_provider_id": existingSecondary.rawValue,
-      ])
-      AnalyticsService.shared.capture(
-        "provider_backup_updated",
-        [
-          "backup_provider": previousPrimary.rawValue,
-          "provider_id": previousPrimary.rawValue,
-          "primary_provider": existingSecondary.rawValue,
-        ])
-      AnalyticsService.shared.capture(
-        "provider_secondary_updated",
-        [
-          "secondary_provider": previousPrimary.rawValue,
-          "provider_id": previousPrimary.rawValue,
-          "mode": "swap_with_primary",
-        ])
       return true
     }
 
     let updatedRouting = LLMProviderRouting(primary: routing.primary, secondary: providerId)
     guard saveRouting(updatedRouting) else { return false }
-    AnalyticsService.shared.capture(
-      "provider_backup_updated",
-      [
-        "backup_provider": providerId.rawValue,
-        "underlying_provider": providerId.rawValue,
-        "provider_id": providerId.rawValue,
-        "primary_provider": routing.primary.rawValue,
-      ])
-    AnalyticsService.shared.capture(
-      "provider_secondary_updated",
-      [
-        "secondary_provider": providerId.rawValue,
-        "underlying_provider": providerId.rawValue,
-        "provider_id": providerId.rawValue,
-        "mode": "set",
-      ])
     return true
   }
 
@@ -574,8 +478,6 @@ final class ProvidersSettingsViewModel: ObservableObject {
 
   func isProviderConfigured(_ providerId: LLMProviderID) -> Bool {
     switch providerId {
-    case .dayflow:
-      return isDayflowProActive
     case .gemini:
       let key = KeychainManager.shared.retrieve(for: "gemini") ?? ""
       return !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -612,14 +514,6 @@ final class ProvidersSettingsViewModel: ObservableObject {
     guard routing.secondary != nil else { return }
     let updatedRouting = LLMProviderRouting(primary: routing.primary)
     guard saveRouting(updatedRouting) else { return }
-    AnalyticsService.shared.capture(
-      "provider_backup_updated",
-      [
-        "backup_provider": "none",
-        "provider_id": "none",
-        "primary_provider": routing.primary.rawValue,
-        "primary_provider_id": routing.primary.rawValue,
-      ])
   }
 
   func isBackupProvider(_ providerId: LLMProviderID) -> Bool {
@@ -629,47 +523,6 @@ final class ProvidersSettingsViewModel: ObservableObject {
   var backupProviderDisplayName: String {
     guard let backupProvider = routing.secondary else { return String(localized: "Not configured") }
     return providerDisplayName(backupProvider)
-  }
-
-  var isDayflowProActive: Bool {
-    let entitlement = DayflowAuthManager.shared.entitlements
-    return entitlement.plan == "pro" && entitlement.status == "active"
-  }
-
-  func shouldShowDayflowUpgradeAction(for providerId: LLMProviderID) -> Bool {
-    providerId == .dayflow && !isDayflowProActive
-  }
-
-  func openDayflowUpgradeAccount(from providerId: LLMProviderID) {
-    openAccountForDayflowPro(providerId)
-  }
-
-  private func canUseProviderForRouting(_ providerId: LLMProviderID) -> Bool {
-    providerId != .dayflow || isDayflowProActive
-  }
-
-  private func openAccountForDayflowPro(_ providerId: LLMProviderID) {
-    guard providerId == .dayflow else { return }
-    upgradeStatusMessage = String(
-      localized: "Tealbrick Pro is required for hosted cards and transcription.")
-    openAccountForDayflowProvider(providerId)
-  }
-
-  private func openAccountForDayflowProvider(_ providerId: LLMProviderID) {
-    guard providerId == .dayflow else { return }
-    if isDayflowProActive {
-      upgradeStatusMessage = String(localized: "Manage Tealbrick Pro from Account.")
-    }
-    NotificationCenter.default.post(name: .openAccountSettings, object: nil)
-    AnalyticsService.shared.capture(
-      "dayflow_backend_provider_paywall_opened",
-      [
-        "provider": providerId.rawValue,
-        "provider_id": providerId.rawValue,
-        "is_signed_in": DayflowAuthManager.shared.isSignedIn,
-        "entitlement_plan": DayflowAuthManager.shared.entitlements.plan,
-        "entitlement_status": DayflowAuthManager.shared.entitlements.status,
-      ])
   }
 
   @discardableResult
@@ -714,7 +567,6 @@ final class ProvidersSettingsViewModel: ObservableObject {
       properties["has_api_key"] =
         !openAICompatibleAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
-    AnalyticsService.shared.capture("provider_setup_completed", properties)
   }
 
   func persistGeminiModelSelection(_ model: GeminiModel, source: String) {
@@ -723,21 +575,11 @@ final class ProvidersSettingsViewModel: ObservableObject {
     GeminiModelPreference(primary: model).save()
 
     Task { @MainActor in
-      AnalyticsService.shared.capture(
-        "gemini_model_selected",
-        [
-          "source": source,
-          "model": model.rawValue,
-        ])
     }
   }
 
   private var providerCatalog: [CompactProviderInfo] {
     [
-      CompactProviderInfo(
-        id: .dayflow,
-        summary: String(localized: "Hosted cards & transcription • no API keys • requires Pro")
-      ),
       CompactProviderInfo(
         id: .claude,
         summary: String(localized: "Uses Claude Code through your existing Claude plan")
@@ -785,9 +627,6 @@ final class ProvidersSettingsViewModel: ObservableObject {
     case .openAICompatible:
       return openAICompatibleModelID.isEmpty
         ? String(localized: "OpenAI-compatible endpoint") : openAICompatibleModelID
-    case .dayflow:
-      return isDayflowProActive
-        ? String(localized: "Tealbrick Pro active") : String(localized: "Hosted provider unavailable")
     }
   }
 
@@ -819,8 +658,6 @@ final class ProvidersSettingsViewModel: ObservableObject {
       return String(localized: "Claude Code")
     case .openAICompatible:
       return String(localized: "OpenAI-compatible API")
-    case .dayflow:
-      return String(localized: "Tealbrick Backend")
     }
   }
 
@@ -831,7 +668,6 @@ final class ProvidersSettingsViewModel: ObservableObject {
     case .chatGPT: return "ChatGPT"
     case .claude: return "Claude"
     case .openAICompatible: return "OpenAI-compatible"
-    case .dayflow: return String(localized: "Hosted provider (disabled)")
     }
   }
 
@@ -850,7 +686,6 @@ struct CompactProviderInfo: Identifiable {
     case .chatGPT: return "ChatGPT"
     case .claude: return "Claude"
     case .openAICompatible: return "OpenAI-compatible"
-    case .dayflow: return String(localized: "Hosted provider (disabled)")
     }
   }
 }

@@ -1,6 +1,6 @@
 import AppKit
 import Foundation
-import MacParakeet
+import TBDDesign
 import QuartzCore
 import SwiftUI
 

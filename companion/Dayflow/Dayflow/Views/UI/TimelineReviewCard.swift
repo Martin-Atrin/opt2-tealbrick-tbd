@@ -1,7 +1,7 @@
 import AVFoundation
 import AppKit
 import ImageIO
-import MacParakeet
+import TBDDesign
 import QuartzCore
 import SwiftUI
 

@@ -9,7 +9,6 @@ import AVFoundation
 import AVKit
 import AppKit
 import Foundation
-import Sentry
 import SwiftUI
 
 struct MainView: View {
@@ -18,7 +17,6 @@ struct MainView: View {
   @Environment(\.accessibilityReduceMotion) var reduceMotion
   @Environment(\.dayflowTheme) var theme
   @Environment(\.stylePreviewAfter) var stylePreviewAfter
-  @ObservedObject private var authManager = DayflowAuthManager.shared
   @State var selectedIcon: SidebarIcon = .timeline
   @State var selectedDate = timelineDisplayDate(from: Date())
   @State var cachedTimelineWeekRange: TimelineWeekRange = TimelineWeekRange.containing(
@@ -128,14 +126,6 @@ struct MainView: View {
           selectedIcon = .flow
         }
       }
-      .onChange(of: authManager.flowEnabled) {
-        // Signed out (or access revoked) while on the now-hidden Flow tab.
-        if selectedIcon == .flow,
-          !SidebarView.showsFlowTab(flowEnabled: authManager.flowEnabled)
-        {
-          selectedIcon = .timeline
-        }
-      }
   }
 
   @discardableResult
@@ -145,12 +135,6 @@ struct MainView: View {
       return false
     }
 
-    AnalyticsService.shared.capture(
-      "daily_opened_after_recap_ready",
-      [
-        "target_day": pendingContext.targetDay ?? "unknown",
-        "source": source,
-      ])
     return true
   }
 }

@@ -1,5 +1,5 @@
-import MacParakeet
-import MacParakeetCore
+import TBDDesign
+import TBDModels
 import SwiftUI
 
 struct TBDAboutView: View {

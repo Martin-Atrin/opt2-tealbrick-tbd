@@ -491,6 +491,8 @@ struct ChatCLIProcessRunner {
         cmdParts.append(contentsOf: ["exec", "--skip-git-repo-check", "--json"])
       }
       if let model = model { cmdParts.append(contentsOf: ["-m", model]) }
+      // Isolation: analysis runs are read-only; never widen the sandbox.
+      cmdParts.append(contentsOf: ["-c", LoginShellRunner.shellEscape("sandbox_mode=\"read-only\"")])
       if let effort = reasoningEffort {
         cmdParts.append(contentsOf: ["-c", "model_reasoning_effort=\(effort)"])
       }
@@ -944,9 +946,8 @@ struct ChatCLIProcessRunner {
     if let reasoningEffort {
       cmdParts.append(contentsOf: ["--effort", reasoningEffort])
     }
-    if profile == nil && !disableTools {
-      cmdParts.append("--dangerously-skip-permissions")
-    } else if profile == nil {
+    // Isolation: never bypass the CLI's permission prompts. Text-only runs get no tools.
+    if profile == nil {
       cmdParts.append("--allowedTools")
       cmdParts.append(LoginShellRunner.shellEscape("[]"))
     }
@@ -1028,7 +1029,8 @@ struct ChatCLIProcessRunner {
     if let reasoningEffort {
       cmdParts.append(contentsOf: ["--effort", reasoningEffort])
     }
-    cmdParts.append("--dangerously-skip-permissions")
+    cmdParts.append("--allowedTools")
+    cmdParts.append(LoginShellRunner.shellEscape("[]"))
     cmdParts.append("--strict-mcp-config")
     cmdParts.append("--")
     cmdParts.append(LoginShellRunner.shellEscape(prompt))
@@ -1268,6 +1270,8 @@ struct ChatCLIProcessRunner {
         cmdParts.append(contentsOf: ["exec", "--skip-git-repo-check"])
       }
       if let model = model { cmdParts.append(contentsOf: ["-m", model]) }
+      // Isolation: analysis runs are read-only; never widen the sandbox.
+      cmdParts.append(contentsOf: ["-c", LoginShellRunner.shellEscape("sandbox_mode=\"read-only\"")])
       if let effort = reasoningEffort {
         cmdParts.append(contentsOf: ["-c", "model_reasoning_effort=\(effort)"])
       }

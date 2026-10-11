@@ -1,6 +1,6 @@
 import AppKit
 import Foundation
-import MacParakeet
+import TBDDesign
 import SwiftUI
 
 struct LLMProviderSetupView: View {
@@ -28,8 +28,6 @@ struct LLMProviderSetupView: View {
       return String(localized: "Connect an AI endpoint")
     case .gemini:
       return String(localized: "Gemini")
-    case .dayflow:
-      return String(localized: "Hosted provider (disabled)")
     }
   }
 

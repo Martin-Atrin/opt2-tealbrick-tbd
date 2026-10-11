@@ -140,7 +140,6 @@ final class AgentsRecapStore: ObservableObject {
     let prompt = AgentsRecapPrompt.build(day: day, outputPath: outputURL.path)
     let startedAt = Date()
     runState = .running(startedAt: startedAt)
-    AnalyticsService.shared.capture("agents_recap_run_started", ["day": day])
 
     Task.detached(priority: .userInitiated) {
       let result = AgentsRecapStore.executeRecapRun(
@@ -161,22 +160,8 @@ final class AgentsRecapStore: ObservableObject {
       loadedDay = day
       refreshAvailableDays()
       runState = .idle
-      AnalyticsService.shared.capture(
-        "agents_recap_run_completed",
-        [
-          "day": day,
-          "duration_seconds": durationSeconds,
-          "workstreams": newRecap.workstreams.count,
-          "threads": newRecap.workstreams.reduce(0) { $0 + $1.threads.count },
-        ])
     case .failure(let error):
       runState = .failed(error.message)
-      AnalyticsService.shared.capture(
-        "agents_recap_run_failed",
-        [
-          "day": day,
-          "duration_seconds": durationSeconds,
-        ])
     }
   }
 

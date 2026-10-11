@@ -1,6 +1,6 @@
 import AppKit
 import Foundation
-import MacParakeet
+import TBDDesign
 import SwiftUI
 import UserNotifications
 
@@ -222,13 +222,6 @@ extension DailyView {
       standupCopyState = .copied
     }
 
-    AnalyticsService.shared.capture(
-      "daily_standup_copied",
-      [
-        "timeline_day": workflowDayString(for: selectedDate),
-        "highlights_count": standupDraft.highlights.count,
-        "tasks_count": standupDraft.tasks.count,
-      ])
 
     standupCopyResetTask = Task {
       try? await Task.sleep(nanoseconds: 2_000_000_000)
@@ -249,7 +242,7 @@ extension DailyView {
     let targetDay = workflowDayInfo(for: selectedDate)
     let storageDayString = targetDay.dayString
     let selectedProvider = dailyRecapProvider
-    let usesDayflowInputs = selectedProvider.usesDayflowInputs
+    let usesDayflowInputs = false
 
     guard selectedProvider.canGenerate else {
       standupDraft = .noProviderSelected
@@ -264,16 +257,6 @@ extension DailyView {
     ]
     guard let sourceDayInfo = standupSourceDay ?? resolveStandupSourceDay(for: targetDay) else {
       standupRegenerateState = .noData
-      AnalyticsService.shared.capture(
-        "daily_generation_failed",
-        providerProps.merging(
-          [
-            "timeline_day": storageDayString,
-            "source": "regenerate_button",
-            "reason": "not_enough_recent_activity",
-          ],
-          uniquingKeysWith: { _, new in new }
-        ))
       scheduleStandupRegenerateReset()
       return
     }
@@ -289,15 +272,6 @@ extension DailyView {
     standupRegenerateTask?.cancel()
     standupRegenerateResetTask?.cancel()
 
-    AnalyticsService.shared.capture(
-      "daily_standup_regenerate_clicked",
-      providerProps.merging(
-        [
-          "timeline_day": storageDayString,
-          "source": "regenerate_button",
-        ],
-        uniquingKeysWith: { _, new in new }
-      ))
     print(
       "[Daily] Regenerate started run_id=\(regenerateRunId) day=\(dayString) provider=\(selectedProvider.analyticsName) model=\(selectedProvider.modelOrTool ?? "default")"
     )
@@ -312,16 +286,6 @@ extension DailyView {
         print(
           "[Daily] Regenerate failed run_id=\(regenerateRunId) day=\(dayString) reason=no_cards")
         await MainActor.run {
-          AnalyticsService.shared.capture(
-            "daily_generation_failed",
-            providerProps.merging(
-              [
-                "timeline_day": storageDayString,
-                "source": "regenerate_button",
-                "reason": "no_cards",
-              ],
-              uniquingKeysWith: { _, new in new }
-            ))
 
           guard isStillViewingWorkflowDay(storageDayString) else { return }
 
@@ -356,23 +320,6 @@ extension DailyView {
           blockersTitle: currentBlockersTitle
         ) : ""
 
-      AnalyticsService.shared.capture(
-        "daily_generation_payload_built",
-        providerProps.merging(
-          [
-            "timeline_day": dayString,
-            "source": "regenerate_button",
-            "input_mode": usesDayflowInputs ? "cards_observations_prior" : "cards_only",
-            "cards_count": cards.count,
-            "observations_count": observations.count,
-            "prior_daily_count": priorEntries.count,
-            "cards_text_chars": cardsText.count,
-            "observations_text_chars": observationsText.count,
-            "prior_daily_text_chars": priorDailyText.count,
-            "preferences_text_chars": preferencesText.count,
-          ],
-          uniquingKeysWith: { _, new in new }
-        ))
       print(
         "[Daily] Regenerate payload run_id=\(regenerateRunId) day=\(dayString) "
           + "cards=\(cards.count) observations=\(observations.count) prior_daily=\(priorEntries.count) input_mode=\(usesDayflowInputs ? "cards_observations_prior" : "cards_only")"
@@ -398,16 +345,6 @@ extension DailyView {
               + "reason=encode_failed"
           )
           await MainActor.run {
-            AnalyticsService.shared.capture(
-              "daily_generation_failed",
-              providerProps.merging(
-                [
-                  "timeline_day": storageDayString,
-                  "source": "regenerate_button",
-                  "reason": "encode_failed",
-                ],
-                uniquingKeysWith: { _, new in new }
-              ))
 
             guard isStillViewingWorkflowDay(storageDayString) else { return }
 
@@ -433,30 +370,6 @@ extension DailyView {
         }
 
         await MainActor.run {
-          AnalyticsService.shared.capture(
-            "daily_standup_regenerated",
-            providerProps.merging(
-              [
-                "timeline_day": storageDayString,
-                "highlights_count": regeneratedDraft.highlights.count,
-                "tasks_count": regeneratedDraft.tasks.count,
-                "blockers_count": blockersCount,
-              ],
-              uniquingKeysWith: { _, new in new }
-            ))
-          AnalyticsService.shared.capture(
-            "daily_generation_succeeded",
-            providerProps.merging(
-              [
-                "timeline_day": storageDayString,
-                "source": "regenerate_button",
-                "highlights_count": regeneratedDraft.highlights.count,
-                "tasks_count": regeneratedDraft.tasks.count,
-                "blockers_count": blockersCount,
-                "latency_ms": latencyMs,
-              ],
-              uniquingKeysWith: { _, new in new }
-            ))
           print(
             "[Daily] Regenerate notification enqueue run_id=\(regenerateRunId) "
               + "day=\(storageDayString)"
@@ -482,18 +395,6 @@ extension DailyView {
           "[Daily] Regenerate failed run_id=\(regenerateRunId) day=\(dayString) reason=api_error error_domain=\(nsError.domain) error_code=\(nsError.code) error_message=\(nsError.localizedDescription)"
         )
         await MainActor.run {
-          AnalyticsService.shared.capture(
-            "daily_generation_failed",
-            providerProps.merging(
-              [
-                "timeline_day": storageDayString,
-                "source": "regenerate_button",
-                "reason": "api_error",
-                "error_domain": nsError.domain,
-                "error_code": nsError.code,
-              ],
-              uniquingKeysWith: { _, new in new }
-            ))
 
           guard isStillViewingWorkflowDay(storageDayString) else { return }
 
@@ -614,9 +515,6 @@ extension DailyView {
       return
     }
 
-    if decoded.generation == nil {
-      decoded.generation = .legacyDayflow
-    }
     standupDraft = decoded
   }
   func scheduleStandupDraftSave() {

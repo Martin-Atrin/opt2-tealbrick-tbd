@@ -197,16 +197,6 @@ extension GeminiDirectProvider {
 
         var errorMessages: [String] = []
         if !coverageValid && coverageError != nil {
-          AnalyticsService.shared.captureValidationFailure(
-            provider: "gemini",
-            providerID: .gemini,
-            operation: "generate_activity_cards",
-            validationType: "time_coverage",
-            attempt: attempt + 1,
-            model: modelState.current.rawValue,
-            batchId: batchId,
-            errorDetail: coverageError
-          )
           errorMessages.append(
             """
             TIME COVERAGE ERROR:
@@ -217,16 +207,6 @@ extension GeminiDirectProvider {
         }
 
         if !durationValid && durationError != nil {
-          AnalyticsService.shared.captureValidationFailure(
-            provider: "gemini",
-            providerID: .gemini,
-            operation: "generate_activity_cards",
-            validationType: "duration",
-            attempt: attempt + 1,
-            model: modelState.current.rawValue,
-            batchId: batchId,
-            errorDetail: durationError
-          )
           errorMessages.append(
             """
             DURATION ERROR:
@@ -269,16 +249,6 @@ extension GeminiDirectProvider {
           print("↔️ Switching to \(transition.to.rawValue) after \(nsError.code)")
 
           Task { @MainActor in
-            AnalyticsService.shared.capture(
-              "llm_model_fallback",
-              [
-                "provider": "gemini",
-                "operation": "generate_activity_cards",
-                "from_model": transition.from.rawValue,
-                "to_model": transition.to.rawValue,
-                "reason": reason,
-                "batch_id": batchId as Any,
-              ])
           }
         }
 

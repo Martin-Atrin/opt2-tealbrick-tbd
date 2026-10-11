@@ -15,7 +15,7 @@
 
 import AppKit
 import SwiftUI
-import MacParakeet
+import TBDDesign
 
 struct AgentThreadCardView: View {
   let thread: AgentThread

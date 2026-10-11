@@ -1,7 +1,7 @@
 // Local demo harness around upstream Dayflow's native session/overlay engine.
 // This is not the hosted Flow task manager. No vendor webview is instantiated.
 import SwiftUI
-import MacParakeet
+import TBDDesign
 struct FlowDemoView: View {
   @ObservedObject private var mirror = FlowSessionMirror.shared
   @State private var tasks = "[Demo] Review today's priorities\n[Demo] Draft the proposal\n[Demo] Take a short break"

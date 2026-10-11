@@ -9,7 +9,7 @@
 //
 
 import SwiftUI
-import MacParakeet
+import TBDDesign
 
 enum AgentsStage: Equatable {
   case overview

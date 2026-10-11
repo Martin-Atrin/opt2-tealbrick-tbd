@@ -117,33 +117,10 @@ final class DailyRecapScheduler: @unchecked Sendable {
     ]
 
     guard selectedProvider.canGenerate else {
-      AnalyticsService.shared.capture(
-        "daily_auto_generation_check_skipped",
-        providerProps.merging(
-          [
-            "trigger": reason,
-            "target_day": targetDay,
-            "source_day": sourceDayString,
-            "reason": "no_provider_selected",
-          ],
-          uniquingKeysWith: { _, new in new }
-        ))
       return
     }
 
     guard providerAvailability.isAvailable else {
-      AnalyticsService.shared.capture(
-        "daily_auto_generation_check_skipped",
-        providerProps.merging(
-          [
-            "trigger": reason,
-            "target_day": targetDay,
-            "source_day": sourceDayString,
-            "reason": "provider_unavailable",
-            "provider_detail": providerAvailability.detail,
-          ],
-          uniquingKeysWith: { _, new in new }
-        ))
       return
     }
 
@@ -154,7 +131,7 @@ final class DailyRecapScheduler: @unchecked Sendable {
     providerProps["attempt_number"] = attempt
     providerProps["max_attempts"] = DailyRecapAttemptBudget.maxAttempts
 
-    let usesDayflowInputs = selectedProvider.usesDayflowInputs
+    let usesDayflowInputs = false  // hosted-backend inputs removed; providers use cards only
 
     let cards = StorageManager.shared.fetchTimelineCards(forDay: sourceDayString)
     let observations =
@@ -184,35 +161,7 @@ final class DailyRecapScheduler: @unchecked Sendable {
         tasksTitle: "Today's tasks",
         blockersTitle: "Blockers"
       ) : ""
-    AnalyticsService.shared.capture(
-      "daily_auto_generation_check_started",
-      providerProps.merging(
-        [
-          "trigger": reason,
-          "target_day": targetDay,
-          "source_day": sourceDayString,
-        ],
-        uniquingKeysWith: { _, new in new }
-      ))
 
-    AnalyticsService.shared.capture(
-      "daily_auto_generation_payload_built",
-      providerProps.merging(
-        [
-          "trigger": reason,
-          "target_day": targetDay,
-          "source_day": sourceDayString,
-          "input_mode": usesDayflowInputs ? "cards_observations_prior" : "cards_only",
-          "cards_count": cards.count,
-          "observations_count": observations.count,
-          "prior_daily_count": priorEntries.count,
-          "cards_text_chars": cardsText.count,
-          "observations_text_chars": observationsText.count,
-          "prior_daily_text_chars": priorDailyText.count,
-          "preferences_text_chars": preferencesText.count,
-        ],
-        uniquingKeysWith: { _, new in new }
-      ))
 
     let startedAt = Date()
     do {
@@ -228,71 +177,19 @@ final class DailyRecapScheduler: @unchecked Sendable {
       )
       let draft = try await DailyRecapGenerator.shared.generate(context: context)
       guard let payloadJSON = draft.encodedJSONString() else {
-        AnalyticsService.shared.capture(
-          "daily_auto_generation_failed",
-          providerProps.merging(
-            [
-              "trigger": reason,
-              "target_day": targetDay,
-              "source_day": sourceDayString,
-              "failure_reason": "payload_encoding_failed",
-            ],
-            uniquingKeysWith: { _, new in new }
-          ))
         return
       }
 
       StorageManager.shared.saveDailyStandup(forDay: targetDay, payloadJSON: payloadJSON)
       guard StorageManager.shared.fetchDailyStandup(forDay: targetDay) != nil else {
-        AnalyticsService.shared.capture(
-          "daily_auto_generation_failed",
-          providerProps.merging(
-            [
-              "trigger": reason,
-              "target_day": targetDay,
-              "source_day": sourceDayString,
-              "failure_reason": "db_save_verification_failed",
-            ],
-            uniquingKeysWith: { _, new in new }
-          ))
         return
       }
-      AnalyticsService.shared.capture(
-        "daily_auto_generation_succeeded",
-        providerProps.merging(
-          [
-            "trigger": reason,
-            "target_day": targetDay,
-            "source_day": sourceDayString,
-            "latency_ms": Int(Date().timeIntervalSince(startedAt) * 1000),
-            "highlights_count": draft.highlights.count,
-            "tasks_count": draft.tasks.count,
-            "unfinished_count": draft.tasks.count,
-            "blockers_count": draft.blockersBody
-              .split(whereSeparator: \.isNewline)
-              .count,
-          ],
-          uniquingKeysWith: { _, new in new }
-        ))
 
       await MainActor.run {
         NotificationService.shared.scheduleDailyRecapReadyNotification(forDay: targetDay)
       }
     } catch {
       let nsError = error as NSError
-      AnalyticsService.shared.capture(
-        "daily_auto_generation_failed",
-        providerProps.merging(
-          [
-            "trigger": reason,
-            "target_day": targetDay,
-            "source_day": sourceDayString,
-            "failure_reason": "api_error",
-            "error_domain": nsError.domain,
-            "error_code": nsError.code,
-          ],
-          uniquingKeysWith: { _, new in new }
-        ))
     }
   }
 
@@ -438,30 +335,6 @@ final class DailyRecapScheduler: @unchecked Sendable {
 
     let trimmedSummary = card.summary.trimmingCharacters(in: .whitespacesAndNewlines)
     return trimmedSummary.isEmpty ? nil : trimmedSummary
-  }
-
-  private static func makePersistedDailyDraftJSON(from response: DayflowDailyGenerationResponse)
-    -> String?
-  {
-    let highlights = normalizedUniqueLines(from: response.highlights).map {
-      PersistedDailyBulletItem(text: $0)
-    }
-    let tasks = normalizedUniqueLines(from: response.unfinished).map {
-      PersistedDailyBulletItem(text: $0)
-    }
-    let blockers = normalizedBlockersText(from: response.blockers)
-
-    let draft = PersistedDailyStandupDraft(
-      highlightsTitle: "Yesterday's highlights",
-      highlights: highlights,
-      tasksTitle: "Today's tasks",
-      tasks: tasks,
-      blockersTitle: "Blockers",
-      blockersBody: blockers
-    )
-
-    guard let data = try? JSONEncoder().encode(draft) else { return nil }
-    return String(data: data, encoding: .utf8)
   }
 
   private static func normalizedUniqueLines(from values: [String]) -> [String] {

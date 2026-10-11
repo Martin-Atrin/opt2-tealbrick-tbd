@@ -6,7 +6,8 @@
 import AppKit
 import Combine
 import Foundation
-import MacParakeetCore
+import TBDDesign
+import TBDModels
 import GRDB
 import SwiftUI
 
@@ -143,23 +144,6 @@ final class LLMService: LLMServicing {
     return nil
   }
 
-  private func makeDayflowProvider(endpoint: String) -> DayflowBackendProvider? {
-    let token = DayflowAuthManager.storedSessionToken()?
-      .trimmingCharacters(in: .whitespacesAndNewlines)
-    guard let token, !token.isEmpty else {
-      print("❌ [LLMService] Tealbrick provider unavailable: missing session token")
-      return nil
-    }
-    print(
-      "🔐 [LLMService] Tealbrick provider ready endpoint=\(endpoint) token_length=\(token.count)"
-    )
-    return DayflowBackendProvider(token: token, endpoint: endpoint)
-  }
-
-  private func resolvedDayflowEndpoint(savedEndpoint: String?) -> String? {
-    DayflowBackendConfiguration.endpoint(legacySavedEndpoint: savedEndpoint)
-  }
-
   private func makeOllamaProvider(endpoint: String) -> OllamaProvider {
     OllamaProvider(endpoint: endpoint)
   }
@@ -174,7 +158,7 @@ final class LLMService: LLMServicing {
   private func makeOpenAICompatibleProvider() -> OpenAICompatibleProvider? {
     do { if let shared = try TBDModelRegistry().configuration(for: "screen") {
       return OpenAICompatibleProvider(configuration: OpenAICompatibleRuntimeConfiguration(
-        configuration: OpenAICompatibleConfiguration(preset: .custom, baseURL: shared.baseURL.absoluteString, modelID: shared.modelName),
+        configuration: OpenAICompatibleConfiguration(preset: .custom, baseURL: shared.baseURL.absoluteString, modelID: shared.model),
         bearerToken: shared.apiKey))
     } } catch { return nil }
     guard let configuration = OpenAICompatiblePreferences.load(), configuration.isComplete else {
@@ -252,18 +236,6 @@ final class LLMService: LLMServicing {
           }
         ), fallbackState: fallbackState
       )
-    case .dayflow:
-      let savedEndpoint = DayflowEndpointPreferences.load()
-      guard let endpoint = resolvedDayflowEndpoint(savedEndpoint: savedEndpoint) else {
-        throw noProviderError()
-      }
-      guard let provider = makeDayflowProvider(endpoint: endpoint) else { throw noProviderError() }
-      return (
-        actions: BatchProviderActions(
-          transcribeScreenshots: provider.transcribeScreenshots,
-          generateActivityCards: provider.generateActivityCards
-        ), fallbackState: nil
-      )
     case .local:
       let provider = makeOllamaProvider(endpoint: localProviderEndpoint())
       return (
@@ -326,19 +298,6 @@ final class LLMService: LLMServicing {
 
   private func logGemmaFallback(operation: String, error: Error, batchId: Int64?) {
     let nsError = error as NSError
-    AnalyticsService.shared.capture(
-      "llm_fallback_used",
-      [
-        "provider": "gemini",
-        "provider_id": LLMProviderID.gemini.rawValue,
-        "provider_label": "gemini",
-        "fallback_provider": "gemma",
-        "fallback_provider_label": "gemma",
-        "operation": operation,
-        "error_domain": nsError.domain,
-        "error_code": nsError.code,
-        "batch_id": batchId as Any,
-      ])
   }
 
   private func fallbackProps(
@@ -391,18 +350,15 @@ final class LLMService: LLMServicing {
         backupProviderLabel: backupContext.providerLabel,
         error: error
       )
-      AnalyticsService.shared.capture("llm_timeline_fallback_attempted", attemptProps)
 
       do {
         let value = try await work(backupContext)
-        AnalyticsService.shared.capture("llm_timeline_fallback_succeeded", attemptProps)
         return (value, backupContext, true)
       } catch {
         var failureProps = attemptProps
         let backupError = error as NSError
         failureProps["backup_error_domain"] = backupError.domain
         failureProps["backup_error_code"] = backupError.code
-        AnalyticsService.shared.capture("llm_timeline_fallback_failed", failureProps)
         throw error
       }
     }
@@ -508,7 +464,6 @@ final class LLMService: LLMServicing {
       errorCode: nsError.code,
       batchId: batchId
     )
-    AnalyticsService.shared.capture("llm_timeline_failure_toast_shown", payload.analyticsProps)
     TimelineFailureToastCenter.post(payload)
   }
 
@@ -536,22 +491,6 @@ final class LLMService: LLMServicing {
     switch providerID {
     case .gemini:
       guard let provider = makeGeminiProvider() else { throw noProviderError() }
-      return TextProviderActions(
-        generateText: { prompt in
-          try await provider.generateText(prompt: prompt)
-        },
-        generateTextStreaming: nil
-      )
-    case .dayflow:
-      guard
-        let resolvedEndpoint = resolvedDayflowEndpoint(
-          savedEndpoint: DayflowEndpointPreferences.load())
-      else {
-        throw noProviderError()
-      }
-      guard let provider = makeDayflowProvider(endpoint: resolvedEndpoint) else {
-        throw noProviderError()
-      }
       return TextProviderActions(
         generateText: { prompt in
           try await provider.generateText(prompt: prompt)
@@ -712,15 +651,6 @@ final class LLMService: LLMServicing {
         )
 
         // Track analysis batch started
-        AnalyticsService.shared.capture(
-          "analysis_batch_started",
-          [
-            "batch_id": batchId,
-            "total_duration_seconds": batchEndTs - batchStartTs,
-            "llm_provider": primaryProviderID.analyticsName,
-            "llm_provider_label": primaryProviderLabel,
-            "provider_id": primaryProviderID.rawValue,
-          ])
 
         let primaryResult: Result<TimelineProviderContext, Error> = Result {
           try makeTimelineProviderContext(for: primaryProviderID)
@@ -731,17 +661,6 @@ final class LLMService: LLMServicing {
         }()
         backupConfigured = configuredBackupContext != nil
         if let configuredBackup, configuredBackupContext == nil {
-          AnalyticsService.shared.capture(
-            "llm_timeline_backup_unavailable",
-            [
-              "primary_provider": primaryProviderID.analyticsName,
-              "primary_provider_label": primaryProviderLabel,
-              "primary_provider_id": primaryProviderID.rawValue,
-              "backup_provider": configuredBackup.analyticsName,
-              "backup_provider_label": configuredBackupProviderLabel as Any,
-              "backup_provider_id": configuredBackup.rawValue,
-              "batch_id": batchId,
-            ])
         }
         let startup = try selectTimelineProviderStartup(
           primary: primaryResult,
@@ -761,8 +680,6 @@ final class LLMService: LLMServicing {
             backupProviderLabel: configuredBackupContext.providerLabel,
             error: primaryError
           )
-          AnalyticsService.shared.capture("llm_timeline_fallback_attempted", props)
-          AnalyticsService.shared.capture("llm_timeline_fallback_succeeded", props)
         }
 
         // If the routed primary could not initialize, the backup becomes the batch baseline.
@@ -823,15 +740,6 @@ final class LLMService: LLMServicing {
           if let logInput = transcribeLog.input, !logInput.isEmpty {
             print("   ↳ transcribeLog.input: \(logInput)")
           }
-          AnalyticsService.shared.capture(
-            "transcription_returned_empty",
-            [
-              "batch_id": batchId,
-              "provider": activeContext.id.analyticsName,
-              "provider_id": activeContext.id.rawValue,
-              "provider_label": activeContext.providerLabel,
-              "transcribe_latency_ms": Int((transcribeLog.latency ?? 0) * 1000),
-            ])
           StorageManager.shared.updateBatch(batchId, status: "analyzed")
           completion(.success(ProcessedBatchResult(cards: [], cardIds: [])))
           return
@@ -982,19 +890,6 @@ final class LLMService: LLMServicing {
         StorageManager.shared.checkpoint(mode: .passive)
 
         // Track analysis batch completed
-        AnalyticsService.shared.capture(
-          "analysis_batch_completed",
-          [
-            "batch_id": batchId,
-            "cards_generated": cards.count,
-            "processing_duration_seconds": Int(Date().timeIntervalSince(processingStartTime)),
-            "llm_provider": primaryProviderID.analyticsName,
-            "llm_provider_label": primaryProviderLabel,
-            "provider_id": primaryProviderID.rawValue,
-            "effective_llm_provider": activeContext.id.analyticsName,
-            "effective_provider_id": activeContext.id.rawValue,
-            "used_provider_backup": usedProviderBackup,
-          ])
 
         completion(.success(ProcessedBatchResult(cards: cards, cardIds: insertedCardIds)))
 
@@ -1012,20 +907,6 @@ final class LLMService: LLMServicing {
         let failureClassification = TimelineFailureClassifier.classify(error)
 
         // Track analysis batch failed
-        AnalyticsService.shared.capture(
-          "analysis_batch_failed",
-          [
-            "batch_id": batchId,
-            "failure_kind": failureClassification.kind.rawValue,
-            "processing_duration_seconds": Int(Date().timeIntervalSince(processingStartTime)),
-            "llm_provider": primaryProviderID.analyticsName,
-            "llm_provider_label": primaryProviderLabel,
-            "provider_id": primaryProviderID.rawValue,
-            "backup_provider": configuredBackupProviderName as Any,
-            "backup_provider_label": configuredBackupProviderLabel as Any,
-            "backup_provider_id": configuredBackup?.rawValue as Any,
-            "backup_configured": backupConfigured,
-          ])
 
         emitTimelineFailureToast(
           classification: failureClassification,

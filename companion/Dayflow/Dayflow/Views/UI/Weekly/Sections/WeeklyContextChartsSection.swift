@@ -1,6 +1,6 @@
 import Charts
 import SwiftUI
-import MacParakeet
+import TBDDesign
 
 struct WeeklyContextChartsSection: View {
   let snapshot: WeeklyContextChartsSnapshot

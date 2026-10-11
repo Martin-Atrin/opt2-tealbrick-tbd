@@ -1,6 +1,5 @@
 import AppKit
-import MacParakeet
-import Sentry
+import TBDDesign
 import SwiftUI
 
 extension MainView {
@@ -141,11 +140,6 @@ extension MainView {
     syncCurrentUIContext()
 
     // screen viewed and initial timeline view
-    AnalyticsService.shared.screen("timeline")
-    AnalyticsService.shared.withSampling(probability: 0.01) {
-      AnalyticsService.shared.capture(
-        "timeline_viewed", ["date_bucket": dayString(selectedDate)])
-    }
     // Orchestrated entrance animations following Emil Kowalski principles —
     // fast, under 300ms, natural spring motion, staggered by 50ms.
     withAnimation(.spring(response: 0.5, dampingFraction: 0.8, blendDuration: 0)) {
@@ -194,27 +188,7 @@ extension MainView {
     let tabName = newIcon.analyticsTabName
     syncCurrentUIContext(selectedTab: newIcon)
 
-    SentryHelper.configureScope { scope in
-      scope.setContext(
-        value: [
-          "active_view": tabName,
-          "selected_date": dayString(selectedDate),
-          "is_recording": appState.isRecording,
-        ], key: "app_state")
-    }
-
-    let navBreadcrumb = Breadcrumb(level: .info, category: "navigation")
-    navBreadcrumb.message = "Navigated to \(tabName)"
-    navBreadcrumb.data = ["view": tabName]
-    SentryHelper.addBreadcrumb(navBreadcrumb)
-
-    AnalyticsService.shared.capture("tab_selected", ["tab": tabName])
-    AnalyticsService.shared.screen(tabName)
     if newIcon == .timeline {
-      AnalyticsService.shared.withSampling(probability: 0.01) {
-        AnalyticsService.shared.capture(
-          "timeline_viewed", ["date_bucket": dayString(selectedDate)])
-      }
       updateCardsToReviewCount()
       loadWeeklyTrackedMinutes()
     } else {
@@ -230,20 +204,9 @@ extension MainView {
     let oldWeekRange = cachedTimelineWeekRange
 
     if let method = lastDateNavMethod, method == "picker" {
-      AnalyticsService.shared.capture(
-        "date_navigation",
-        [
-          "method": method,
-          "timeline_mode": timelineMode.rawValue,
-          "from_day": oldDay,
-          "to_day": newDay,
-        ])
     }
 
     previousDate = newDate
-    AnalyticsService.shared.withSampling(probability: 0.01) {
-      AnalyticsService.shared.capture("timeline_viewed", ["date_bucket": newDay])
-    }
 
     let newWeekRange = TimelineWeekRange.containing(newDate)
     let weekRangeChanged = newWeekRange != oldWeekRange
@@ -268,13 +231,6 @@ extension MainView {
     dismissFeedbackModal(animated: false)
     guard let a = selectedActivity else { return }
     let dur = a.endTime.timeIntervalSince(a.startTime)
-    AnalyticsService.shared.capture(
-      "activity_card_opened",
-      [
-        "activity_type": a.category,
-        "duration_bucket": AnalyticsService.shared.secondsBucket(dur),
-        "has_video": a.videoSummaryURL != nil,
-      ])
   }
 
   private func handleTimelineDataUpdatedNotification(_ notification: Notification) {
@@ -335,8 +291,6 @@ extension MainView {
   }
 
   private func handleTimelineFailureToastOpenSettings(_ payload: TimelineFailureToastPayload) {
-    AnalyticsService.shared.capture(
-      "llm_timeline_failure_toast_clicked_settings", payload.analyticsProps)
     withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
       selectedIcon = .settings
       timelineFailureToastPayload = nil
@@ -349,14 +303,12 @@ extension MainView {
   }
 
   private func handleTimelineFailureToastDismiss(_ payload: TimelineFailureToastPayload) {
-    AnalyticsService.shared.capture("llm_timeline_failure_toast_dismissed", payload.analyticsProps)
     withAnimation(.spring(response: 0.25, dampingFraction: 0.92)) {
       timelineFailureToastPayload = nil
     }
   }
 
   private func handleScreenRecordingPermissionNoticeOpenSettings() {
-    AnalyticsService.shared.capture("screen_permission_notice_clicked_settings")
     didDismissScreenRecordingPermissionNoticeThisSession = true
     withAnimation(.spring(response: 0.25, dampingFraction: 0.92)) {
       showScreenRecordingPermissionNotice = false
@@ -365,7 +317,6 @@ extension MainView {
   }
 
   private func handleScreenRecordingPermissionNoticeDismiss() {
-    AnalyticsService.shared.capture("screen_permission_notice_dismissed")
     didDismissScreenRecordingPermissionNoticeThisSession = true
     withAnimation(.spring(response: 0.25, dampingFraction: 0.92)) {
       showScreenRecordingPermissionNotice = false

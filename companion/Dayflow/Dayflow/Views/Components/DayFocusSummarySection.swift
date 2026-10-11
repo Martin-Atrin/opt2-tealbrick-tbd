@@ -6,7 +6,7 @@
 //
 
 import SwiftUI
-import MacParakeet
+import TBDDesign
 
 struct DayFocusSummarySection: View {
   @Environment(\.dayflowTheme) private var theme

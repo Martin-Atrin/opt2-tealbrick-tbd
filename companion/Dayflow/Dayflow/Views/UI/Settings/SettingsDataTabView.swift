@@ -1,4 +1,4 @@
-import MacParakeet
+import TBDDesign
 import SwiftUI
 
 struct SettingsDataTabView: View {

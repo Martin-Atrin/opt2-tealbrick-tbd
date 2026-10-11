@@ -51,8 +51,6 @@ extension MainView {
       feedbackModalVisible = true
     }
 
-    let props = timelineFeedbackAnalyticsPayload(for: activity, direction: direction)
-    AnalyticsService.shared.capture("timeline_summary_rated", props)
   }
 
   func handleFeedbackSubmit() {
@@ -61,14 +59,6 @@ extension MainView {
       let direction = feedbackDirection
     else { return }
 
-    var props = timelineFeedbackAnalyticsPayload(for: activity, direction: direction)
-    props["feedback_message_length"] = trimmed.count
-    props["share_logs_enabled"] = feedbackShareLogs
-    if !trimmed.isEmpty {
-      props["feedback_message"] = trimmed
-    }
-
-    AnalyticsService.shared.capture("timeline_summary_feedback_submitted", props)
     feedbackMessage = ""
     withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
       feedbackMode = .thanks
@@ -239,7 +229,6 @@ extension MainView {
         }
       }
 
-      AnalyticsService.shared.capture("timeline_copied", analyticsProps)
 
       try? await Task.sleep(nanoseconds: 2_000_000_000)
       guard !Task.isCancelled else { return }
@@ -270,7 +259,6 @@ extension MainView {
     if let batchId = activity.batchId {
       requestedProps["activity_batch_id"] = Int(batchId)
     }
-    AnalyticsService.shared.capture("timeline_activity_delete_requested", requestedProps)
 
     deleteTimelineTask = Task.detached(priority: .userInitiated) {
       defer {
@@ -297,68 +285,9 @@ extension MainView {
         refreshActivitiesTrigger &+= 1
       }
 
-      var deletedProps: [String: Any] = [
-        "timeline_selected_day": selectedDay,
-        "activity_record_id": Int(recordId),
-        "activity_title": activity.title,
-        "deleted_video_summary": deletedVideoPath != nil,
-      ]
       if let batchId = activity.batchId {
-        deletedProps["activity_batch_id"] = Int(batchId)
       }
-      AnalyticsService.shared.capture("timeline_activity_deleted", deletedProps)
     }
   }
 
-  func timelineFeedbackAnalyticsPayload(
-    for activity: TimelineActivity, direction: TimelineRatingDirection
-  ) -> [String: Any] {
-    var props: [String: Any] = [
-      "thumb_direction": direction.rawValue,
-      "timeline_selected_day": dayString(selectedDate),
-      "activity_title": activity.title,
-      "activity_summary": activity.summary,
-      "activity_detailed_summary": activity.detailedSummary,
-      "activity_category": activity.category,
-      "activity_subcategory": activity.subcategory,
-      "activity_start_ts": iso8601Formatter.string(from: activity.startTime),
-      "activity_end_ts": iso8601Formatter.string(from: activity.endTime),
-      "activity_duration_seconds": Int(activity.endTime.timeIntervalSince(activity.startTime)),
-      "activity_day_bucket": AnalyticsService.shared.dayString(activity.startTime),
-      "activity_has_screenshot": activity.screenshot != nil,
-      "activity_has_video_summary": activity.videoSummaryURL != nil,
-      "timeline_share_logs_default": true,
-    ]
-
-    if let recordId = activity.recordId {
-      props["activity_record_id"] = Int(recordId)
-    }
-    if let batchId = activity.batchId {
-      props["activity_batch_id"] = Int(batchId)
-    }
-    if let videoURL = activity.videoSummaryURL {
-      props["activity_video_summary_url"] = videoURL
-    }
-    if let appSites = activity.appSites {
-      if let primary = appSites.primary {
-        props["activity_primary_site"] = primary
-      }
-      if let secondary = appSites.secondary {
-        props["activity_secondary_site"] = secondary
-      }
-    }
-    if let distractions = activity.distractions, !distractions.isEmpty {
-      props["activity_distractions_count"] = distractions.count
-      let preview = distractions.prefix(3).map { "\($0.title):\($0.summary)" }.joined(
-        separator: " || ")
-      props["activity_distractions_preview"] = preview
-    } else {
-      props["activity_distractions_count"] = 0
-    }
-
-    props["activity_summary_length"] = activity.summary.count
-    props["activity_detailed_summary_length"] = activity.detailedSummary.count
-
-    return props
-  }
 }

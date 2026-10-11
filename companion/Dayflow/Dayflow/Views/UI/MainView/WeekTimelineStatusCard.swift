@@ -1,5 +1,5 @@
 import SwiftUI
-import MacParakeet
+import TBDDesign
 
 // The "Next card... / Paused / Resume" pill shown in today's column of the
 // Week view. The parent grid positions it; this view only renders the pill.

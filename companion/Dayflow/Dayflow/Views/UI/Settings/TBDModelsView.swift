@@ -1,5 +1,6 @@
-import MacParakeet
-import MacParakeetCore
+import TBDDesign
+import TBDListening
+import TBDModels
 import SwiftUI
 
 struct TBDModelsView: View {

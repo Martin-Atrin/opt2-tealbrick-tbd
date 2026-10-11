@@ -1,6 +1,6 @@
 import AppKit
 import SwiftUI
-import MacParakeet
+import TBDDesign
 
 // Internal so WeekTimelineGridPreview.swift can build mock cards with the
 // same pixels-per-minute math the grid uses.

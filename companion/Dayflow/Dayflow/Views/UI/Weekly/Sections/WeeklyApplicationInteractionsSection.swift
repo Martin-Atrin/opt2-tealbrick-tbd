@@ -1,5 +1,5 @@
 import SwiftUI
-import MacParakeet
+import TBDDesign
 
 struct WeeklyApplicationInteractionsSection: View {
   let snapshot: WeeklyApplicationInteractionsSnapshot

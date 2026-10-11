@@ -8,7 +8,7 @@
 //
 
 import SwiftUI
-import MacParakeet
+import TBDDesign
 
 struct AgentsOverviewView: View {
   let recap: AgentsDayRecap

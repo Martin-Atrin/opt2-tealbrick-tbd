@@ -95,16 +95,6 @@ extension CodexProvider {
         }
 
         if let validationError = validateSegments(segments, duration: durationSeconds) {
-          AnalyticsService.shared.captureValidationFailure(
-            provider: "chat_cli",
-            providerID: providerID,
-            operation: "transcribe_screenshots",
-            validationType: "timeline",
-            attempt: attempt,
-            model: model,
-            batchId: batchId,
-            errorDetail: validationError
-          )
           lastError = NSError(
             domain: "ChatCLI", code: -98, userInfo: [NSLocalizedDescriptionKey: validationError])
           actualPrompt =

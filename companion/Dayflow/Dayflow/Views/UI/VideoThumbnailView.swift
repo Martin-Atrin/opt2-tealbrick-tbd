@@ -9,7 +9,7 @@
 import AVFoundation
 import AVKit
 import SwiftUI
-import MacParakeet
+import TBDDesign
 
 struct VideoThumbnailView: View {
   let videoURL: String

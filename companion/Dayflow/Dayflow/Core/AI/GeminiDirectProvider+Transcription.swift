@@ -141,16 +141,6 @@ extension GeminiDirectProvider {
 
         // If we had validation errors, throw to trigger retry
         if hasValidationErrors {
-          AnalyticsService.shared.captureValidationFailure(
-            provider: "gemini",
-            providerID: .gemini,
-            operation: "transcribe",
-            validationType: "timestamp_exceeds_duration",
-            attempt: attempt + 1,
-            model: activeModel.rawValue,
-            batchId: batchId,
-            errorDetail: "Observations exceeded video duration \(durationString)"
-          )
           throw NSError(
             domain: "GeminiProvider", code: 100,
             userInfo: [
@@ -161,16 +151,6 @@ extension GeminiDirectProvider {
 
         // Ensure we have at least one observation
         if observations.isEmpty {
-          AnalyticsService.shared.captureValidationFailure(
-            provider: "gemini",
-            providerID: .gemini,
-            operation: "transcribe",
-            validationType: "empty_observations",
-            attempt: attempt + 1,
-            model: activeModel.rawValue,
-            batchId: batchId,
-            errorDetail: "No valid observations after filtering"
-          )
           throw NSError(
             domain: "GeminiProvider", code: 101,
             userInfo: [
@@ -201,16 +181,6 @@ extension GeminiDirectProvider {
           print("↔️ Switching to \(transition.to.rawValue) after \(nsError.code)")
 
           Task { @MainActor in
-            AnalyticsService.shared.capture(
-              "llm_model_fallback",
-              [
-                "provider": "gemini",
-                "operation": "transcribe",
-                "from_model": transition.from.rawValue,
-                "to_model": transition.to.rawValue,
-                "reason": reason,
-                "batch_id": batchId as Any,
-              ])
           }
         }
 

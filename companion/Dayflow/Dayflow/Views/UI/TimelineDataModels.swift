@@ -7,7 +7,7 @@
 
 import Foundation
 import SwiftUI
-import MacParakeet
+import TBDDesign
 
 /// Represents an activity in the timeline view
 struct TimelineActivity: Identifiable {

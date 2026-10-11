@@ -10,7 +10,7 @@
 import AppKit
 import MarkdownUI
 import SwiftUI
-import MacParakeet
+import TBDDesign
 
 struct ChatMarkdownContentView: View {
   @Environment(\.dayflowTheme) private var theme

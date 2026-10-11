@@ -19,7 +19,6 @@ struct DailyRecapProviderAvailability: Equatable, Sendable {
 enum DailyRecapGeneratorError: LocalizedError {
   case emptyCards(day: String)
   case noProviderSelected
-  case missingDayflowAuthToken
   case missingLocalConfiguration
   case missingGeminiAPIKey
   case missingCodexCLI
@@ -38,8 +37,6 @@ enum DailyRecapGeneratorError: LocalizedError {
           localized:
             "No Daily provider is selected. Choose one from the gear button above to turn Daily generation back on."
         )
-    case .missingDayflowAuthToken:
-      return String(localized: "TBD backend auth token is unavailable.")
     case .missingLocalConfiguration:
       return
         String(
@@ -166,10 +163,6 @@ final class DailyRecapGenerator {
     let localModel = DailyRecapProvider.local.modelOrTool
 
     return [
-      .dayflow: DailyRecapProviderAvailability(
-        isAvailable: true,
-        detail: DailyRecapProvider.dayflow.pickerSubtitle
-      ),
       .local: DailyRecapProviderAvailability(
         isAvailable: isLocalConfigured,
         detail: isLocalConfigured
@@ -213,8 +206,6 @@ final class DailyRecapGenerator {
     )
 
     switch provider {
-    case .dayflow:
-      return try await generateWithDayflow(context: context, metadata: metadata)
     case .local:
       return try await generateWithLocal(context: context, metadata: metadata)
     case .gemini:
@@ -316,50 +307,6 @@ final class DailyRecapGenerator {
     return jsonString
   }
 
-  private func generateWithDayflow(
-    context: DailyRecapGenerationContext,
-    metadata: DailyStandupGenerationMetadata
-  ) async throws -> DailyStandupDraft {
-    guard let provider = makeDayflowProvider() else {
-      throw DailyRecapGeneratorError.missingDayflowAuthToken
-    }
-
-    let request = DayflowDailyGenerationRequest(
-      day: context.sourceDayString,
-      cardsText: Self.makeCardsText(day: context.sourceDayString, cards: context.cards),
-      observationsText: Self.makeObservationsText(
-        day: context.sourceDayString,
-        observations: context.observations
-      ),
-      priorDailyText: Self.makePriorDailyText(entries: context.priorEntries),
-      preferencesText: Self.makePreferencesText(
-        highlightsTitle: context.highlightsTitle,
-        tasksTitle: context.tasksTitle,
-        blockersTitle: context.blockersTitle
-      ),
-      preferredOutputLanguage: Self.preferredOutputLanguage()
-    )
-
-    let response = try await provider.generateDaily(request)
-    guard !response.highlights.isEmpty || !response.unfinished.isEmpty || !response.blockers.isEmpty
-    else {
-      throw DailyRecapGeneratorError.emptyGeneratedContent(day: context.sourceDayString)
-    }
-
-    let draft = DailyStandupDraft(
-      highlightsTitle: context.highlightsTitle,
-      highlights: Self.normalizedBulletItems(from: response.highlights),
-      tasksTitle: context.tasksTitle,
-      tasks: Self.normalizedBulletItems(from: response.unfinished),
-      blockersTitle: context.blockersTitle,
-      blockersBody: Self.normalizedBlockersText(from: response.blockers),
-      generation: metadata
-    )
-    guard draft.hasGeneratedContent else {
-      throw DailyRecapGeneratorError.emptyGeneratedContent(day: context.sourceDayString)
-    }
-    return draft
-  }
 
   private func generateWithGemini(
     context: DailyRecapGenerationContext,
@@ -433,16 +380,6 @@ final class DailyRecapGenerator {
     } catch {
       if error is CancellationError { throw error }
       try Task.checkCancellation()
-      AnalyticsService.shared.capture(
-        "llm_model_fallback",
-        [
-          "provider": "chat_cli",
-          "provider_id": LLMProviderID.chatGPT.rawValue,
-          "operation": "daily_recap",
-          "from_model": "gpt-6-astra",
-          "to_model": "gpt-5.6-sol",
-          "reason": "generation_failed",
-        ])
       return try await generate(model: "gpt-5.6-sol")
     }
   }
@@ -467,17 +404,6 @@ final class DailyRecapGenerator {
     return try makeDraft(from: parsed, context: context, metadata: metadata)
   }
 
-  private func makeDayflowProvider() -> DayflowBackendProvider? {
-    // Daily intentionally uses the legacy PostHog distinct-id token contract.
-    // CardGen uses DayflowAuthManager session tokens, but Daily should not
-    // move to account-session auth without an explicit app migration.
-    let token = AnalyticsService.shared.backendAuthToken()
-      .trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !token.isEmpty else { return nil }
-
-    guard let endpoint = resolvedDayflowEndpoint() else { return nil }
-    return DayflowBackendProvider(token: token, endpoint: endpoint)
-  }
 
   private func makeLocalProvider() -> OllamaProvider? {
     let defaults = UserDefaults.standard
@@ -510,12 +436,6 @@ final class DailyRecapGenerator {
     return !baseURL.isEmpty && !modelId.isEmpty
   }
 
-  private func resolvedDayflowEndpoint() -> String? {
-    _ = try? LLMProviderRoutingStore.load()
-    return DayflowBackendConfiguration.endpoint(
-      legacySavedEndpoint: DayflowEndpointPreferences.load()
-    )
-  }
 
   private func makeDraft(
     from parsed: ParsedDailyRecapResponse,

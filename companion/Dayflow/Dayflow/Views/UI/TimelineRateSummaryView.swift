@@ -5,7 +5,7 @@
 //  Lightweight footer for rating a generated summary.
 //
 
-import MacParakeet
+import TBDDesign
 import SwiftUI
 
 enum TimelineRatingDirection: String, Codable, Sendable {

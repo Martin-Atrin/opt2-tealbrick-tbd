@@ -6,16 +6,9 @@ import UserNotifications
 struct DailyView: View {
   @Environment(\.dayflowTheme) var theme
   @Environment(\.stylePreviewAfter) var stylePreviewAfter
-  @AppStorage("isDailyUnlocked") var isUnlocked: Bool = false
   @Binding var selectedDate: Date
   @EnvironmentObject var categoryStore: CategoryStore
 
-  @State var accessFlowStep: DailyAccessFlowStep = .intro
-  @State var lockScreenConfettiTrigger: Int = 0
-  @State var notificationAuthorizationStatus: UNAuthorizationStatus = .notDetermined
-  @State var isCheckingNotificationAuthorization: Bool = false
-  @State var isRequestingNotificationPermission: Bool = false
-  @State var completedAccessBatchCount: Int = 0
   @State var workflowRows: [DailyWorkflowGridRow] = []
   @State var workflowTotals: [DailyWorkflowTotalItem] = []
   @State var workflowStats: [DailyWorkflowStatChip] = DailyWorkflowStatChip.placeholder
@@ -44,9 +37,6 @@ struct DailyView: View {
   @State var providerAvailability: [DailyRecapProvider: DailyRecapProviderAvailability] =
     [:]
 
-  let betaNoticeCopy =
-    String(
-      localized: "Daily is a new way to visualize your day and turn it into a standup update fast.")
   let priorStandupHistoryLimit = 3
   static let maxDateTitleWidth: CGFloat = {
     let referenceText = "Wednesday, September 30"
@@ -56,52 +46,12 @@ struct DailyView: View {
   }()
 
   var body: some View {
-    ZStack {
-      if hasDailyMinimumAccess && isUnlocked {
-        unlockedContent
-          .transition(.opacity)
-      } else {
-        lockScreen
-          .transition(.opacity.combined(with: .move(edge: .bottom)))
+    unlockedContent
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+      .onAppear {
+        dailyRecapProvider = DailyRecapGenerator.shared.selectedProvider()
+        refreshProviderAvailability()
       }
-    }
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-    .onAppear {
-      refreshDailyAccessProgress()
-      dailyRecapProvider = DailyRecapGenerator.shared.selectedProvider()
-      refreshProviderAvailability()
-      checkNotificationAuthorizationForUnlock()
-    }
-    .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { _ in
-      refreshDailyAccessProgress()
-    }
-    .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification))
-    { _ in
-      checkNotificationAuthorizationForUnlock()
-    }
-    .onChange(of: isUnlocked) { _, newValue in
-      guard !newValue else { return }
-      accessFlowStep = .intro
-      checkNotificationAuthorizationForUnlock()
-    }
-  }
-
-  var hasDailyMinimumAccess: Bool {
-    FeatureAccessRequirements.hasRequiredBatches(
-      completedAccessBatchCount,
-      requiredBatchCount: FeatureAccessRequirements.dailyRequiredBatchCount
-    )
-  }
-
-  var dailyAccessProgressText: String {
-    FeatureAccessRequirements.progressText(
-      completedBatchCount: completedAccessBatchCount,
-      requiredHours: FeatureAccessRequirements.dailyRequiredHours
-    )
-  }
-
-  func refreshDailyAccessProgress() {
-    completedAccessBatchCount = FeatureAccessRequirements.completedBatchCount()
   }
 }
 

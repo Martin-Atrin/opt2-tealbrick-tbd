@@ -9,7 +9,7 @@
 //
 
 import SwiftUI
-import MacParakeet
+import TBDDesign
 
 struct FlowDebugPanel: View {
   @ObservedObject private var agent = FlowDistractionAgent.shared

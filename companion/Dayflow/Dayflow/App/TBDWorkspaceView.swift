@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
-import MacParakeet
+import TBDDesign
+import TBDListening
 
 /// Navigation owns visibility only. Capture services remain owned by the app lifecycle.
 struct TBDWorkspaceView<Companion: View>: View {

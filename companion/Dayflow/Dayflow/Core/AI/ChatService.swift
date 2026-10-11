@@ -409,12 +409,6 @@ final class ChatService: ObservableObject {
       didUpdateDashboardMemory(from: previousMemory, to: updatedMemory)
       let charCount = DashboardChatMemoryStore.load().count
       log(.info, "🧠 Memory updated (\(charCount) chars)")
-      AnalyticsService.shared.capture(
-        "chat_memory_auto_updated",
-        [
-          "provider": provider.analyticsProvider,
-          "chars": charCount,
-        ])
     }
 
     // Update final response (with suggestions block removed)

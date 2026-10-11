@@ -7,7 +7,7 @@
 
 import AppKit
 import SwiftUI
-import MacParakeet
+import TBDDesign
 
 struct TerminalCommandView: View {
   let title: String
@@ -76,11 +76,6 @@ struct TerminalCommandView: View {
     NSPasteboard.general.setString(command, forType: .string)
 
     // Track copy (without sending command content)
-    AnalyticsService.shared.capture(
-      "terminal_command_copied",
-      [
-        "title": title
-      ])
 
     withAnimation(.easeInOut(duration: 0.2)) {
       isCopied = true

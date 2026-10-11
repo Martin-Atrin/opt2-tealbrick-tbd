@@ -1,7 +1,8 @@
 import AppKit
 import Combine
 import SwiftUI
-import MacParakeet
+import TBDDesign
+import TBDListening
 
 @MainActor
 final class StatusBarController: NSObject {

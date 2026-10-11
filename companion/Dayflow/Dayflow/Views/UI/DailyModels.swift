@@ -59,12 +59,6 @@ struct DailyStandupDayInfo: Equatable, Sendable {
   let endOfDay: Date
 }
 
-enum DailyAccessFlowStep {
-  case intro
-  case notifications
-  case provider
-}
-
 struct DailyWorkflowSlotCardInfo: Sendable {
   let title: String
   let durationMinutes: Double

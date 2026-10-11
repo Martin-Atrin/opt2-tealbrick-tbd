@@ -27,13 +27,6 @@ struct DateNavigationControls: View {
         previousDate = selectedDate
         selectedDate = normalizedTimelineDate(to)
         lastDateNavMethod = "prev"
-        AnalyticsService.shared.capture(
-          "date_navigation",
-          [
-            "method": "prev",
-            "from_day": dayString(from),
-            "to_day": dayString(to),
-          ])
       } content: {
         Image(systemName: "chevron.left")
           .font(.system(size: 14, weight: .medium))
@@ -63,13 +56,6 @@ struct DateNavigationControls: View {
         previousDate = selectedDate
         selectedDate = normalizedTimelineDate(tomorrow)
         lastDateNavMethod = "next"
-        AnalyticsService.shared.capture(
-          "date_navigation",
-          [
-            "method": "next",
-            "from_day": dayString(from),
-            "to_day": dayString(tomorrow),
-          ])
       } content: {
         Image(systemName: "chevron.right")
           .font(.system(size: 14, weight: .medium))

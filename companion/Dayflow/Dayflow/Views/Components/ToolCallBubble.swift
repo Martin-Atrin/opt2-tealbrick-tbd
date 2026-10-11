@@ -7,7 +7,7 @@
 //
 
 import SwiftUI
-import MacParakeet
+import TBDDesign
 
 struct ToolCallBubble: View {
   let message: ChatMessage

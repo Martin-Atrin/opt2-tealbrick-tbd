@@ -31,16 +31,6 @@ extension ChatView {
     let messageIndex = chatService.messages.filter { $0.role == .user }.count
 
     // Log question to PostHog (beta analytics)
-    AnalyticsService.shared.capture(
-      "chat_question_asked",
-      [
-        "question": messageText,
-        "conversation_id": conversationId?.uuidString ?? "unknown",
-        "is_new_conversation": isNewConversation,
-        "message_index": messageIndex,
-        "provider": selectedProvider.analyticsProvider,
-        "chat_runtime": selectedProvider.runtimeLabel,
-      ])
 
     Task {
       await chatService.sendMessage(messageText, provider: selectedProvider)
@@ -70,12 +60,6 @@ extension ChatView {
       applySelectedProvider(provider)
     }
 
-    AnalyticsService.shared.capture(
-      "chat_conversation_reopened",
-      [
-        "conversation_id": record.id.uuidString,
-        "provider": record.provider,
-      ])
   }
 
   func copyDebugLog() {
@@ -108,10 +92,6 @@ extension ChatView {
     NSPasteboard.general.clearContents()
     NSPasteboard.general.setString(message.content, forType: .string)
 
-    AnalyticsService.shared.capture(
-      "chat_answer_copied",
-      chatFeedbackAnalyticsPayload(for: message, direction: nil)
-    )
   }
 
   func handleAssistantRating(_ direction: TimelineRatingDirection, for message: ChatMessage) {
@@ -121,10 +101,6 @@ extension ChatView {
       chatVoteSelections[message.id] = direction
     }
 
-    AnalyticsService.shared.capture(
-      "chat_answer_rated",
-      chatFeedbackAnalyticsPayload(for: message, direction: direction)
-    )
 
     switch direction {
     case .up:
@@ -163,7 +139,6 @@ extension ChatView {
       props["feedback_message"] = trimmed
     }
 
-    AnalyticsService.shared.capture("chat_answer_feedback_submitted", props)
     chatFeedbackMessage = ""
 
     withAnimation(feedbackModalAnimation) {
@@ -279,11 +254,6 @@ extension ChatView {
     let updatedMemory = DashboardChatMemoryStore.load()
     ChatService.shared.didUpdateDashboardMemory(from: previousMemory, to: updatedMemory)
     loadMemoryFromStore(resetDraft: true)
-    AnalyticsService.shared.capture(
-      "chat_memory_manual_saved",
-      [
-        "chars": storedMemoryBlob.count
-      ])
   }
 
   func reloadMemoryDraft() {
@@ -295,7 +265,6 @@ extension ChatView {
     DashboardChatMemoryStore.clear()
     ChatService.shared.didUpdateDashboardMemory(from: previousMemory, to: "")
     loadMemoryFromStore(resetDraft: true)
-    AnalyticsService.shared.capture("chat_memory_cleared")
   }
 
   func refreshRuntimeAvailability() async {

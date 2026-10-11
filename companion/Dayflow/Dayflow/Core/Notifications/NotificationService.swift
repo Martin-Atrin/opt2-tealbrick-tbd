@@ -133,13 +133,6 @@ final class NotificationService: NSObject, ObservableObject {
             + "granted=\(granted) final_status=\(Self.authorizationStatusName(status))"
         )
 
-        AnalyticsService.shared.capture(
-          "daily_auto_generation_notification_permission_prompt_result",
-          [
-            "target_day": trimmedDay,
-            "granted": granted,
-            "authorization_status": Self.authorizationStatusName(status),
-          ])
       }
 
       guard Self.canScheduleNotifications(for: status) else {
@@ -147,13 +140,6 @@ final class NotificationService: NSObject, ObservableObject {
           "[NotificationService] Skipping daily recap notification (\(trimmedDay)): "
             + "permission_status=\(Self.authorizationStatusName(status))"
         )
-        AnalyticsService.shared.capture(
-          "daily_auto_generation_notification_skipped",
-          [
-            "target_day": trimmedDay,
-            "reason": "permission_not_authorized",
-            "authorization_status": Self.authorizationStatusName(status),
-          ])
         return
       }
 
@@ -229,15 +215,6 @@ final class NotificationService: NSObject, ObservableObject {
       if let error {
         print(
           "[NotificationService] Failed to schedule daily recap notification (\(day)): \(error)")
-        AnalyticsService.shared.capture(
-          "daily_auto_generation_notification_failed",
-          [
-            "target_day": day,
-            "error_message": String(error.localizedDescription.prefix(500)),
-            "authorization_status": authStatus,
-            "alert_setting": alertSetting,
-            "sound_setting": soundSetting,
-          ])
         return
       }
       print(
@@ -249,14 +226,6 @@ final class NotificationService: NSObject, ObservableObject {
         NotificationBadgeManager.shared.registerDailyRecapReady(forDay: day)
       }
 
-      AnalyticsService.shared.capture(
-        "daily_auto_generation_notification_scheduled",
-        [
-          "target_day": day,
-          "authorization_status": authStatus,
-          "alert_setting": alertSetting,
-          "sound_setting": soundSetting,
-        ])
     }
   }
 
@@ -382,18 +351,8 @@ extension NotificationService: UNUserNotificationCenterDelegate {
         AppDelegate.pendingNotificationNavigationDestination = .daily(day: day)
 
         if let day, !day.isEmpty {
-          AnalyticsService.shared.capture(
-            "daily_auto_generation_notification_clicked",
-            [
-              "target_day": day
-            ])
           print("[NotificationService] didReceive daily notification navigation target_day=\(day)")
         } else {
-          AnalyticsService.shared.capture(
-            "daily_auto_generation_notification_clicked",
-            [
-              "target_day": "unknown"
-            ])
           print("[NotificationService] didReceive daily notification navigation target_day=unknown")
         }
 

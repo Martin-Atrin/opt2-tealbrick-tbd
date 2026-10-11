@@ -181,29 +181,9 @@ extension ClaudeProvider {
 
     var validationErrors: [String] = []
     if !coverageValid, let coverageError {
-      AnalyticsService.shared.captureValidationFailure(
-        provider: "chat_cli",
-        providerID: providerID,
-        operation: "generate_activity_cards",
-        validationType: "time_coverage",
-        attempt: attempt,
-        model: model,
-        batchId: batchId,
-        errorDetail: coverageError
-      )
       validationErrors.append(coverageError)
     }
     if !policyValid, let policyError {
-      AnalyticsService.shared.captureValidationFailure(
-        provider: "chat_cli",
-        providerID: providerID,
-        operation: "generate_activity_cards",
-        validationType: requiresSingleCard ? "fresh_segment" : "duration",
-        attempt: attempt,
-        model: model,
-        batchId: batchId,
-        errorDetail: policyError
-      )
       validationErrors.append(policyError)
     }
 

@@ -16,7 +16,7 @@
 
 import AppKit
 import SwiftUI
-import MacParakeet
+import TBDDesign
 
 // MARK: - Scroll model
 

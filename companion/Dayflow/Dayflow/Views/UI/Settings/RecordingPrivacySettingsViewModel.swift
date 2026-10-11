@@ -115,10 +115,6 @@ final class RecordingPrivacySettingsViewModel: ObservableObject {
     RecordingPrivacyPreferences.saveBlockedApplicationIdentifiers(blockedIdentifiers)
     blockedIdentifiers = RecordingPrivacyPreferences.blockedApplicationIdentifiers()
 
-    AnalyticsService.shared.capture(
-      "recording_privacy_rules_saved",
-      ["blocked_app_count": blockedIdentifiers.count]
-    )
   }
 
   private static func normalizedIdentifier(_ identifier: String) -> String {

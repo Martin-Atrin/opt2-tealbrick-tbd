@@ -1,10 +1,9 @@
 import AppKit
 import SwiftUI
-import MacParakeet
+import TBDDesign
 
 struct SettingsProvidersTabView: View {
   @ObservedObject var viewModel: ProvidersSettingsViewModel
-  @ObservedObject private var authManager = DayflowAuthManager.shared
 
   var body: some View {
     VStack(alignment: .leading, spacing: SettingsStyle.sectionSpacing) {
@@ -153,11 +152,6 @@ struct SettingsProvidersTabView: View {
           text: hasKey
             ? String(localized: "Stored safely in Keychain") : String(localized: "Not set"))
       }
-    case .dayflow:
-      SettingsRow(label: String(localized: "Status"), showsDivider: false) {
-        SettingsMetadata(
-          text: viewModel.statusText(for: .dayflow) ?? String(localized: "Hosted provider unavailable"))
-      }
     }
   }
 
@@ -213,10 +207,6 @@ struct SettingsProvidersTabView: View {
               viewModel.editProviderConfiguration(.openAICompatible)
             }
           }
-        case .dayflow:
-          Text("Hosted cards and transcription run through your Tealbrick account.")
-            .font(.custom("Switzer", size: 13))
-            .foregroundColor(SettingsStyle.secondary)
         }
       }
     }
@@ -230,7 +220,7 @@ struct SettingsProvidersTabView: View {
       subtitle: String(localized: "Choose primary and secondary providers.")
     ) {
       VStack(alignment: .leading, spacing: 0) {
-        let providers = viewModel.routingProviders.filter { $0.id != .dayflow }
+        let providers = viewModel.routingProviders
         ForEach(Array(providers.enumerated()), id: \.element.id) { index, provider in
           routingRow(
             provider: provider,
@@ -287,65 +277,37 @@ struct SettingsProvidersTabView: View {
         .fixedSize(horizontal: false, vertical: true)
 
       HStack(spacing: 8) {
-        if viewModel.shouldShowDayflowUpgradeAction(for: provider.id) {
-          SettingsPrimaryButton(
-            title: String(localized: "Upgrade account"), systemImage: "sparkles"
-          ) {
-            viewModel.openDayflowUpgradeAccount(from: provider.id)
-          }
-        } else if provider.id == .dayflow {
-          if !isPrimary {
-            SettingsSecondaryButton(
-              title: String(localized: "Set primary"),
-              isDisabled: !viewModel.canModifyRouting
-            ) {
-              viewModel.setPrimaryOrSetup(provider.id)
-            }
-          }
-
-          if !isSecondary {
-            SettingsSecondaryButton(
-              title: String(localized: "Set secondary"), isDisabled: !canSetSecondary
-            ) {
-              viewModel.setSecondaryOrSetup(provider.id)
-            }
-          } else {
-            SettingsSecondaryButton(title: String(localized: "Unset secondary")) {
-              viewModel.clearBackupProvider()
-            }
-          }
-        } else {
-          if !isConfigured {
-            SettingsSecondaryButton(title: String(localized: "Setup")) {
-              viewModel.beginProviderSetup(provider.id, role: .setupOnly)
-            }
-          }
-
-          SettingsSecondaryButton(title: String(localized: "Edit configuration")) {
-            viewModel.editProviderConfiguration(provider.id)
-          }
-
-          if !isPrimary {
-            SettingsSecondaryButton(
-              title: String(localized: "Set primary"),
-              isDisabled: !viewModel.canModifyRouting
-            ) {
-              viewModel.setPrimaryOrSetup(provider.id)
-            }
-          }
-
-          if !isSecondary {
-            SettingsSecondaryButton(
-              title: String(localized: "Set secondary"), isDisabled: !canSetSecondary
-            ) {
-              viewModel.setSecondaryOrSetup(provider.id)
-            }
-          } else {
-            SettingsSecondaryButton(title: String(localized: "Unset secondary")) {
-              viewModel.clearBackupProvider()
-            }
+        if !isConfigured {
+          SettingsSecondaryButton(title: String(localized: "Setup")) {
+            viewModel.beginProviderSetup(provider.id, role: .setupOnly)
           }
         }
+
+        SettingsSecondaryButton(title: String(localized: "Edit configuration")) {
+          viewModel.editProviderConfiguration(provider.id)
+        }
+
+        if !isPrimary {
+          SettingsSecondaryButton(
+            title: String(localized: "Set primary"),
+            isDisabled: !viewModel.canModifyRouting
+          ) {
+            viewModel.setPrimaryOrSetup(provider.id)
+          }
+        }
+
+        if !isSecondary {
+          SettingsSecondaryButton(
+            title: String(localized: "Set secondary"), isDisabled: !canSetSecondary
+          ) {
+            viewModel.setSecondaryOrSetup(provider.id)
+          }
+        } else {
+          SettingsSecondaryButton(title: String(localized: "Unset secondary")) {
+            viewModel.clearBackupProvider()
+          }
+        }
+
       }
     }
     .padding(.vertical, 14)
@@ -455,7 +417,7 @@ struct SettingsProvidersTabView: View {
         ],
         onReset: viewModel.resetOllamaPromptOverrides
       )
-    case .dayflow, .chatGPT, .claude, .openAICompatible:
+    case .chatGPT, .claude, .openAICompatible:
       EmptyView()
     }
   }

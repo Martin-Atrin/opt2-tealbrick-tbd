@@ -1,4 +1,4 @@
-import MacParakeet
+import TBDDesign
 import SwiftUI
 
 /// Dynamic Island-inspired pause pill that morphs between idle, menu, and paused states.

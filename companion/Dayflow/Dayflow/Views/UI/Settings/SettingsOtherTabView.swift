@@ -1,4 +1,4 @@
-import MacParakeet
+import TBDDesign
 import SwiftUI
 
 struct SettingsOtherTabView: View {
@@ -56,8 +56,6 @@ struct SettingsOtherTabView: View {
           .labelsHidden()
           .frame(width: 210)
           .onChange(of: appearance) { _, newValue in
-            AnalyticsService.shared.capture(
-              "appearance_changed", ["appearance": newValue.rawValue])
           }
         }
 

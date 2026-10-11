@@ -1,6 +1,6 @@
 import AppKit
 import ImageIO
-import MacParakeet
+import TBDDesign
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -43,22 +43,14 @@ struct WeeklyView: View {
   @Environment(\.scenePhase) private var scenePhase
   @Environment(\.stylePreviewAfter) private var stylePreviewAfter
 
-  @AppStorage("weeklyAccessManuallyLocked") private var isManuallyLocked = false
-
   @State private var weekRange: WeeklyDateRange
   @State private var dashboardSnapshot: WeeklyDashboardSnapshot
   @State private var isLoading = true
   @State private var selectedWeekRecordedMinutes: Int?
-  @State private var weeklyAccessProgress: WeeklyAccessProgressSnapshot
-  @State private var notificationState: WeeklyAccessNotificationState = .idle
   @State private var weeklyLoadGeneration = 0
 
   init() {
     let initialWeekRange = WeeklyDateRange.containing(Date())
-    let initialAccessProgress = WeeklyAccessProgressSnapshot(
-      completedBatchCount: StorageManager.shared.countCompletedAnalysisBatchesForWeeklyAccess()
-    )
-
     _weekRange = State(initialValue: initialWeekRange)
     _dashboardSnapshot = State(
       initialValue: WeeklyDashboardBuilder.build(
@@ -68,50 +60,28 @@ struct WeeklyView: View {
         weekRange: initialWeekRange
       )
     )
-    _weeklyAccessProgress = State(initialValue: initialAccessProgress)
   }
 
   var body: some View {
-    Group {
-      if isWeeklyAccessUnlocked {
-        weeklyDashboard
-          .transition(.opacity)
-          .task(id: weekRange) {
-            await loadWeeklyData(for: weekRange, categories: categoryStore.categories)
-          }
-          .onChange(of: categoryStore.categories) { _, categories in
-            Task {
-              await loadWeeklyData(for: weekRange, categories: categories)
-            }
-          }
-          .onChange(of: scenePhase) { _, phase in
-            guard phase == .active else { return }
-            Task {
-              await loadWeeklyData(for: weekRange, categories: categoryStore.categories)
-            }
-          }
-      } else {
-        WeeklyAccessLockedView(
-          accessProgress: weeklyAccessProgress,
-          notificationState: notificationState,
-          onNotify: handleWeeklyNotifyAction
-        )
-        .transition(.opacity)
+    weeklyDashboard
+      .task(id: weekRange) {
+        await loadWeeklyData(for: weekRange, categories: categoryStore.categories)
       }
-    }
+      .onChange(of: categoryStore.categories) { _, categories in
+        Task {
+          await loadWeeklyData(for: weekRange, categories: categories)
+        }
+      }
+      .onChange(of: scenePhase) { _, phase in
+        guard phase == .active else { return }
+        Task {
+          await loadWeeklyData(for: weekRange, categories: categoryStore.categories)
+        }
+      }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     .background(WeeklyPalette.canvas)
-    .animation(.easeInOut(duration: 0.22), value: isWeeklyAccessUnlocked)
     .onAppear {
-      refreshWeeklyAccessState()
       selectDefaultWeekOnEntry()
-    }
-    .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { _ in
-      refreshWeeklyAccessState()
-    }
-    .onChange(of: scenePhase) { _, phase in
-      guard phase == .active else { return }
-      refreshWeeklyAccessState()
     }
   }
 
@@ -293,23 +263,7 @@ struct WeeklyView: View {
     return selectedWeekRecordedMinutes < Self.weeklyDataRequirementMinutes
   }
 
-  private var isWeeklyAccessUnlocked: Bool {
-    weeklyAccessProgress.isComplete && !isManuallyLocked
-  }
-
-  private func refreshWeeklyAccessState() {
-    weeklyAccessProgress = WeeklyAccessProgressSnapshot(
-      completedBatchCount: StorageManager.shared.countCompletedAnalysisBatchesForWeeklyAccess()
-    )
-
-    guard weeklyAccessProgress.isComplete, !isManuallyLocked else { return }
-
-    NotificationService.shared.cancelWeeklyUnlockNotification()
-  }
-
   private func selectDefaultWeekOnEntry() {
-    guard isWeeklyAccessUnlocked else { return }
-
     let defaultRange = defaultWeekRangeOnEntry()
     guard defaultRange != weekRange else { return }
 
@@ -340,71 +294,6 @@ struct WeeklyView: View {
     }
 
     return fallbackRangeWithData ?? WeeklyDateRange.containing(Date())
-  }
-
-  private func handleWeeklyNotifyAction() {
-    if weeklyAccessProgress.isComplete {
-      NotificationService.shared.cancelWeeklyUnlockNotification()
-      notificationState = .idle
-      withAnimation(.easeInOut(duration: 0.22)) {
-        isManuallyLocked = false
-      }
-      return
-    }
-
-    if notificationState == .denied {
-      openNotificationSettings()
-      return
-    }
-
-    guard notificationState != .requesting else { return }
-
-    notificationState = .requesting
-
-    Task {
-      let result = await NotificationService.shared.scheduleWeeklyUnlockNotification(
-        at: weeklyAccessProgress.estimatedUnlockDate(from: Date())
-      )
-
-      await MainActor.run {
-        switch result {
-        case .scheduled:
-          notificationState = .scheduled
-        case .denied:
-          notificationState = .denied
-        case .failed:
-          notificationState = .failed
-        }
-      }
-    }
-  }
-
-  private func openNotificationSettings() {
-    let bundleID = Bundle.main.bundleIdentifier ?? "ai.dayflow.Dayflow"
-    let settingsURLString =
-      "x-apple.systempreferences:com.apple.preference.notifications?id=\(bundleID)"
-
-    if let settingsURL = URL(string: settingsURLString) {
-      _ = NSWorkspace.shared.open(settingsURL)
-      return
-    }
-
-    if let fallbackURL = URL(string: "x-apple.systempreferences:com.apple.preference.notifications")
-    {
-      _ = NSWorkspace.shared.open(fallbackURL)
-    }
-  }
-
-  private func lockWeeklyAccess() {
-    NotificationService.shared.cancelWeeklyUnlockNotification()
-    notificationState = .idle
-    weeklyAccessProgress = WeeklyAccessProgressSnapshot(
-      completedBatchCount: StorageManager.shared.countCompletedAnalysisBatchesForWeeklyAccess()
-    )
-
-    withAnimation(.easeInOut(duration: 0.22)) {
-      isManuallyLocked = true
-    }
   }
 
   private func exportFileName(_ graphicSlug: String) -> String {

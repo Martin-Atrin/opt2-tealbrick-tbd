@@ -71,29 +71,9 @@ extension CodexProvider {
         // Validation failed - prepare retry with error feedback
         var errorMessages: [String] = []
         if !coverageValid, let coverageError {
-          AnalyticsService.shared.captureValidationFailure(
-            provider: "chat_cli",
-            providerID: providerID,
-            operation: "generate_activity_cards",
-            validationType: "time_coverage",
-            attempt: attempt,
-            model: model,
-            batchId: batchId,
-            errorDetail: coverageError
-          )
           errorMessages.append(coverageError)
         }
         if !durationValid, let durationError {
-          AnalyticsService.shared.captureValidationFailure(
-            provider: "chat_cli",
-            providerID: providerID,
-            operation: "generate_activity_cards",
-            validationType: "duration",
-            attempt: attempt,
-            model: model,
-            batchId: batchId,
-            errorDetail: durationError
-          )
           errorMessages.append(durationError)
         }
         let combinedError = errorMessages.joined(separator: "\n\n")

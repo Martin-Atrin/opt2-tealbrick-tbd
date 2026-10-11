@@ -9,7 +9,6 @@
 //
 import Foundation
 import GRDB
-import Sentry
 
 protocol AnalysisManaging {
   func startAnalysisJob()
@@ -456,25 +455,6 @@ final class AnalysisManager: AnalysisManaging {
       print("Idle shortcut fallback for batch \(batchId); continuing with normal LLM processing.")
     }
 
-    // Start performance tracking for batch processing
-    let transaction = SentryHelper.startTransaction(
-      name: "batch_processing",
-      operation: "llm.batch"
-    )
-    transaction?.setData(value: batchId, key: "batch_id")
-    transaction?.setData(value: itemCount, key: "screenshot_count")
-    transaction?.setData(value: totalDurationSeconds, key: "duration_s")
-
-    // Add breadcrumb for batch processing start
-    let breadcrumb = Breadcrumb(level: .info, category: "analysis")
-    breadcrumb.message = "Starting batch \(batchId) processing"
-    breadcrumb.data = [
-      "mode": "screenshots",
-      "count": itemCount,
-      "duration_s": totalDurationSeconds,
-    ]
-    SentryHelper.addBreadcrumb(breadcrumb)
-
     updateBatchStatus(batchId: batchId, status: "processing")
 
     llmService.processBatch(batchId, progressHandler: progressHandler) {
@@ -494,8 +474,6 @@ final class AnalysisManager: AnalysisManaging {
           "LLM succeeded for Batch \(batchId). Processing \(activityCards.count) activity cards for day \(currentLogicalDayString)."
         )
 
-        // Finish performance transaction - LLM processing completed successfully
-        transaction?.finish(status: .ok)
 
         // Debug: Check for duplicate cards from LLM
         print("\n🔍 DEBUG: Checking for duplicate cards from LLM:")
@@ -527,8 +505,6 @@ final class AnalysisManager: AnalysisManaging {
           "LLM failed for Batch \(batchId). Day \(currentLogicalDayString) may have been cleared. Error: \(err.localizedDescription)"
         )
 
-        // Finish performance transaction - LLM processing failed
-        transaction?.finish(status: .internalError)
 
         self.markBatchFailed(batchId: batchId, reason: err.localizedDescription)
         completion?(.failure(err))
@@ -736,15 +712,6 @@ final class AnalysisManager: AnalysisManaging {
     )
 
     guard insertedCardIds.isEmpty == false else {
-      AnalyticsService.shared.capture(
-        "analysis_batch_idle_shortcut_persist_failed",
-        [
-          "batch_id": Int(truncatingIfNeeded: batchId),
-          "batch_duration_seconds": assessment.batchDurationSeconds,
-          "screenshot_count": assessment.screenshotCount,
-          "idle_classifier_version": assessment.classifierVersion,
-        ]
-      )
       return false
     }
 
@@ -778,7 +745,6 @@ final class AnalysisManager: AnalysisManaging {
       "idle_sample_availability_ratio": assessment.idleSampleAvailabilityRatio,
       "idle_classifier_version": assessment.classifierVersion,
       "idle_input_coverage_ratio": assessment.coverageRatio,
-      "idle_input_coverage_bucket": AnalyticsService.shared.pctBucket(assessment.coverageRatio),
       "idle_covered_seconds": assessment.coveredSeconds,
       "idle_largest_uncovered_gap_seconds": assessment.largestUncoveredGapSeconds,
       "idle_min_seconds_at_capture": assessment.minIdleSecondsAtCapture,
@@ -794,7 +760,6 @@ final class AnalysisManager: AnalysisManaging {
     if let mergeGapSeconds {
       analyticsProps["merge_gap_seconds"] = mergeGapSeconds
     }
-    AnalyticsService.shared.capture("analysis_batch_idle_shortcut_applied", analyticsProps)
     return true
   }
 

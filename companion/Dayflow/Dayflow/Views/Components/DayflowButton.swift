@@ -7,7 +7,7 @@
 
 import AppKit
 import SwiftUI
-import MacParakeet
+import TBDDesign
 
 struct DayflowButton: View {
   let title: String

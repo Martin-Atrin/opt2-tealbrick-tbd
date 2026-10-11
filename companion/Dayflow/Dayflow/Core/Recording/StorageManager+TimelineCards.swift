@@ -1,6 +1,5 @@
 import Foundation
 import GRDB
-import Sentry
 
 extension StorageManager {
   /// Check whether a day meets the requested timeline activity threshold.
@@ -369,10 +368,6 @@ extension StorageManager {
         return
           "You successfully installed Tealbrick with Ollama — your data stays 100% on your device. Come back in 30 minutes to see your first real activity card! ✨ (This is a sample card, so you can see what your timeline will look like.)"
       }
-
-    case .dayflow:
-      return
-        "You successfully installed Tealbrick with Tealbrick Pro. Come back in 30 minutes to see your first real activity card! ✨ (This is a sample card, so you can see what your timeline will look like.)"
 
     case .openAICompatible:
       return

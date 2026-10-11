@@ -6,7 +6,7 @@
 //
 
 import SwiftUI
-import MacParakeet
+import TBDDesign
 
 extension View {
   /// Brick surface (TBD/docs/design-language.md): square with a 1pt rule.

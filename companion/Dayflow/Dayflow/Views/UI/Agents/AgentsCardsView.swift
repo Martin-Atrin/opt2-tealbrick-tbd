@@ -8,7 +8,7 @@
 //
 
 import SwiftUI
-import MacParakeet
+import TBDDesign
 
 struct AgentsCardsView: View {
   let recap: AgentsDayRecap
@@ -188,7 +188,6 @@ struct AgentsCardsView: View {
 
     return Button {
       cardStyleRaw = style.rawValue
-      AnalyticsService.shared.capture("agents_card_style_changed", ["style": style.rawValue])
     } label: {
       Text(style.displayName)
         .font(.custom("Switzer", size: 12))

@@ -1,7 +1,7 @@
 import AppKit
 import Foundation
 import SwiftUI
-import MacParakeet
+import TBDDesign
 import UserNotifications
 
 struct DailyWorkflowGrid: View {

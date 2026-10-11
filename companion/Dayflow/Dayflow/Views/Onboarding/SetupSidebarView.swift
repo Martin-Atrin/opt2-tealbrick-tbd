@@ -5,7 +5,7 @@
 //  Sidebar navigation for LLM provider setup flow
 //
 
-import MacParakeet
+import TBDDesign
 import SwiftUI
 
 struct SetupSidebarView: View {

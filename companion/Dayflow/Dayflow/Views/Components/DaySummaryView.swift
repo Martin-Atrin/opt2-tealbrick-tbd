@@ -170,12 +170,6 @@ struct DaySummaryView: View {
         .padding(.bottom, Design.bottomPadding)
         .padding(.horizontal, Design.horizontalPadding)
         .onScrollStart(panelName: "day_summary") { direction in
-          AnalyticsService.shared.capture(
-            "right_panel_scrolled",
-            [
-              "panel": "day_summary",
-              "direction": direction,
-            ])
         }
       }
       .scrollIndicators(.never)
@@ -762,7 +756,6 @@ struct DaySummaryView: View {
     )
     payload["initial_screen"] = initialScreen.rawValue
     payload["review_day"] = reviewDay
-    AnalyticsService.shared.capture("day_goal_flow_opened", payload)
   }
 
   private func trackGoalReviewShown(
@@ -776,7 +769,6 @@ struct DaySummaryView: View {
       hadExistingPlan: hadExistingPlan
     )
     payload["review_day"] = reviewDay
-    AnalyticsService.shared.capture("day_goal_review_shown", payload)
   }
 
   private func trackGoalSetupStarted(source: String, entryPoint: String) {
@@ -786,7 +778,6 @@ struct DaySummaryView: View {
       hadExistingPlan: hasExplicitDayGoalPlan
     )
     payload["entry_point"] = entryPoint
-    AnalyticsService.shared.capture("day_goal_setup_started", payload)
   }
 
   private func trackGoalPlanConfirmed(
@@ -794,16 +785,6 @@ struct DaySummaryView: View {
     source: String,
     hadExistingPlan: Bool
   ) {
-    AnalyticsService.shared.capture(
-      "day_goal_plan_confirmed",
-      goalAnalyticsPayload(for: plan, source: source, hadExistingPlan: hadExistingPlan)
-    )
-    AnalyticsService.shared.setPersonProperties([
-      "has_used_day_goals": true,
-      "has_confirmed_day_goal": true,
-      "last_day_goal_action": "confirmed",
-      "last_day_goal_target_day": plan.day,
-    ])
   }
 
   private func trackGoalPlanSkipped(
@@ -811,15 +792,6 @@ struct DaySummaryView: View {
     source: String,
     hadExistingPlan: Bool
   ) {
-    AnalyticsService.shared.capture(
-      "day_goal_plan_skipped",
-      goalAnalyticsPayload(for: plan, source: source, hadExistingPlan: hadExistingPlan)
-    )
-    AnalyticsService.shared.setPersonProperties([
-      "has_used_day_goals": true,
-      "last_day_goal_action": "skipped",
-      "last_day_goal_target_day": plan.day,
-    ])
   }
 
   private func trackGoalPlanUpdated(
@@ -834,7 +806,6 @@ struct DaySummaryView: View {
       hadExistingPlan: hadExistingPlan
     )
     payload["update_kind"] = updateKind
-    AnalyticsService.shared.capture("day_goal_plan_updated", payload)
   }
 
   private func trackGoalCategoryToggled(
@@ -851,7 +822,6 @@ struct DaySummaryView: View {
     )
     payload["category_kind"] = kind.rawValue
     payload["action"] = action
-    AnalyticsService.shared.capture("day_goal_category_toggled", payload)
   }
 
   private func goalAnalyticsPayload(

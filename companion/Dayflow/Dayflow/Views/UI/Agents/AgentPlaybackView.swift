@@ -1,5 +1,5 @@
 import AppKit
-import MacParakeet
+import TBDDesign
 import SwiftUI
 import WebKit
 
@@ -26,11 +26,9 @@ struct AgentPlaybackView: View {
       }
     }
     .onAppear {
-      host.usage.appear(foreground: NSApp.isActive)
       setupStarted = host.hasStarted
       if onboardingCompleted { host.startIfNeeded() }
     }
-    .onDisappear { host.usage.disappear() }
   }
 
   private var onboarding: some View {
@@ -158,7 +156,6 @@ final class AgentPlaybackHost: NSObject, ObservableObject, WKNavigationDelegate,
   private var timeout: Task<Void, Never>?
   private var origin: URL?
   private let versionKey = "agentPlaybackLastWorkingVersion"
-  let usage = AgentPlaybackUsage()
   private var launchStartedAt: TimeInterval?
   private var attemptStartedAt = ProcessInfo.processInfo.systemUptime
   /// Pinned scanner version (supply-chain: never auto-pull `latest` from npm).
@@ -181,21 +178,9 @@ final class AgentPlaybackHost: NSObject, ObservableObject, WKNavigationDelegate,
     NotificationCenter.default.addObserver(
       self, selector: #selector(terminate), name: NSApplication.willTerminateNotification,
       object: nil)
-    NotificationCenter.default.addObserver(
-      self, selector: #selector(becameActive), name: NSApplication.didBecomeActiveNotification,
-      object: nil)
-    NotificationCenter.default.addObserver(
-      self, selector: #selector(resignedActive), name: NSApplication.didResignActiveNotification,
-      object: nil)
-    NotificationCenter.default.addObserver(
-      self, selector: #selector(consentChanged), name: .analyticsPreferenceChanged, object: nil)
   }
 
-  @objc private func becameActive() { usage.setForeground(true) }
-  @objc private func resignedActive() { usage.setForeground(false) }
-  @objc private func consentChanged() { usage.consentChanged() }
   @objc private func terminate() {
-    usage.terminate()
     stop()
   }
 
@@ -221,9 +206,6 @@ final class AgentPlaybackHost: NSObject, ObservableObject, WKNavigationDelegate,
     self.requestedVersion = requestedVersion
     attemptStartedAt = ProcessInfo.processInfo.systemUptime
     launchStartedAt = attemptStartedAt
-    AnalyticsService.shared.capture(
-      "agentplayback_launch_started",
-      launchProperties)
     let id = attempt
     let process = Process()
     let pipe = Pipe()
@@ -397,10 +379,8 @@ final class AgentPlaybackHost: NSObject, ObservableObject, WKNavigationDelegate,
     properties["process_output"] = output
     if launchStartedAt != nil {
       properties["outcome"] = "failure"
-      AnalyticsService.shared.capture("agentplayback_launch_completed", properties)
       launchStartedAt = nil
     } else {
-      AnalyticsService.shared.capture("agentplayback_runtime_failed", properties)
     }
     if !isFallback, let saved = UserDefaults.standard.string(forKey: versionKey) {
       fallbackFromAttempt = attempt.uuidString
@@ -413,7 +393,6 @@ final class AgentPlaybackHost: NSObject, ObservableObject, WKNavigationDelegate,
 
   @objc private func stop() {
     isReady = false
-    usage.setReady(false)
     attempt = UUID()
     timeout?.cancel()
     timeout = nil
@@ -435,12 +414,10 @@ final class AgentPlaybackHost: NSObject, ObservableObject, WKNavigationDelegate,
     if launchStartedAt != nil {
       var properties = launchProperties
       properties["outcome"] = "success"
-      AnalyticsService.shared.capture("agentplayback_launch_completed", properties)
       launchStartedAt = nil
     }
     pageLoaded = true
     isReady = true
-    usage.setReady(true)
     timeout?.cancel()
     if let version { UserDefaults.standard.set(version, forKey: versionKey) }
   }

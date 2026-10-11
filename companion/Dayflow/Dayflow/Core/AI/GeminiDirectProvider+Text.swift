@@ -98,15 +98,6 @@ extension GeminiDirectProvider {
           print("↔️ Switching to \(transition.to.rawValue) after \(nsError.code)")
 
           Task { @MainActor in
-            AnalyticsService.shared.capture(
-              "llm_model_fallback",
-              [
-                "provider": "gemini",
-                "operation": "generate_text",
-                "from_model": transition.from.rawValue,
-                "to_model": transition.to.rawValue,
-                "reason": reason,
-              ])
           }
         }
 

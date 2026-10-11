@@ -4,7 +4,7 @@
 //
 
 import AppKit
-import MacParakeet
+import TBDDesign
 import SwiftUI
 
 private struct TimelineHeaderTrailingWidthPreferenceKey: PreferenceKey {

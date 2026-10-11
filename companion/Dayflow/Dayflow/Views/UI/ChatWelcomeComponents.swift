@@ -1,7 +1,7 @@
 import AppKit
 import Charts
 import SwiftUI
-import MacParakeet
+import TBDDesign
 
 struct WelcomePrompt {
   let icon: String

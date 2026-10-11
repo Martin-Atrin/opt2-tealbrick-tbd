@@ -281,14 +281,6 @@ extension MainView {
 
     syncCurrentUIContext(timelineModeOverride: mode)
 
-    AnalyticsService.shared.capture(
-      "timeline_mode_changed",
-      [
-        "from_mode": previousMode.rawValue,
-        "to_mode": mode.rawValue,
-        "selected_day": dayString(selectedDate),
-      ]
-    )
 
     loadWeeklyTrackedMinutes()
   }
@@ -380,15 +372,6 @@ extension MainView {
     setSelectedDate(date)
     lastDateNavMethod = method
 
-    AnalyticsService.shared.capture(
-      "date_navigation",
-      [
-        "method": method,
-        "timeline_mode": timelineMode.rawValue,
-        "from_day": dayString(from),
-        "to_day": dayString(date),
-      ]
-    )
   }
 }
 

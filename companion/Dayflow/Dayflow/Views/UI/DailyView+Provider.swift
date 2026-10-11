@@ -1,6 +1,6 @@
 import AppKit
 import Foundation
-import MacParakeet
+import TBDDesign
 import SwiftUI
 import UserNotifications
 
@@ -145,17 +145,6 @@ extension DailyView {
     loadedStandupDraftDay = nil
     loadedStandupFallbackSourceDay = nil
 
-    AnalyticsService.shared.capture(
-      "daily_provider_selected",
-      [
-        "previous_daily_provider": previousProvider.analyticsName,
-        "previous_daily_provider_label": previousProvider.displayName,
-        "daily_provider": provider.analyticsName,
-        "daily_provider_label": provider.displayName,
-        "daily_runtime": provider.runtimeLabel,
-        "daily_model_or_tool": provider.modelOrTool as Any,
-      ]
-    )
 
     refreshWorkflowData()
   }

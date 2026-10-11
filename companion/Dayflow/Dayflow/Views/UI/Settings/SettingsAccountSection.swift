@@ -1,4 +1,4 @@
-import MacParakeet
+import TBDDesign
 import SwiftUI
 
 /// Presentation only. Tokens, refresh and issuer/workspace isolation stay in Chat's transport.

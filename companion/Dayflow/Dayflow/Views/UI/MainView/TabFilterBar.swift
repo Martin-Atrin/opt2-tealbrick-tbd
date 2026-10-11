@@ -1,5 +1,5 @@
 import SwiftUI
-import MacParakeet
+import TBDDesign
 
 struct TabFilterBar: View {
   let categories: [TimelineCategory]

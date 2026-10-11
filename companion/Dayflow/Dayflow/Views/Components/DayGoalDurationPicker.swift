@@ -1,6 +1,6 @@
 import AppKit
 import SwiftUI
-import MacParakeet
+import TBDDesign
 
 struct GoalDurationPicker: View {
   @Environment(\.dayflowTheme) private var theme

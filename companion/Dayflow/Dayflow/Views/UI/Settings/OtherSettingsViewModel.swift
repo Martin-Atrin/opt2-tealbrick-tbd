@@ -5,12 +5,6 @@ import UniformTypeIdentifiers
 
 @MainActor
 final class OtherSettingsViewModel: ObservableObject {
-  @Published var analyticsEnabled: Bool {
-    didSet {
-      guard analyticsEnabled != oldValue else { return }
-      AnalyticsService.shared.setOptIn(analyticsEnabled)
-    }
-  }
   @Published var showDockIcon: Bool {
     didSet {
       guard showDockIcon != oldValue else { return }
@@ -51,7 +45,6 @@ final class OtherSettingsViewModel: ObservableObject {
   @Published var showReprocessDayConfirm = false
 
   init() {
-    analyticsEnabled = AnalyticsService.shared.isOptedIn
     showDockIcon = UserDefaults.standard.object(forKey: "showDockIcon") as? Bool ?? true
     showTimelineAppIcons =
       UserDefaults.standard.object(forKey: "showTimelineAppIcons") as? Bool ?? true
@@ -80,10 +73,6 @@ final class OtherSettingsViewModel: ObservableObject {
     outputLanguageOverride = ""
     LLMOutputLanguagePreferences.override = ""
     isOutputLanguageOverrideSaved = true
-  }
-
-  func refreshAnalyticsState() {
-    analyticsEnabled = AnalyticsService.shared.isOptedIn
   }
 
   func exportTimelineRange() {
@@ -212,16 +201,6 @@ final class OtherSettingsViewModel: ObservableObject {
             "Saved to \(url.lastPathComponent). Activities: \(activityCount); days: \(dayCount).",
           comment: "Timeline export success. Counts are labeled totals, not English word suffixes.")
 
-      AnalyticsService.shared.capture(
-        "timeline_exported",
-        [
-          "start_day": dayFormatter.string(from: startDate),
-          "end_day": dayFormatter.string(from: endDate),
-          "day_count": dayCount,
-          "activity_count": activityCount,
-          "format": "markdown",
-          "file_extension": url.pathExtension.lowercased(),
-        ])
     } catch {
       exportStatusMessage = nil
       exportErrorMessage = String(localized: "Couldn't save file: \(error.localizedDescription)")

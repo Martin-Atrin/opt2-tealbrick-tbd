@@ -1,18 +1,13 @@
 //
 //  DayflowApp.swift
-//  Dayflow
+//  TBD host app entry point.
 //
 
-import Sparkle
 import SwiftUI
 
 struct AppRootView: View {
   @AppStorage("didOnboard") private var didOnboard = false
   @EnvironmentObject private var categoryStore: CategoryStore
-  @Binding var isShowingGitHubStarPrompt: Bool
-  @State private var whatsNewNote: ReleaseNote? = nil
-  @State private var activeWhatsNewVersion: String? = nil
-  @State private var shouldMarkWhatsNewSeen = false
   @State private var goalFlowPresentation: DayGoalFlowPresentation? = nil
 
   var body: some View {
@@ -29,29 +24,6 @@ struct AppRootView: View {
       goalFlowOverlay
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .onReceive(NotificationCenter.default.publisher(for: .showWhatsNew)) { _ in
-      NotificationCenter.default.post(name: Notification.Name("tbdOpenSettings"), object: "about")
-    }
-    .onReceive(NotificationCenter.default.publisher(for: .timelineDataUpdated)) { _ in
-      // Upstream promotion is not part of TBD.
-    }
-    .onChange(of: whatsNewNote == nil) { _, isDismissed in
-      if isDismissed {
-        // Upstream promotion is not part of TBD.
-      }
-    }
-    .sheet(item: $whatsNewNote, onDismiss: handleWhatsNewDismissed) { note in
-      ZStack {
-        // Backdrop
-        Color.black.opacity(0.4)
-          .ignoresSafeArea()
-
-        WhatsNewView(releaseNote: note) {
-          closeWhatsNew()
-        }
-      }
-      .resolveDayflowTheme()
-    }
   }
 
   @ViewBuilder
@@ -71,53 +43,6 @@ struct AppRootView: View {
       .zIndex(3)
     }
   }
-
-  private func showGitHubStarPromptIfEligible(source: String) {
-    return // Vendor promotion disabled in Companion.
-
-    guard !isShowingGitHubStarPrompt,
-      whatsNewNote == nil,
-      goalFlowPresentation == nil,
-      !GitHubStarPromptState.hasShown,
-      StorageManager.shared.hasAnyTimelineCards()
-    else { return }
-
-    GitHubStarPromptState.markShown()
-    AnalyticsService.shared.capture("github_star_prompt_shown", ["source": source])
-    withAnimation(.spring(response: 0.34, dampingFraction: 0.88)) {
-      isShowingGitHubStarPrompt = true
-    }
-  }
-
-  private func closeWhatsNew() {
-    whatsNewNote = nil
-  }
-
-  private func handleWhatsNewDismissed() {
-    guard let version = activeWhatsNewVersion else { return }
-    if shouldMarkWhatsNewSeen {
-      WhatsNewConfiguration.markReleaseAsSeen(version: version)
-      AnalyticsService.shared.capture(
-        "whats_new_viewed",
-        [
-          "version": version,
-          "source": "auto",
-        ])
-    }
-    AnalyticsService.shared.capture(
-      "whats_new_viewed",
-      [
-        "version": version,
-        "source": "manual",
-      ])
-    activeWhatsNewVersion = nil
-    shouldMarkWhatsNewSeen = false
-    showGitHubStarPromptIfEligible(source: "launch")
-  }
-
-  private var currentAppVersion: String {
-    Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
-  }
 }
 
 @main
@@ -126,93 +51,50 @@ struct DayflowApp: App {
   @AppStorage("didOnboard") private var didOnboard = false
   @StateObject private var systemAppearance = SystemAppearanceObserver()
   @AppStorage(DayflowAppearance.storageKey) private var appearance: DayflowAppearance = .system
-  @AppStorage("useBlankUI") private var useBlankUI = false
   /// Mirrors FlowNudgeVariant.current so the menu title re-renders on toggle.
   @AppStorage(FlowNudgeVariant.defaultsKey) private var flowNudgeVariant = FlowNudgeVariant.side
     .rawValue
-  @State private var showVideoLaunch = false
-  // Keep content visible behind the brand overlay; completion must never gate rendering.
-  @State private var contentOpacity = 1.0
-  @State private var contentScale = 1.0
-  @State private var isShowingGitHubStarPrompt = false
-  // Must be the shared instance: the agent bridge (AgentWriteHandlers) writes to
-  // CategoryStore.shared, and a second in-memory copy here would overwrite those
-  // edits on the next UI-triggered save (GitHub issue #375).
+  // Must be the shared instance: the Companion CLI write path (AgentWriteHandlers)
+  // writes to CategoryStore.shared; a second copy would overwrite those edits.
   @StateObject private var categoryStore = CategoryStore.shared
 
   init() {
-    // Writing to stdout after its reader has gone away (app launched from a
-    // terminal or wrapper that exited) raises SIGPIPE and kills the process.
-    // Ignore it so the write simply fails with EPIPE instead.
+    // Writing to stdout after its reader has gone away raises SIGPIPE; ignore it.
     signal(SIGPIPE, SIG_IGN)
-
-    // Comment out for production - only use for testing onboarding
-    // UserDefaults.standard.set(false, forKey: "didOnboard")
   }
-
-  // Sparkle updater manager
-  private let updaterManager = UpdaterManager.shared
 
   var body: some Scene {
     Window("TBD", id: "main") {
-      ZStack {
-        AppRootView(isShowingGitHubStarPrompt: $isShowingGitHubStarPrompt)
-          .environmentObject(categoryStore)
-          .environmentObject(updaterManager)
-
-        if didOnboard && !showVideoLaunch && isShowingGitHubStarPrompt {
-          GitHubStarPromptCard(
-            onStar: starDayflow,
-            onDismiss: dismissGitHubStarPrompt
-          )
-          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-          .padding(.trailing, 24)
-          .padding(.bottom, 24)
-          .transition(.move(edge: .trailing).combined(with: .opacity))
-          .zIndex(10)
+      AppRootView()
+        .environmentObject(categoryStore)
+        .background {
+          MainWindowRegistrationView()
+          if didOnboard {
+            DayflowWindowBackground()
+              .ignoresSafeArea()
+              .allowsHitTesting(false)
+              .accessibilityHidden(true)
+          }
         }
-
-      }
-      // Inline background behind the main app UI only
-      .background {
-        MainWindowRegistrationView()
-
-        if didOnboard {
-          DayflowWindowBackground()
-            .ignoresSafeArea()
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
-        }
-      }
-      // Use an explicit scheme even for System; clearing an override can lag until focus changes.
-      .preferredColorScheme(
-        didOnboard ? appearance.colorScheme(system: systemAppearance.colorScheme) : .light
-      )
-      .resolveDayflowTheme()
-      .resolveStylePreview()
-      .onAppear {
-        if !showVideoLaunch {
+        // Use an explicit scheme even for System; clearing an override can lag until focus changes.
+        .preferredColorScheme(
+          didOnboard ? appearance.colorScheme(system: systemAppearance.colorScheme) : .light
+        )
+        .resolveDayflowTheme()
+        .resolveStylePreview()
+        .onAppear { dispatchPendingNotificationNavigation(after: 0.1) }
+        .onReceive(
+          NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)
+        ) { _ in
           dispatchPendingNotificationNavigation(after: 0.1)
         }
-      }
-      .onReceive(
-        NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)
-      ) { _ in
-        if !showVideoLaunch {
-          dispatchPendingNotificationNavigation(after: 0.1)
-        }
-      }
-      .frame(minWidth: 900, maxWidth: .infinity, minHeight: 508, maxHeight: .infinity)
+        .frame(minWidth: 900, maxWidth: .infinity, minHeight: 508, maxHeight: .infinity)
     }
     .windowStyle(.hiddenTitleBar)
     .windowResizability(.contentMinSize)
     .defaultSize(width: 1195, height: 675)
-
     .commands {
-      // Remove the "New Window" command if you want a single window app
       CommandGroup(replacing: .newItem) {}
-
-      // Add custom menu items after the app info section
       CommandGroup(after: .appInfo) {
         Divider()
         Button("Quit completely") {
@@ -222,39 +104,7 @@ struct DayflowApp: App {
         Button("Analyze captured activity now") {
           AnalysisManager.shared.analyzePendingActivity()
         }
-        Button("Reset Onboarding") {
-          // Reset the onboarding flag
-          UserDefaults.standard.set(false, forKey: "didOnboard")
-          // Reset the saved onboarding step to start from beginning
-          UserDefaults.standard.set(0, forKey: "onboardingStep")
-          UserDefaults.standard.removeObject(forKey: "onboardingHasPaidAI")
-          UserDefaults.standard.removeObject(forKey: CategoryStore.StoreKeys.onboardingSelectedRole)
-          UserDefaults.standard.removeObject(
-            forKey: CategoryStore.StoreKeys.onboardingAppliedCategoryPreset)
-          UserDefaults.standard.removeObject(
-            forKey: CategoryStore.StoreKeys.onboardingCategoriesCustomized)
-          UserDefaults.standard.removeObject(forKey: "onboardingSelectedProviderID")
-          // Force quit and restart the app to show onboarding
-          Task { @MainActor in
-            AppDelegate.allowTermination = true
-            NSApp.terminate(nil)
-          }
-        }
-        .keyboardShortcut("R", modifiers: [.command, .shift])
       }
-
-      // Add Sparkle's update menu item
-      CommandGroup(after: .appInfo) {
-        Button("About / Support") {
-          // Activate the app and bring to foreground
-          NSApp.activate(ignoringOtherApps: true)
-
-          // Post notification to show What's New modal
-          NotificationCenter.default.post(name: .showWhatsNew, object: nil)
-        }
-        .keyboardShortcut("N", modifiers: [.command, .shift])
-      }
-
       CommandGroup(after: .appInfo) {
         Divider()
         Button("Flow: Simulate Distraction") {
@@ -266,31 +116,6 @@ struct DayflowApp: App {
           flowNudgeVariant = FlowNudgeVariant.current.rawValue
         }
       }
-    }
-    .defaultSize(width: 1200, height: 800)
-
-  }
-
-  private func starDayflow() async {
-    AnalyticsService.shared.capture("github_star_prompt_clicked")
-    let starred = await GitHubStarService.starDayflow()
-    if starred {
-      AnalyticsService.shared.capture("github_star_completed", ["method": "gh"])
-    } else {
-      AnalyticsService.shared.capture("github_star_browser_fallback")
-      NSWorkspace.shared.open(GitHubStarPromptState.repositoryURL)
-    }
-    hideGitHubStarPrompt()
-  }
-
-  private func dismissGitHubStarPrompt() {
-    AnalyticsService.shared.capture("github_star_prompt_dismissed")
-    hideGitHubStarPrompt()
-  }
-
-  private func hideGitHubStarPrompt() {
-    withAnimation(.easeOut(duration: 0.2)) {
-      isShowingGitHubStarPrompt = false
     }
   }
 
@@ -326,8 +151,6 @@ struct DayflowApp: App {
 // MARK: - Notification Names
 
 extension Notification.Name {
-  static let analyticsPreferenceChanged = Notification.Name("analyticsPreferenceChanged")
-  static let showWhatsNew = Notification.Name("showWhatsNew")
   static let navigateToDaily = Notification.Name("navigateToDaily")
   static let navigateToSupport = Notification.Name("navigateToSupport")
   static let navigateToWeekly = Notification.Name("navigateToWeekly")

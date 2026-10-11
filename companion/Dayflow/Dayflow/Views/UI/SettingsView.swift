@@ -7,7 +7,9 @@
 
 import Foundation
 import SwiftUI
-import MacParakeet
+import TBDDesign
+import TBDListening
+import TBDModels
 
 struct SettingsView: View {
   @Environment(\.dayflowTheme) private var theme
@@ -18,7 +20,6 @@ struct SettingsView: View {
     case storage
     case privacy
     case providers
-    case aiTools
     case data
     case other
     case capture, engine, audioAI, audioSystem
@@ -33,7 +34,6 @@ struct SettingsView: View {
       case .storage: return "internaldrive"
       case .privacy: return "eye.slash"
       case .providers: return "network"
-      case .aiTools: return "wrench.and.screwdriver"
       case .data: return "square.and.arrow.up"
       case .other: return "slider.horizontal.3"
       case .capture: return "mic"
@@ -51,7 +51,6 @@ struct SettingsView: View {
       case .storage: return String(localized: "Storage")
       case .privacy: return String(localized: "Privacy")
       case .providers: return String(localized: "Providers")
-      case .aiTools: return String(localized: "Tools")
       case .data: return String(localized: "Export")
       case .other: return "General"
       case .capture: return "Capture"
@@ -82,7 +81,6 @@ struct SettingsView: View {
   @StateObject private var privacyViewModel = RecordingPrivacySettingsViewModel()
   @StateObject private var providersViewModel = ProvidersSettingsViewModel()
   @StateObject private var otherViewModel = OtherSettingsViewModel()
-  @StateObject private var agentAccessViewModel = AgentAccessViewModel()
 
   var body: some View {
     contentWithSheets
@@ -147,11 +145,8 @@ struct SettingsView: View {
         .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
     }
     .onAppear {
-      DayflowAuthManager.shared.loadStoredSessionIfNeeded()
       providersViewModel.handleOnAppear()
-      otherViewModel.refreshAnalyticsState()
       storageViewModel.refreshStorageIfNeeded(isStorageTab: selectedTab == .storage)
-      AnalyticsService.shared.capture("settings_opened")
       launchAtLoginManager.refreshStatus()
     }
     .onChange(of: selectedTab) { _, newValue in
@@ -294,8 +289,6 @@ struct SettingsView: View {
         SettingsRecordingPrivacyTabView(viewModel: privacyViewModel)
       case .providers:
         SettingsProvidersTabView(viewModel: providersViewModel)
-      case .aiTools:
-        SettingsAgentAccessTabView(viewModel: agentAccessViewModel)
       case .data:
         SettingsDataTabView(viewModel: otherViewModel)
       case .capture, .engine, .audioAI, .audioSystem:
@@ -318,7 +311,6 @@ private struct ProviderSetupWrapper: Identifiable {
 struct SettingsView_Previews: PreviewProvider {
   static var previews: some View {
     SettingsView()
-      .environmentObject(UpdaterManager.shared)
       .frame(width: 1400, height: 860)
   }
 }

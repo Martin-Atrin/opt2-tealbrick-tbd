@@ -7,7 +7,7 @@
 
 import AppKit
 import CoreGraphics
-import MacParakeet
+import TBDDesign
 import ScreenCaptureKit
 import SwiftUI
 
@@ -295,11 +295,9 @@ struct ScreenRecordingPermissionView: View {
     _ = CGRequestScreenCaptureAccess()
     if CGPreflightScreenCaptureAccess() {
       permissionState = .granted
-      AnalyticsService.shared.capture("screen_permission_granted")
       Task { @MainActor in AppDelegate.allowTermination = false }
     } else {
       permissionState = .needsAction
-      AnalyticsService.shared.capture("screen_permission_denied")
       Task { @MainActor in AppDelegate.allowTermination = true }
     }
     isCheckingPermission = false

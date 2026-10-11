@@ -1,5 +1,5 @@
 import SwiftUI
-import MacParakeet
+import TBDDesign
 import WebKit
 
 /// The standalone miniapp owns its data and authentication; no native credentials are injected.

@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
-import MacParakeet
+import TBDDesign
+import TBDListening
 
 @MainActor
 struct StatusMenuView: View {

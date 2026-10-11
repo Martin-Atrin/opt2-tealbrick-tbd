@@ -1,7 +1,6 @@
 import Foundation
 
 enum DailyRecapProvider: String, Codable, CaseIterable, Sendable {
-  case dayflow
   case local
   case gemini
   case chatgpt
@@ -10,7 +9,6 @@ enum DailyRecapProvider: String, Codable, CaseIterable, Sendable {
 
   private static let storageKey = "dailyRecapProvider_v1"
   static let allCases: [DailyRecapProvider] = [
-    .dayflow,
     .claude,
     .chatgpt,
     .gemini,
@@ -35,10 +33,6 @@ enum DailyRecapProvider: String, Codable, CaseIterable, Sendable {
   }
 
   private static func migrateInitialSelection(from defaults: UserDefaults) -> DailyRecapProvider {
-    if defaults.bool(forKey: "isDailyUnlocked") {
-      return .dayflow
-    }
-
     guard let providerID = (try? LLMProviderRoutingStore.load(from: defaults))?.primary else {
       return .none
     }
@@ -46,8 +40,6 @@ enum DailyRecapProvider: String, Codable, CaseIterable, Sendable {
     switch providerID {
     case .gemini:
       return .gemini
-    case .dayflow:
-      return .dayflow
     case .chatGPT:
       return .chatgpt
     case .claude:
@@ -65,8 +57,6 @@ enum DailyRecapProvider: String, Codable, CaseIterable, Sendable {
 
   var displayName: String {
     switch self {
-    case .dayflow:
-      return String(localized: "TBD backend")
     case .local:
       return String(localized: "Local")
     case .gemini:
@@ -82,8 +72,6 @@ enum DailyRecapProvider: String, Codable, CaseIterable, Sendable {
 
   var selectionLabel: String {
     switch self {
-    case .dayflow:
-      return String(localized: "TBD backend")
     case .local:
       return String(localized: "Local")
     case .gemini:
@@ -99,8 +87,6 @@ enum DailyRecapProvider: String, Codable, CaseIterable, Sendable {
 
   var pickerSubtitle: String {
     switch self {
-    case .dayflow:
-      return String(localized: "Uses TBD's hosted service for best performance.")
     case .local:
       return String(
         localized: "Uses Ollama, LM Studio, or another local-compatible server on this Mac.")
@@ -117,8 +103,6 @@ enum DailyRecapProvider: String, Codable, CaseIterable, Sendable {
 
   var runtimeLabel: String {
     switch self {
-    case .dayflow:
-      return "dayflow_backend"
     case .local:
       return "local_llm"
     case .gemini:
@@ -132,8 +116,6 @@ enum DailyRecapProvider: String, Codable, CaseIterable, Sendable {
 
   var modelOrTool: String? {
     switch self {
-    case .dayflow:
-      return nil
     case .local:
       return Self.currentLocalModelID()
     case .gemini:
@@ -149,10 +131,6 @@ enum DailyRecapProvider: String, Codable, CaseIterable, Sendable {
 
   var canGenerate: Bool {
     self != .none
-  }
-
-  var usesDayflowInputs: Bool {
-    self == .dayflow
   }
 
   private static func currentLocalModelID(from defaults: UserDefaults = .standard) -> String? {
@@ -199,15 +177,8 @@ struct DailyStandupGenerationMetadata: Codable, Equatable, Sendable {
     self.generatedAt = generatedAt
   }
 
-  static let legacyDayflow = DailyStandupGenerationMetadata(
-    provider: .dayflow,
-    generatedAt: nil
-  )
-
   var displayLabel: String {
     switch provider {
-    case .dayflow:
-      return String(localized: "TBD backend")
     case .local:
       return modelOrTool ?? String(localized: "Local")
     case .gemini:

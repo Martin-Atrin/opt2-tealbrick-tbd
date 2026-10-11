@@ -21,13 +21,6 @@ final class ScreenshotShortcutTracker {
       guard let match = Self.match(keyCode: event.keyCode, modifierFlags: event.modifierFlags)
       else { return event }
 
-      AnalyticsService.shared.capture(
-        "screenshot_taken",
-        [
-          "source": "keyboard_shortcut_heuristic",
-          "shortcut": match.shortcut,
-          "copies_to_clipboard": match.copiesToClipboard,
-        ])
       return event
     }
   }

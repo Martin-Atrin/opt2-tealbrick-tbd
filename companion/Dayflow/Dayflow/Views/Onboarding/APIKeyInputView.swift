@@ -5,7 +5,7 @@
 //  API key input component for Gemini setup
 //
 
-import MacParakeet
+import TBDDesign
 import SwiftUI
 
 struct APIKeyInputView: View {

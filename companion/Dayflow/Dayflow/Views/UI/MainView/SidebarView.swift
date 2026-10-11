@@ -1,5 +1,5 @@
 import SwiftUI
-import MacParakeet
+import TBDDesign
 
 private enum SidebarMetrics {
   static let itemSpacing: CGFloat = TBDRailMetrics.gap
@@ -91,22 +91,19 @@ enum SidebarIcon: CaseIterable {
 struct SidebarView: View {
   @Binding var selectedIcon: SidebarIcon
   @ObservedObject private var badgeManager = NotificationBadgeManager.shared
-  @ObservedObject private var authManager = DayflowAuthManager.shared
 
   private var visibleIcons: [SidebarIcon] {
     SidebarIcon.allCases.filter { icon in
       if icon == .settings { return false }
       // Support is discontinued in the Companion rail (operator 2026-09-27); About keeps the link.
       if icon == .bug { return false }
-      if icon == .flow { return SidebarView.showsFlowTab(flowEnabled: authManager.flowEnabled) }
+      if icon == .flow { return SidebarView.showsFlowTab }
       return true
     }
   }
 
   /// Local Tasks and nudge demo do not depend on a hosted account.
-  static func showsFlowTab(flowEnabled: Bool) -> Bool {
-    true // Local demo; no hosted account required.
-  }
+  static let showsFlowTab = true
 
   var body: some View {
     VStack(alignment: .center, spacing: SidebarMetrics.itemSpacing) {

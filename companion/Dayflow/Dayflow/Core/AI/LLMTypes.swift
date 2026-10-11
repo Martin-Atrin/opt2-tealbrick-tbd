@@ -82,7 +82,6 @@ struct DashboardChatRequest: Sendable {
 }
 
 enum LLMProviderID: String, Codable, CaseIterable {
-  case dayflow
   case gemini
   case chatGPT = "chatgpt"
   case claude
@@ -91,8 +90,6 @@ enum LLMProviderID: String, Codable, CaseIterable {
 
   var analyticsName: String {
     switch self {
-    case .dayflow:
-      return "dayflow"
     case .gemini:
       return "gemini"
     case .chatGPT, .claude:
@@ -106,7 +103,6 @@ enum LLMProviderID: String, Codable, CaseIterable {
 
   var providerLabel: String {
     switch self {
-    case .dayflow: return "dayflow"
     case .gemini: return "gemini"
     case .chatGPT: return "chatgpt"
     case .claude: return "claude"

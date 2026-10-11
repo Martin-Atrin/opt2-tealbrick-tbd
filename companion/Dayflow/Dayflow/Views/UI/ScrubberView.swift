@@ -9,7 +9,7 @@
 import AVFoundation
 import AppKit
 import SwiftUI
-import MacParakeet
+import TBDDesign
 
 // MARK: - Cached DateFormatter (creating DateFormatters is expensive due to ICU initialization)
 

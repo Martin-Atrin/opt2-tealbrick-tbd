@@ -398,7 +398,6 @@ final class FlowDistractionAgent: ObservableObject {
       if consecutiveFailures >= settings.maxFailures {
         print("[FlowAgent] Stopping after \(consecutiveFailures) consecutive failures")
         appendTranscript("Agent stopped after \(consecutiveFailures) consecutive failures.")
-        AnalyticsService.shared.capture("flow_agent_gave_up")
         stop()
         statusLine = "Stopped after \(consecutiveFailures) failures"
       }

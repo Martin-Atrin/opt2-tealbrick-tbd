@@ -1,5 +1,6 @@
 import Foundation
-import MacParakeetCore
+import TBDDesign
+import TBDModels
 
 struct LLMProviderRouting: Codable, Equatable {
   static let currentSchemaVersion = 2
@@ -44,8 +45,7 @@ enum LLMProviderRoutingStore {
       return try decodeStoredRouting(from: defaults)
     }
 
-    let migration = try migrateLegacyArtifacts(from: defaults)
-    return try saveLocked(migration.routing, to: defaults)
+    return try saveLocked(LLMProviderRouting(primary: .openAICompatible), to: defaults)
   }
 
   static func save(
@@ -54,53 +54,7 @@ enum LLMProviderRoutingStore {
   ) throws {
     lock.lock()
     defer { lock.unlock() }
-    if defaults.object(forKey: storageKey) == nil {
-      _ = try migrateLegacyArtifacts(from: defaults)
-    }
     _ = try saveLocked(routing, to: defaults)
-  }
-
-  private static func migrateLegacyArtifacts(from defaults: UserDefaults) throws
-    -> LegacyLLMProviderMigration.Result
-  {
-    let migration = LegacyLLMProviderMigration.migrate(from: defaults)
-    if !CodexPromptPreferences.hasStoredOverrides(in: defaults) {
-      try CodexPromptPreferences.saveVerified(
-        migration.sharedPromptOverrides,
-        to: defaults
-      )
-    }
-    if !ClaudePromptPreferences.hasStoredOverrides(in: defaults) {
-      try ClaudePromptPreferences.saveVerified(
-        migration.sharedPromptOverrides,
-        to: defaults
-      )
-    }
-    if let endpoint = migration.dayflowEndpointOverride,
-      !DayflowEndpointPreferences.hasStoredValue(in: defaults)
-    {
-      try DayflowEndpointPreferences.saveVerified(endpoint, to: defaults)
-    }
-    if let endpoint = migration.localEndpointOverride,
-      normalizedLocalEndpoint(in: defaults) == nil
-    {
-      let previousValue = defaults.object(forKey: localBaseURLKey)
-      defaults.set(endpoint, forKey: localBaseURLKey)
-      guard defaults.string(forKey: localBaseURLKey) == endpoint else {
-        if let previousValue {
-          defaults.set(previousValue, forKey: localBaseURLKey)
-        } else {
-          defaults.removeObject(forKey: localBaseURLKey)
-        }
-        throw LLMProviderRoutingStoreError.writeVerificationFailed
-      }
-    }
-    if let completedProvider = migration.completedLegacyCLIProvider,
-      !LLMProviderSetupPreferences.isComplete(completedProvider, in: defaults)
-    {
-      try LLMProviderSetupPreferences.markComplete(completedProvider, in: defaults)
-    }
-    return migration
   }
 
   private static func normalizedLocalEndpoint(in defaults: UserDefaults) -> String? {

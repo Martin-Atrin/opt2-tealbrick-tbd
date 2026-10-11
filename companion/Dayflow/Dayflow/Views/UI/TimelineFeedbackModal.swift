@@ -5,7 +5,7 @@
 //  Feedback card shown after rating a timeline summary.
 //
 
-import MacParakeet
+import TBDDesign
 import SwiftUI
 
 enum TimelineFeedbackMode {

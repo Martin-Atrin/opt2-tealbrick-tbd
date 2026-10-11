@@ -7,7 +7,7 @@
 
 import AVKit
 import AppKit
-import MacParakeet
+import TBDDesign
 import SwiftUI
 
 private let videoPlayerTimeFormatter: DateFormatter = {
@@ -108,12 +108,6 @@ struct VideoExpansionOverlay: View {
       .onAppear {
         setupPlayback()
         setupKeyMonitor()
-        AnalyticsService.shared.capture(
-          "video_modal_opened",
-          [
-            "source": expansionState.title != nil ? "hero_animation" : "unknown",
-            "animation_type": "hero",
-          ])
       }
       .onDisappear {
         cleanupPlayback()
@@ -736,14 +730,6 @@ struct VideoPlayerModal: View {
             currentTime: viewModel.currentTime,
             onSeek: { t in
               let from = viewModel.currentTime
-              AnalyticsService.shared.throttled("seek_event", minInterval: 0.5) {
-                AnalyticsService.shared.capture(
-                  "seek_performed",
-                  [
-                    "from_s_bucket": AnalyticsService.shared.secondsBucket(from),
-                    "to_s_bucket": AnalyticsService.shared.secondsBucket(t),
-                  ])
-              }
               viewModel.seek(to: t)
             },
             onScrubStateChange: { dragging in viewModel.isDragging = dragging },
@@ -763,12 +749,6 @@ struct VideoPlayerModal: View {
     )
     .onAppear {
       // Modal opened
-      AnalyticsService.shared.capture(
-        "video_modal_opened",
-        [
-          "source": title != nil ? "activity_card" : "unknown",
-          "duration_bucket": AnalyticsService.shared.secondsBucket(max(0.0, viewModel.duration)),
-        ])
       setupPlayer()
       startControlsTimer()
       // Capture spacebar to toggle play/pause while the modal is active
@@ -806,36 +786,20 @@ struct VideoPlayerModal: View {
       }
       // Completion (approximate)
       let pct = viewModel.duration > 0 ? (viewModel.currentTime / viewModel.duration) : 0
-      AnalyticsService.shared.capture(
-        "video_completed",
-        [
-          "watch_time_bucket": AnalyticsService.shared.secondsBucket(viewModel.currentTime),
-          "completion_pct_bucket": AnalyticsService.shared.pctBucket(pct),
-        ])
     }
     .onChange(of: viewModel.isPlaying) { _, playing in
       if playing {
         if didStartPlay {
-          AnalyticsService.shared.capture("video_resumed")
         } else {
-          AnalyticsService.shared.capture(
-            "video_play_started",
-            [
-              "speed": String(format: "%.1fx", viewModel.playbackSpeed)
-            ])
           didStartPlay = true
         }
       } else {
         if didStartPlay {
-          AnalyticsService.shared.capture("video_paused")
         }
       }
     }
     .onChange(of: viewModel.playbackSpeed) {
       if didStartPlay {
-        AnalyticsService.shared.capture(
-          "video_playback_speed_changed",
-          ["speed": String(format: "%.1fx", viewModel.playbackSpeed)])
       }
     }
   }

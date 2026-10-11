@@ -104,14 +104,12 @@ final class StorageSettingsViewModel: ObservableObject {
     guard height != captureHeight else { return }
     ScreenshotConfig.captureHeight = height
     captureHeight = height
-    AnalyticsService.shared.capture("capture_height_changed", ["height": height])
   }
 
   func setCaptureInterval(_ interval: TimeInterval) {
     guard interval != captureInterval else { return }
     ScreenshotConfig.interval = interval
     captureInterval = interval
-    AnalyticsService.shared.capture("capture_interval_changed", ["interval_seconds": interval])
   }
 
   /// "≈ 10 MB per hour · ≈ 2.5 GB per month at 8 h/day"
@@ -183,13 +181,6 @@ final class StorageSettingsViewModel: ObservableObject {
     pendingLimit = nil
     showLimitConfirmation = false
 
-    AnalyticsService.shared.capture(
-      "storage_limit_changed",
-      [
-        "category": category.analyticsKey,
-        "previous_limit_bytes": previousBytes,
-        "new_limit_bytes": newBytes,
-      ])
 
     refreshStorageMetrics()
   }

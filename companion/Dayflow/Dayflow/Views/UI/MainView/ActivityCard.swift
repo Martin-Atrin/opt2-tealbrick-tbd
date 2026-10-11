@@ -1,7 +1,7 @@
 import AppKit
 import Foundation
 import ImageIO
-import MacParakeet
+import TBDDesign
 import QuartzCore
 import SwiftUI
 
@@ -292,12 +292,6 @@ struct ActivityCard: View {
             summaryContent(for: activity)
               .frame(maxWidth: .infinity, alignment: .topLeading)
               .onScrollStart(panelName: "activity_card") { direction in
-                AnalyticsService.shared.capture(
-                  "right_panel_scrolled",
-                  [
-                    "panel": "activity_card",
-                    "direction": direction,
-                  ])
               }
           }
           .id(activity.id)  // Reset scroll position whenever the selected activity changes
@@ -611,11 +605,6 @@ struct ActivityCard: View {
     slideshowRequestID &+= 1
     let requestID = slideshowRequestID
 
-    AnalyticsService.shared.capture(
-      "timelapse_slideshow_started",
-      [
-        "card_id": cardId
-      ])
 
     Task {
       do {
@@ -632,24 +621,12 @@ struct ActivityCard: View {
           showSlideshowPlayer = true
         }
 
-        AnalyticsService.shared.capture(
-          "timelapse_slideshow_completed",
-          [
-            "card_id": cardId,
-            "frame_count": screenshots.count,
-          ])
       } catch {
         await MainActor.run {
           guard requestID == slideshowRequestID else { return }
           isPreparingSlideshow = false
           slideshowError = error.localizedDescription
         }
-        AnalyticsService.shared.capture(
-          "timelapse_slideshow_failed",
-          [
-            "card_id": cardId,
-            "error": error.localizedDescription,
-          ])
       }
     }
   }

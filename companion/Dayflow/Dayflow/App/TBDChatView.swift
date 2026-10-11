@@ -3,7 +3,8 @@ import SwiftUI
 import WebKit
 import Security
 import UserNotifications
-import MacParakeet
+import TBDDesign
+import TBDListening
 
 @MainActor
 final class TBDChatRuntime: NSObject, ObservableObject, WKScriptMessageHandler, WKNavigationDelegate {

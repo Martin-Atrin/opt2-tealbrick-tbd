@@ -127,12 +127,6 @@ final class PauseManager: ObservableObject {
     )
 
     // Send analytics
-    AnalyticsService.shared.capture(
-      "recording_paused",
-      [
-        "source": source.rawValue,
-        "pause_type": duration.analyticsValue,
-      ])
   }
 
   /// Resume recording immediately from a specific source.
@@ -147,13 +141,6 @@ final class PauseManager: ObservableObject {
     AppState.shared.setRecording(true, analyticsReason: source.rawValue)
 
     // Send analytics
-    AnalyticsService.shared.capture(
-      "recording_resumed",
-      [
-        "source": source.rawValue,
-        "was_timed": wasTimed,
-        "original_pause_type": pauseType,
-      ])
   }
 
   // MARK: - Timer Management

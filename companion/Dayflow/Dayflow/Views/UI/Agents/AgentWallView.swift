@@ -2,7 +2,7 @@
 // Data comes from the AgentPlayback scanner's day files; the scanner's web UI is not shown.
 // Design language: TBD/docs/design-language.md ("brick").
 import AppKit
-import MacParakeet
+import TBDDesign
 import SwiftUI
 
 // MARK: - Data

@@ -1,7 +1,7 @@
 import AppKit
 import Charts
 import SwiftUI
-import MacParakeet
+import TBDDesign
 
 extension ChatView {
   var chatContent: some View {
@@ -78,7 +78,6 @@ extension ChatView {
           showMemoryPanel.toggle()
           if showMemoryPanel {
             syncMemoryFromStoreIfNeeded()
-            AnalyticsService.shared.capture("chat_memory_panel_opened")
           }
         }
       ) {

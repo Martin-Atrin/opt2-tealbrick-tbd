@@ -376,16 +376,6 @@ extension OllamaProvider {
         lastError = coverageError
         let coveragePercent = max(0, min(100, Int(coverageError.coverageRatio * 100)))
 
-        AnalyticsService.shared.captureValidationFailure(
-          provider: localEngine,
-          providerID: providerID,
-          operation: "segment_video_activity",
-          validationType: "coverage",
-          attempt: attempt,
-          model: savedModelId,
-          batchId: batchId,
-          errorDetail: "Coverage only \(coveragePercent)% (expected >80%)"
-        )
 
         if attempt == maxAttempts {
           print(

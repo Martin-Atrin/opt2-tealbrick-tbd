@@ -1,5 +1,5 @@
 import SwiftUI
-import MacParakeet
+import TBDDesign
 
 struct SettingsStorageTabView: View {
   @ObservedObject var viewModel: StorageSettingsViewModel

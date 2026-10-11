@@ -1,7 +1,7 @@
 import AppKit
 import Foundation
 import SwiftUI
-import MacParakeet
+import TBDDesign
 
 // MARK: - Cached DateFormatter (creating DateFormatters is expensive due to ICU initialization)
 
@@ -233,12 +233,6 @@ struct CanvasTimelineDataView: View {
     if refreshTimer == nil {
       startRefreshTimer()
     }
-    AnalyticsService.shared.capture(
-      "app_became_active",
-      [
-        "screen": "timeline",
-        "selected_date_is_today": timelineIsToday(selectedDate),
-      ])
   }
 
   @ViewBuilder
@@ -580,18 +574,8 @@ struct CanvasTimelineDataView: View {
     case .active:
       return
     case .pausedTimed, .pausedIndefinite:
-      AnalyticsService.shared.capture(
-        "timeline_paused_card_clicked",
-        [
-          "action": "resume_recording"
-        ])
       PauseManager.shared.resume(source: .userClickedMainApp)
     case .stopped:
-      AnalyticsService.shared.capture(
-        "timeline_stopped_card_clicked",
-        [
-          "action": "start_recording"
-        ])
       RecordingControl.start(reason: "user_main_app")
     }
   }

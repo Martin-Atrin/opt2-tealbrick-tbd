@@ -177,7 +177,7 @@ class ProviderSetupState: ObservableObject {
           )
         ),
       ]
-    case .gemini, .dayflow:
+    case .gemini:
       let storedGeminiKey =
         KeychainManager.shared.retrieve(for: "gemini")?
         .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -300,12 +300,6 @@ class ProviderSetupState: ObservableObject {
     lastSavedGeminiModel = geminiModel
 
     Task { @MainActor in
-      AnalyticsService.shared.capture(
-        "gemini_model_selected",
-        [
-          "source": source,
-          "model": geminiModel.rawValue,
-        ])
     }
 
     // Changing models should prompt the user to re-run the connection test
@@ -407,23 +401,9 @@ class ProviderSetupState: ObservableObject {
   }
 
   func captureChatCLIDetectionChecked(source: String) {
-    AnalyticsService.shared.capture(
-      "chat_cli_detection_checked",
-      chatCLIDetectionAnalyticsProperties(
-        source: source,
-        selectedTool: preferredCLITool
-      )
-    )
   }
 
   func captureChatCLIToolSelected(_ tool: CLITool) {
-    AnalyticsService.shared.capture(
-      "chat_cli_tool_selected",
-      chatCLIDetectionAnalyticsProperties(
-        source: "detection_step",
-        selectedTool: tool
-      )
-    )
   }
 
   func chatCLIDetectionAnalyticsProperties(
@@ -528,13 +508,6 @@ extension ProviderSetupState {
     localModelId = defaultModel
 
     // Track local engine selection for analytics
-    AnalyticsService.shared.capture(
-      "local_engine_selected",
-      [
-        "engine": engine.rawValue,
-        "default_model": defaultModel,
-        "has_api_key": !localAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-      ])
   }
 
   var localCurlCommand: String {

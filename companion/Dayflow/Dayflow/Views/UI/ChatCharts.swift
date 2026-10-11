@@ -1,7 +1,7 @@
 import AppKit
 import Charts
 import SwiftUI
-import MacParakeet
+import TBDDesign
 
 // MARK: - Inline Charts
 

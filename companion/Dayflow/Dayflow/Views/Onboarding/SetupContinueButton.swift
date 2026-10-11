@@ -6,7 +6,7 @@
 //
 
 import SwiftUI
-import MacParakeet
+import TBDDesign
 
 struct SetupContinueButton: View {
   let title: String

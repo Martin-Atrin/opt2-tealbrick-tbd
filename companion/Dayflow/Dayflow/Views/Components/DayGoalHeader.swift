@@ -6,7 +6,7 @@
 //
 
 import AppKit
-import MacParakeet
+import TBDDesign
 import SwiftUI
 
 struct TargetCategoryProgress: Equatable, Identifiable {
