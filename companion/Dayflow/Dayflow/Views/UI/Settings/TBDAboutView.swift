@@ -9,6 +9,7 @@ struct TBDAboutView: View {
       Text("TBD").font(.title2)
       Text("Chat · Companion · Listening")
       Text("Local build · updates are installed manually. No donor update feed is used.").foregroundStyle(.secondary)
+      TBDUpdatesSection()
       Link("Website", destination: TBDProductLinks.website)
       TextField("Support URL (https://…)", text: $support).tbdField()
       if let url = TBDProductLinks.support() { Link("Open support", destination: url) }

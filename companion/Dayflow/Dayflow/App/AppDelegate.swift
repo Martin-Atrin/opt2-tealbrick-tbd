@@ -51,6 +51,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Block termination by default; only specific flows enable it.
     AppDelegate.allowTermination = false
     applySavedDockIconPreference()
+    TBDUpdater.shared.start()
 
 
     // Companion CLI writes (opt-in "Allow edits"). TBD never edits other apps' configs.
