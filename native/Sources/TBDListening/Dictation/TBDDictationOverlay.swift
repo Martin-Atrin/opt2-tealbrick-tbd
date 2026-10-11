@@ -5,12 +5,15 @@ import TBDDesign
 /// State shown by the floating recording pill.
 @MainActor
 final class TBDOverlayModel: ObservableObject {
-    enum Phase: Equatable { case hidden, recording(handsFree: Bool), processing(String), message(String) }
+    enum Phase: Equatable { case hidden, recording(handsFree: Bool), processing(String), message(String), prompt(String, action: String) }
     @Published var phase: Phase = .hidden
     @Published var levels: [Float] = Array(repeating: 0, count: 24)
     @Published var elapsedMs = 0
     var onStop: (() -> Void)?
     var onCancel: (() -> Void)?
+    /// Prompt buttons (calendar reminder).
+    var onAccept: (() -> Void)?
+    var onDismissPrompt: (() -> Void)?
 }
 
 /// Floating, non-activating pill near the bottom of the active screen. Never takes focus,
@@ -29,6 +32,7 @@ final class TBDDictationOverlay {
         position(panel)
         panel.orderFrontRegardless()
         if case .message = phase { hide(after: 2.8) }
+        if case .prompt = phase { hide(after: 90) }
     }
 
     func hide(after delay: TimeInterval = 0) {
@@ -49,7 +53,7 @@ final class TBDDictationOverlay {
     }
 
     private func makePanel() -> NSPanel {
-        let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 300, height: 56),
+        let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 420, height: 56),
                             styleMask: [.nonactivatingPanel, .borderless], backing: .buffered, defer: false)
         panel.isFloatingPanel = true
         panel.level = .statusBar
@@ -59,6 +63,7 @@ final class TBDDictationOverlay {
         panel.hidesOnDeactivate = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         panel.contentView = NSHostingView(rootView: TBDRecordingPill(model: model))
+        model.onDismissPrompt = { [weak self] in self?.hide() }
         return panel
     }
 
@@ -92,6 +97,13 @@ struct TBDRecordingPill: View {
                 Text(text).font(TBDTokens.Typography.control).foregroundStyle(.white)
             case .message(let text):
                 Text(text).font(TBDTokens.Typography.control).foregroundStyle(.white).lineLimit(2)
+            case .prompt(let text, let action):
+                Image(systemName: "calendar").foregroundStyle(.white)
+                Text(text).font(TBDTokens.Typography.control).foregroundStyle(.white).lineLimit(1)
+                Button(action) { model.onAccept?() }
+                    .buttonStyle(.plain).font(TBDTokens.Typography.control).foregroundStyle(.white)
+                    .padding(.horizontal, 10).padding(.vertical, 4).background(.white.opacity(0.18), in: Capsule())
+                pillButton("xmark", help: "Dismiss") { model.onDismissPrompt?() }
             case .hidden:
                 EmptyView()
             }

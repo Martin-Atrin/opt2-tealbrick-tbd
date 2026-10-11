@@ -52,7 +52,7 @@ public final class TBDWAVWriter: @unchecked Sendable {
         if !pending.isEmpty { handle.write(pending); pending.removeAll(keepingCapacity: true) }
         guard patch else { return }
         Self.patchSizes(handle: handle, dataBytes: dataBytes)
-        try? handle.seekToEnd()
+        _ = try? handle.seekToEnd()
         try? handle.synchronize()
         lastPatch = Date()
     }
@@ -83,6 +83,14 @@ public final class TBDWAVWriter: @unchecked Sendable {
     public static func repairHeader(at url: URL, sampleRate: Int = 16_000) throws -> Int {
         let size = (try FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.uint64Value ?? 0
         guard size >= 44 else { throw TBDSpeechError.audioUnreadable("recording is empty") }
+        // Only touch files with exactly the layout this writer produces.
+        let reader = try FileHandle(forReadingFrom: url)
+        let head = try reader.read(upToCount: 44) ?? Data()
+        try reader.close()
+        let expected = header(dataBytes: 0, sampleRate: sampleRate)
+        guard head.count == 44, head[0..<4] == expected[0..<4], head[8..<40] == expected[8..<40] else {
+            throw TBDSpeechError.audioUnreadable("not a Listening recording")
+        }
         let dataBytes = UInt32(min(UInt64(UInt32.max - 36), (size - 44) & ~1))
         let handle = try FileHandle(forWritingTo: url)
         defer { try? handle.close() }
