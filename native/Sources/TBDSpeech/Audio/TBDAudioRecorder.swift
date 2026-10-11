@@ -7,6 +7,8 @@ public final class TBDAudioRecorder: @unchecked Sendable {
         public let url: URL
         public let durationMs: Int
         public let peakLevel: Float
+        /// Set when capture ended early (microphone lost, disk full); the audio up to that point is kept.
+        public let warning: String?
     }
 
     private let microphone: TBDSharedMicrophone
@@ -33,6 +35,8 @@ public final class TBDAudioRecorder: @unchecked Sendable {
     public var recentLevels: [Float] { lock.lock(); defer { lock.unlock() }; return levelHistory }
     public var isRecording: Bool { lock.lock(); defer { lock.unlock() }; return writer != nil }
     public var elapsedMs: Int { lock.lock(); defer { lock.unlock() }; return writer?.durationMs ?? 0 }
+    /// Capture stopped on its own (microphone lost or disk write failed). Callers should finish.
+    public var interrupted: Bool { lock.lock(); defer { lock.unlock() }; return interruption != nil || writer?.failure != nil }
 
     public func start() async throws {
         guard await TBDSharedMicrophone.requestPermission() else { throw TBDSpeechError.microphoneDenied }
@@ -93,7 +97,14 @@ public final class TBDAudioRecorder: @unchecked Sendable {
             try? FileManager.default.removeItem(at: writer.url)
             throw TBDSpeechError.microphoneUnavailable(interruption.localizedDescription)
         }
-        return Recording(url: writer.url, durationMs: writer.durationMs, peakLevel: peak)
+        var warning: String?
+        if let failure = writer.failure {
+            let durationMs = (try? TBDWAVWriter.repairHeader(at: writer.url)) ?? 0
+            warning = "Recording stopped early: \(failure.localizedDescription)"
+            return Recording(url: writer.url, durationMs: durationMs, peakLevel: peak, warning: warning)
+        }
+        if let interruption { warning = "The microphone stopped early: \(interruption.localizedDescription)" }
+        return Recording(url: writer.url, durationMs: writer.durationMs, peakLevel: peak, warning: warning)
     }
 
     /// Stops and deletes the recording.

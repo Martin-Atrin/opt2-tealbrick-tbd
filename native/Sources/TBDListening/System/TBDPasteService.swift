@@ -43,7 +43,8 @@ enum TBDPasteService {
         guard let saved else { return }
         restoreGeneration += 1
         let generation = restoreGeneration
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+        // Slow apps (Electron, remote sessions) may handle Cmd-V late; restore only after a safe delay.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             // Restore only if nobody (user or app) changed the clipboard meanwhile.
             guard generation == restoreGeneration, board.changeCount == ours else { return }
             board.clearContents()

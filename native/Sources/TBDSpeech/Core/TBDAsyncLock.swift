@@ -1,5 +1,13 @@
 import Foundation
 
+/// A value guarded by a lock.
+final class NSLockedValue<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: Value
+    init(_ value: Value) { self.value = value }
+    func withLock<T>(_ body: (inout Value) -> T) -> T { lock.lock(); defer { lock.unlock() }; return body(&value) }
+}
+
 /// FIFO async mutex. Waiting honours task cancellation.
 public final class TBDAsyncLock: @unchecked Sendable {
     private let lock = NSLock()

@@ -67,6 +67,8 @@ final class TBDVoiceCapture {
             if let recorder = chatRecorder { chatRecorder = nil; await recorder.cancel() }
             return NSNull()
         case "stop":
+            // Stop while start is still running: cancel the start so the microphone is not orphaned.
+            if chatStarting { chatCancelled = true }
             guard let recorder = chatRecorder else { return ["text": ""] }
             chatRecorder = nil; chatProcessing = true
             defer { chatProcessing = false }

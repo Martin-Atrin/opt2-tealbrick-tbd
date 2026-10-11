@@ -11,6 +11,8 @@ public final class TBDWAVWriter: @unchecked Sendable {
     private var pending = Data()
     private var lastPatch = Date()
     private var closed = false
+    /// Set when a disk write failed (for example the disk is full). Later samples are dropped.
+    public private(set) var failure: Error?
 
     public init(url: URL, sampleRate: Int = 16_000) throws {
         self.url = url
@@ -30,7 +32,7 @@ public final class TBDWAVWriter: @unchecked Sendable {
     public func append(_ samples: [Float]) {
         guard !samples.isEmpty else { return }
         lock.lock(); defer { lock.unlock() }
-        guard !closed else { return }
+        guard !closed, failure == nil else { return }
         pending.reserveCapacity(pending.count + samples.count * 2)
         for sample in samples {
             let value = Int16(max(-1, min(1, sample)) * 32_767)
@@ -49,7 +51,10 @@ public final class TBDWAVWriter: @unchecked Sendable {
     }
 
     private func flushLocked(patch: Bool) {
-        if !pending.isEmpty { handle.write(pending); pending.removeAll(keepingCapacity: true) }
+        if !pending.isEmpty, failure == nil {
+            do { try handle.write(contentsOf: pending) } catch { failure = error }
+        }
+        pending.removeAll(keepingCapacity: true)
         guard patch else { return }
         Self.patchSizes(handle: handle, dataBytes: dataBytes)
         _ = try? handle.seekToEnd()
@@ -72,7 +77,7 @@ public final class TBDWAVWriter: @unchecked Sendable {
     private static func patchSizes(handle: FileHandle, dataBytes: UInt32) {
         func write(_ value: UInt32, at offset: UInt64) {
             try? handle.seek(toOffset: offset)
-            withUnsafeBytes(of: value.littleEndian) { handle.write(Data($0)) }
+            try? withUnsafeBytes(of: value.littleEndian) { try handle.write(contentsOf: Data($0)) }
         }
         write(36 &+ dataBytes, at: 4)
         write(dataBytes, at: 40)

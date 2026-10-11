@@ -66,9 +66,17 @@ public final class TBDMeetingRecorder: @unchecked Sendable {
 
     public var currentState: State { lock.withLock { state } }
     /// Recorded (unpaused) time.
-    public var elapsedMs: Int { lock.withLock { micWriter?.durationMs ?? 0 } }
+    public var elapsedMs: Int { lock.withLock { Int(recordedSeconds * 1000) } }
     public var levels: (mic: Float, system: Float) { lock.withLock { (micLevel, systemLevel) } }
     public var hasSystemAudio: Bool { lock.withLock { systemWriter != nil } }
+
+    // Recording clock (excludes pauses); both tracks are padded against it so they stay aligned
+    // across late starts, route changes and capture gaps.
+    private var session: UUID?
+    private var clockAccumulated: TimeInterval = 0
+    private var clockStarted: Date?
+    private var recordedSeconds: TimeInterval { clockAccumulated + (clockStarted.map { Date().timeIntervalSince($0) } ?? 0) }
+    private func isCurrent(_ id: UUID) -> Bool { lock.withLock { session == id } }
 
     public func start(title: String) async throws -> TBDMeetingManifest {
         guard await TBDSharedMicrophone.requestPermission() else { throw TBDSpeechError.microphoneDenied }
@@ -77,9 +85,12 @@ public final class TBDMeetingRecorder: @unchecked Sendable {
         let manifest = TBDMeetingManifest(id: id, title: title, startedAt: Date(), state: .recording, durationMs: 0)
         try manifest.write(to: folder)
         let micWriter = try TBDWAVWriter(url: folder.appendingPathComponent("microphone.wav"))
+        let current = UUID()
         try lock.withLock {
             guard state == .idle else { throw TBDSpeechError.busy("A meeting recording") }
             state = .recording
+            session = current
+            clockAccumulated = 0; clockStarted = Date()
             self.manifest = manifest; self.folder = folder; self.micWriter = micWriter; systemWriter = nil
             micChunker = TBDLiveChunker(); systemChunker = TBDLiveChunker()
         }
@@ -90,55 +101,78 @@ public final class TBDMeetingRecorder: @unchecked Sendable {
                 guard let self else { return }
                 self.consumeMic(self.micResampler.convert(buffer))
             }
-            lock.withLock { micToken = token }
+            // stop() may have run while subscribing: never leave the microphone on.
+            guard lock.withLock({ () -> Bool in
+                guard session == current else { return false }
+                micToken = token
+                return true
+            }) else {
+                await microphone.unsubscribe(token)
+                throw CancellationError()
+            }
         } catch {
-            lock.withLock { state = .idle; self.micWriter = nil }
+            lock.withLock {
+                if session == current { state = .idle; session = nil; self.micWriter = nil; self.manifest = nil; self.folder = nil }
+            }
             try? micWriter.close()
             try? FileManager.default.removeItem(at: folder)
             throw error
         }
-        await startSystemAudio(folder: folder)
+        await startSystemAudio(folder: folder, session: current)
         return manifest
     }
 
-    private func startSystemAudio(folder: URL) async {
+    private func startSystemAudio(folder: URL, session current: UUID) async {
         let capture = TBDSystemAudioCapture()
         do {
             let writer = try TBDWAVWriter(url: folder.appendingPathComponent("system.wav"))
-            lock.withLock { systemWriter = writer; system = capture }
+            lock.withLock { if session == current { systemWriter = writer; system = capture } }
             try await capture.start(handler: { [weak self] samples in self?.consumeSystem(samples) }, onStop: { [weak self] error in
                 self?.onWarning?("System audio stopped: \(error.localizedDescription)")
             })
+            if !isCurrent(current) { await capture.stop() }
         } catch {
             let writer = lock.withLock { () -> TBDWAVWriter? in
+                guard session == current else { return nil }
                 defer { systemWriter = nil; system = nil }
                 return systemWriter
             }
             if let writer { try? writer.close(); try? FileManager.default.removeItem(at: writer.url) }
-            onWarning?("Recording the microphone only. Allow Screen & System Audio Recording for TBD to include other participants.")
+            if isCurrent(current) {
+                onWarning?("Recording the microphone only. Allow Screen & System Audio Recording for TBD to include other participants.")
+            }
         }
+    }
+
+    /// Appends samples, first padding with silence when the track fell more than a second behind the clock.
+    private func appendLocked(_ samples: [Float], to writer: TBDWAVWriter, chunker: inout TBDLiveChunker) -> [TBDLiveChunker.Chunk] {
+        var chunks: [TBDLiveChunker.Chunk] = []
+        let expected = Int(recordedSeconds * 16_000)
+        let gap = expected - writer.samplesWritten - samples.count
+        if gap > 16_000 {
+            let silence = [Float](repeating: 0, count: gap)
+            writer.append(silence)
+            chunks += chunker.append(silence)
+        }
+        writer.append(samples)
+        return chunks + chunker.append(samples)
     }
 
     private func consumeMic(_ samples: [Float]) {
         guard !samples.isEmpty else { return }
         let chunks: [TBDLiveChunker.Chunk] = lock.withLock {
             guard state == .recording, let micWriter else { return [] }
-            micWriter.append(samples)
             micLevel = TBDAudioLevel.normalized(samples)
-            return micChunker.append(samples)
+            return appendLocked(samples, to: micWriter, chunker: &micChunker)
         }
         for chunk in chunks { preview(chunk, source: .me) }
     }
 
     private func consumeSystem(_ samples: [Float]) {
         let chunks: [TBDLiveChunker.Chunk] = lock.withLock {
-            guard state == .recording, let systemWriter, let micWriter else { return [] }
-            // Keep the tracks aligned: pad late starts and gaps with silence.
-            let lag = micWriter.samplesWritten - systemWriter.samplesWritten - samples.count
-            if lag > 16_000 { systemWriter.append([Float](repeating: 0, count: lag)); _ = systemChunker.append([Float](repeating: 0, count: lag)) }
-            systemWriter.append(samples)
+            guard state == .recording, let systemWriter else { return [] }
             systemLevel = TBDAudioLevel.normalized(samples)
-            return systemChunker.append(samples)
+            return appendLocked(samples, to: systemWriter, chunker: &systemChunker)
         }
         for chunk in chunks { preview(chunk, source: .others) }
     }
@@ -153,8 +187,21 @@ public final class TBDMeetingRecorder: @unchecked Sendable {
         }
     }
 
-    public func pause() { lock.withLock { if state == .recording { state = .paused } } }
-    public func resume() { lock.withLock { if state == .paused { state = .recording } } }
+    public func pause() {
+        lock.withLock {
+            guard state == .recording else { return }
+            state = .paused
+            clockAccumulated = recordedSeconds; clockStarted = nil
+        }
+    }
+
+    public func resume() {
+        lock.withLock {
+            guard state == .paused else { return }
+            state = .recording
+            clockStarted = Date()
+        }
+    }
 
     /// Stops capture and closes the tracks. The folder stays recoverable until `finalize` succeeds.
     public func stop() async throws -> (manifest: TBDMeetingManifest, folder: URL) {
@@ -164,8 +211,8 @@ public final class TBDMeetingRecorder: @unchecked Sendable {
         await system?.stop()
         let writers = lock.withLock { () -> [TBDWAVWriter] in
             defer {
-                state = .idle; micToken = nil; self.system = nil; micWriter = nil; systemWriter = nil
-                self.manifest = nil; self.folder = nil; micLevel = 0; systemLevel = 0
+                state = .idle; session = nil; micToken = nil; self.system = nil; micWriter = nil; systemWriter = nil
+                self.manifest = nil; self.folder = nil; micLevel = 0; systemLevel = 0; clockStarted = nil
             }
             return [micWriter, systemWriter].compactMap { $0 }
         }

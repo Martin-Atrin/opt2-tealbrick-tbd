@@ -63,10 +63,6 @@ final class TBDFileQueue: ObservableObject {
 
     func enqueue(link text: String) {
         guard let url = TBDLinkDownloader.validate(text) else { onMessage?("Enter a valid http or https link."); return }
-        guard TBDLinkDownloader.toolPath() != nil else {
-            onMessage?("Link transcription needs yt-dlp on your PATH (for example: brew install yt-dlp).")
-            return
-        }
         items.append(Item(source: .link(url), title: url.host ?? url.absoluteString))
         pump()
     }

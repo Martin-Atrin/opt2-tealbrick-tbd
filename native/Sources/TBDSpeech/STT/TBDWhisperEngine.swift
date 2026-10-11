@@ -97,7 +97,7 @@ public final class TBDWhisperEngine: TBDSpeechEngine, @unchecked Sendable {
     }
 
     public func unload() async {
-        try? await gate.acquire()
+        do { try await gate.acquire() } catch { return }
         defer { gate.release() }
         await whisper?.unloadModels()
         whisper = nil

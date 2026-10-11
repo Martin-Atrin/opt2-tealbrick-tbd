@@ -12,6 +12,15 @@ public struct TBDLinkDownloader: Sendable {
 
     /// Location of `yt-dlp` on the user's PATH (login shell PATH included, since GUI apps get a short one).
     public static func toolPath() -> String? {
+        if let cached = cache.withLock({ $0 }), FileManager.default.isExecutableFile(atPath: cached) { return cached }
+        let found = searchToolPath()
+        cache.withLock { $0 = found }
+        return found
+    }
+
+    private static let cache = NSLockedValue<String?>(nil)
+
+    private static func searchToolPath() -> String? {
         var directories = (ProcessInfo.processInfo.environment["PATH"] ?? "").split(separator: ":").map(String.init)
         if let shellPath = loginShellPath() { directories += shellPath.split(separator: ":").map(String.init) }
         for directory in directories where !directory.isEmpty {
@@ -67,13 +76,16 @@ public struct TBDLinkDownloader: Sendable {
         process.standardOutput = output
         process.standardError = errors
         process.standardInput = FileHandle.nullDevice
+        try Task.checkCancellation()
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                 process.terminationHandler = { _ in continuation.resume() }
-                do { try process.run() } catch { continuation.resume(throwing: error) }
+                do { try process.run() } catch { continuation.resume(throwing: error); return }
+                if Task.isCancelled { process.terminate() }
             }
         } onCancel: {
-            process.terminate()
+            // Terminating a process that never launched raises an exception.
+            if process.isRunning { process.terminate() }
         }
         try Task.checkCancellation()
         let lines = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)

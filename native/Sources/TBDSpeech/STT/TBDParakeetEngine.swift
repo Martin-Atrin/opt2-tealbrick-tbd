@@ -80,7 +80,7 @@ public final class TBDParakeetEngine: TBDSpeechEngine, @unchecked Sendable {
         let (manager, layers) = try await manager(lane)
         let progressTask: Task<Void, Never>? = progress.map { report in
             Task {
-                guard let stream = try? await manager.transcriptionProgressStream else { return }
+                let stream = await manager.transcriptionProgressStream
                 do { for try await value in stream { report(value) } } catch {}
             }
         }

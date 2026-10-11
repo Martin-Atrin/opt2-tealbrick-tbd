@@ -60,7 +60,7 @@ public enum TBDSpeechError: Error, LocalizedError, Equatable {
         case .microphoneUnavailable(let message): return "The microphone could not start: \(message)"
         case .dropped: return "The speech job was dropped because the queue was full."
         case .busy(let what): return "\(what) is already in progress."
-        case .toolMissing(let tool): return "\(tool) was not found on your PATH."
+        case .toolMissing(let tool): return "\(tool) was not found on your PATH. Install it (for example with Homebrew) and try again."
         }
     }
 }

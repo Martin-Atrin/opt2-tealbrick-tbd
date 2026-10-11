@@ -16,6 +16,7 @@ final class TBDDictationController: ObservableObject {
     private var levelTimer: Timer?
     private var targetApp: NSRunningApplication?
     private var processing: Task<Void, Never>?
+    private var starting: Task<Void, Never>?
     private var hotkeyHeld = false
 
     init(env: TBDListeningEnvironment) {
@@ -78,11 +79,12 @@ final class TBDDictationController: ObservableObject {
         self.recorder = recorder
         isRecording = true
         env.overlay.show(.recording(handsFree: handsFree))
-        Task {
+        starting = Task {
+            defer { starting = nil }
             do {
                 try await recorder.start()
-                guard self.recorder === recorder else { await recorder.cancel(); return }
-                startLevelTimer(recorder)
+                // finish() and cancel() wait for this task, so only the live UI is started here.
+                if self.recorder === recorder { startLevelTimer(recorder) }
             } catch {
                 if self.recorder === recorder { self.recorder = nil; isRecording = false }
                 gesture.reset(keyHeld: hotkeyHeld)
@@ -94,7 +96,12 @@ final class TBDDictationController: ObservableObject {
     private func startLevelTimer(_ recorder: TBDAudioRecorder) {
         levelTimer?.invalidate()
         levelTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 20, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.env.overlay.update(levels: recorder.recentLevels, elapsedMs: recorder.elapsedMs) }
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.env.overlay.update(levels: recorder.recentLevels, elapsedMs: recorder.elapsedMs)
+                // Microphone lost or disk full: keep what was said.
+                if recorder.interrupted, self.recorder === recorder { self.finish() }
+            }
         }
     }
 
@@ -106,7 +113,11 @@ final class TBDDictationController: ObservableObject {
         self.recorder = nil
         isRecording = false
         env.overlay.hide()
-        Task { await recorder.cancel() }
+        let startup = starting
+        Task {
+            await startup?.value
+            await recorder.cancel()
+        }
     }
 
     func finish() {
@@ -118,9 +129,11 @@ final class TBDDictationController: ObservableObject {
         isProcessing = true
         env.overlay.show(.processing("Transcribing…"))
         let target = targetApp
+        let startup = starting
         processing = Task {
             defer { isProcessing = false; processing = nil }
             do {
+                await startup?.value
                 let recording = try await recorder.stop()
                 guard recording.durationMs >= 250 else {
                     try? FileManager.default.removeItem(at: recording.url)
@@ -130,6 +143,8 @@ final class TBDDictationController: ObservableObject {
                 try await transcribeAndPaste(recording, target: target)
             } catch is CancellationError {
                 env.overlay.hide()
+            } catch TBDSpeechError.audioUnreadable("not recording") {
+                env.overlay.hide()   // The microphone never started; the start error is already shown.
             } catch {
                 show(error.localizedDescription)
             }
@@ -175,7 +190,9 @@ final class TBDDictationController: ObservableObject {
                                                  targetApp: target?.localizedName, audioPath: audio?.path, engine: transcript.engine))
             env.changed()
         }
-        if let pasteError { show(pasteError.localizedDescription) } else { env.overlay.hide() }
+        if let pasteError { show(pasteError.localizedDescription) }
+        else if let warning = recording.warning { show(warning) }
+        else { env.overlay.hide() }
     }
 
     private func show(_ message: String) {
