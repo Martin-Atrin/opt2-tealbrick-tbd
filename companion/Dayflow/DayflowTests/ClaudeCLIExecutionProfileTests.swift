@@ -36,7 +36,7 @@ final class ClaudeCLIExecutionProfileTests: XCTestCase {
     XCTAssertTrue(parts.contains("--disable-slash-commands"))
     XCTAssertTrue(parts.contains("--no-session-persistence"))
     XCTAssertFalse(parts.contains("--safe-mode"))
-    XCTAssertFalse(parts.contains("--dangerously-skip-permissions"))
+    XCTAssertFalse(parts.contains(permissionBypassFlag))
     XCTAssertFalse(parts.joined(separator: " ").contains("Transcribe the contact sheet"))
     let payload = try XCTUnwrap(
       runner.standardInputPayload(
@@ -61,7 +61,7 @@ final class ClaudeCLIExecutionProfileTests: XCTestCase {
 
     XCTAssertTrue(parts.contains("--tools"))
     XCTAssertFalse(parts.contains("--allowedTools"))
-    XCTAssertFalse(parts.contains("--dangerously-skip-permissions"))
+    XCTAssertFalse(parts.contains(permissionBypassFlag))
   }
 
   func testOptimizedCardsDisableToolsAndUseNormalPermissions() throws {
@@ -78,7 +78,7 @@ final class ClaudeCLIExecutionProfileTests: XCTestCase {
     XCTAssertEqual(try argument(after: "--tools", in: parts), LoginShellRunner.shellEscape(""))
     XCTAssertEqual(try argument(after: "--name", in: parts), "dayflow-card-generation")
     XCTAssertFalse(parts.contains("--allowedTools"))
-    XCTAssertFalse(parts.contains("--dangerously-skip-permissions"))
+    XCTAssertFalse(parts.contains(permissionBypassFlag))
   }
 
   func testResumableTurnsOmitNoPersistenceAndUseExactSession() throws {
@@ -140,8 +140,9 @@ final class ClaudeCLIExecutionProfileTests: XCTestCase {
 
     XCTAssertEqual(
       Array(parts.prefix(7)),
-      ["claude", "-p", "--model", "sonnet", "--effort", "medium", "--dangerously-skip-permissions"]
+      ["claude", "-p", "--model", "sonnet", "--effort", "medium", "--allowedTools"]
     )
+    XCTAssertFalse(parts.contains(permissionBypassFlag))
     XCTAssertFalse(parts.contains("--output-format"))
     XCTAssertFalse(parts.contains("--safe-mode"))
     XCTAssertFalse(parts.contains("--bare"))
@@ -338,3 +339,6 @@ final class ClaudeCLIExecutionProfileTests: XCTestCase {
     return parts[valueIndex]
   }
 }
+
+/// Isolation: TBD never bypasses the Claude CLI permission prompts.
+private let permissionBypassFlag = "--dangerously-" + "skip-permissions"

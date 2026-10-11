@@ -21,7 +21,6 @@ enum SidebarIcon: CaseIterable {
   case timeline
   case daily
   case weekly
-  case agents
   case review
   case settings
 
@@ -30,7 +29,6 @@ enum SidebarIcon: CaseIterable {
     case .timeline: return "TimelineIcon"
     case .daily: return "DailyIcon"
     case .weekly: return "WeeklyIcon"
-    case .agents: return "AgentsIcon"
     case .review: return nil
     case .settings: return nil
     }
@@ -38,7 +36,6 @@ enum SidebarIcon: CaseIterable {
 
   var systemNameFallback: String? {
     switch self {
-    case .agents: return "sparkles"
     case .review: return "rectangle.stack"
     case .settings: return "gearshape.fill"
     default: return nil
@@ -56,7 +53,6 @@ enum SidebarIcon: CaseIterable {
       return String(
         localized: "sidebar.weekly", defaultValue: "Weekly",
         comment: "Short sidebar label for the weekly recap view.")
-    case .agents: return String(localized: "Agents")
     case .review: return "Review"
     case .settings: return String(localized: "Settings")
     }
@@ -67,7 +63,6 @@ enum SidebarIcon: CaseIterable {
     case .timeline: return "timeline"
     case .daily: return "daily"
     case .weekly: return "weekly"
-    case .agents: return "agents"
     case .review: return "review"
     case .settings: return "settings"
     }

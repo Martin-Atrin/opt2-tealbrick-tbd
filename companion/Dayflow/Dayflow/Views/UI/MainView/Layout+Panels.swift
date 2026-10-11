@@ -64,8 +64,6 @@ extension MainView {
           .padding(15)
       case .review:
         ReviewCardsView()
-      case .agents:
-        AgentPlaybackView()
       case .daily:
         DailyView(selectedDate: $selectedDate)
       case .weekly:
@@ -79,11 +77,7 @@ extension MainView {
     .padding(0)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .clipShape(RoundedRectangle(cornerRadius: TBDTokens.Radius.base))
-    .background {
-      if selectedIcon != .agents || !theme.isDark {
-        mainPanelBackground
-      }
-    }
+    .background { mainPanelBackground }
   }
 
   private var mainPanelBackground: some View {

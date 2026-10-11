@@ -68,7 +68,7 @@ final class TBDChatRuntime: NSObject, ObservableObject, WKScriptMessageHandler, 
   func accountCall(_ channel: String, args: [Any] = []) async throws -> Any {
     let allowed: Set<String> = ["session", "controlPlanes", "portalWorkspaces", "selectPortalWorkspace", "signIn", "awaitSignIn", "cancelSignIn", "signOut", "activateControlPlane", "addControlPlane", "removeControlPlane",
       // Read-only: remote agent directory and session index for the Companion Agent wall.
-      "listAgents", "listSessions"]
+      "listAgents"]
     guard allowed.contains(channel) else { throw failure("Unsupported account operation") }
     start()
     guard ready || process?.isRunning == true else { throw failure(status) }
@@ -97,8 +97,10 @@ final class TBDChatRuntime: NSObject, ObservableObject, WKScriptMessageHandler, 
     p.arguments = [resources.appendingPathComponent("Chat/helper.cjs").path]
     let data = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/TBD/Chat")
     try FileManager.default.createDirectory(at: data, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-    var env = ProcessInfo.processInfo.environment
-    env["TBD_CHAT_DATA"] = data.path
+    // Isolation: the helper gets an allow-listed environment, never the app's.
+    let inherited = ProcessInfo.processInfo.environment
+    var env: [String: String] = ["TBD_CHAT_DATA": data.path, "HOME": inherited["HOME"] ?? NSHomeDirectory(), "PATH": "/usr/bin:/bin"]
+    for key in ["TMPDIR", "LANG", "LC_ALL", "TBD_PORTAL_URL", "TBD_CHAT_DEBUG_STREAM"] { if let v = inherited[key] { env[key] = v } }
     p.environment = env
     p.standardInput = stdin; p.standardOutput = stdout; p.standardError = stderr
     let reader = TBDLineReader()
