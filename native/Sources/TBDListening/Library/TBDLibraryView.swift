@@ -11,6 +11,8 @@ struct TBDLibraryView: View {
     @State private var query = ""
     @State private var filter: TBDSourceKind?
     @State private var items: [TBDTranscription] = []
+    @State private var sort: TBDLibrarySort = .newest
+    @State private var dictationMatches = 0
 
     var body: some View {
         HStack(alignment: .top, spacing: TBDTokens.Space.lg) {
@@ -20,20 +22,39 @@ struct TBDLibraryView: View {
                     TextField("Search transcripts", text: $query).textFieldStyle(.plain)
                 }
                 .tbdField()
-                if kind == nil {
-                    Picker("Show", selection: $filter) {
-                        Text("All").tag(TBDSourceKind?.none)
-                        ForEach(TBDSourceKind.allCases, id: \.self) { Text($0.label).tag(TBDSourceKind?.some($0)) }
+                HStack(spacing: TBDTokens.Space.sm) {
+                    if kind == nil {
+                        Picker("Show", selection: $filter) {
+                            Text("All").tag(TBDSourceKind?.none)
+                            ForEach(TBDSourceKind.allCases, id: \.self) { Text($0.label).tag(TBDSourceKind?.some($0)) }
+                        }
+                        .pickerStyle(.menu).labelsHidden().fixedSize()
+                    }
+                    Picker("Sort", selection: $sort) {
+                        ForEach(TBDLibrarySort.allCases, id: \.self) { Text($0.title).tag($0) }
                     }
                     .pickerStyle(.menu).labelsHidden().fixedSize()
+                }
+                if kind == nil, dictationMatches > 0 {
+                    Button("\(dictationMatches) dictation\(dictationMatches == 1 ? "" : "s") also match") {
+                        env.dictationQuery = query
+                        env.selectedTab = .dictations
+                    }
+                    .buttonStyle(TBDButtonStyle(.quiet))
                 }
                 if items.isEmpty {
                     Text(query.isEmpty ? "Nothing here yet. Drop a file, paste a link or record a meeting." : "No matches.")
                         .foregroundStyle(TBDTokens.muted).font(TBDTokens.Typography.body).padding(.top, TBDTokens.Space.lg)
                     Spacer()
                 } else {
-                    List(items, selection: $env.selectedTranscriptionID) { item in
-                        TBDLibraryRow(item: item).tag(item.id)
+                    List(selection: $env.selectedTranscriptionID) {
+                        if sort == .title {
+                            ForEach(items) { item in TBDLibraryRow(item: item).tag(item.id) }
+                        } else {
+                            ForEach(Self.groups(items), id: \.0) { group, entries in
+                                Section(group.title) { ForEach(entries) { item in TBDLibraryRow(item: item).tag(item.id) } }
+                            }
+                        }
                     }
                     .listStyle(.inset)
                     .scrollContentBackground(.hidden)
@@ -50,15 +71,31 @@ struct TBDLibraryView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .task(id: "\(query)|\(String(describing: filter))|\(env.revision)") {
+        .task(id: "\(query)|\(String(describing: filter))|\(sort)|\(env.revision)") {
             // Debounce typing.
             try? await Task.sleep(for: .milliseconds(150))
             guard !Task.isCancelled else { return }
-            items = (try? env.database?.transcriptions(kind: kind ?? filter, matching: query)) ?? []
+            items = (try? env.database?.transcriptions(kind: kind ?? filter, matching: query, sort: sort)) ?? []
+            dictationMatches = kind == nil ? ((try? env.database?.dictationMatchCount(query)) ?? 0) : 0
             if env.selectedTranscriptionID == nil || !items.contains(where: { $0.id == env.selectedTranscriptionID }) && kind != nil {
                 env.selectedTranscriptionID = items.first?.id
             }
         }
+    }
+}
+
+extension TBDLibraryView {
+    /// Date sections (Today, Yesterday, Previous 7 / 30 days, months), keeping the list order inside each.
+    static func groups(_ items: [TBDTranscription]) -> [(TBDDateGroup, [TBDTranscription])] {
+        var order: [TBDDateGroup] = []
+        var buckets: [TBDDateGroup: [TBDTranscription]] = [:]
+        let now = Date()
+        for item in items {
+            let group = TBDDateGroup.of(item.createdAt, now: now)
+            if buckets[group] == nil { order.append(group) }
+            buckets[group, default: []].append(item)
+        }
+        return order.sorted().map { ($0, buckets[$0] ?? []) }
     }
 }
 
