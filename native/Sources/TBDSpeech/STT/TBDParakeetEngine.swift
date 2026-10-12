@@ -5,7 +5,7 @@ import Foundation
 /// NVIDIA Parakeet TDT v2/v3 through FluidAudio (CoreML, Neural Engine).
 /// One shared model bundle; each lane owns an `AsrManager` so dictation never waits for a file job.
 public final class TBDParakeetEngine: TBDSpeechEngine, @unchecked Sendable {
-    public let choice: TBDEngineChoice
+    public let kind: TBDSpeechEngineKind
     private let version: AsrModelVersion
     private let directory: URL
     private let lock = NSLock()
@@ -13,29 +13,30 @@ public final class TBDParakeetEngine: TBDSpeechEngine, @unchecked Sendable {
     private var decoderLayers = 0
     private var loading: Task<Void, Error>?
 
-    public init(choice: TBDEngineChoice, modelsRoot: URL = TBDListeningPaths.models) {
-        precondition(choice != .whisper)
-        self.choice = choice
-        version = choice == .parakeetV2 ? .v2 : .v3
-        directory = Self.directory(for: choice, modelsRoot: modelsRoot)
+    /// TDT v2 or v3 (`kind` is `.parakeetV2` or `.parakeetV3`).
+    public init(kind: TBDSpeechEngineKind, modelsRoot: URL = TBDListeningPaths.models) {
+        precondition(kind == .parakeetV2 || kind == .parakeetV3)
+        self.kind = kind
+        version = kind == .parakeetV2 ? .v2 : .v3
+        directory = Self.directory(for: kind, modelsRoot: modelsRoot)
     }
 
-    static func directory(for choice: TBDEngineChoice, modelsRoot: URL) -> URL {
-        let repo: Repo = choice == .parakeetV2 ? .parakeetV2 : .parakeetV3
+    static func directory(for kind: TBDSpeechEngineKind, modelsRoot: URL) -> URL {
+        let repo: Repo = kind == .parakeetV2 ? .parakeetV2 : .parakeetV3
         return modelsRoot.appendingPathComponent(repo.folderName, isDirectory: true)
     }
 
-    static func isDownloaded(_ choice: TBDEngineChoice, modelsRoot: URL = TBDListeningPaths.models) -> Bool {
-        AsrModels.modelsExist(at: directory(for: choice, modelsRoot: modelsRoot), version: choice == .parakeetV2 ? .v2 : .v3)
+    static func isDownloaded(_ kind: TBDSpeechEngineKind, modelsRoot: URL = TBDListeningPaths.models) -> Bool {
+        AsrModels.modelsExist(at: directory(for: kind, modelsRoot: modelsRoot), version: kind == .parakeetV2 ? .v2 : .v3)
     }
 
     /// Downloads (or validates) the model files. Only called from an explicit user action.
-    static func download(_ choice: TBDEngineChoice, modelsRoot: URL = TBDListeningPaths.models,
+    static func download(_ kind: TBDSpeechEngineKind, modelsRoot: URL = TBDListeningPaths.models,
                          progress: (@Sendable (Double) -> Void)?) async throws {
         try TBDListeningPaths.ensure(modelsRoot)
-        try await AsrModels.download(to: directory(for: choice, modelsRoot: modelsRoot),
-                                     version: choice == .parakeetV2 ? .v2 : .v3,
-                                     progressHandler: progress.map { report in { @Sendable value in report(value.fractionCompleted) } })
+        try await AsrModels.download(to: directory(for: kind, modelsRoot: modelsRoot),
+                                     version: kind == .parakeetV2 ? .v2 : .v3,
+                                     progressHandler: TBDEngineSupport.progressHandler(progress))
     }
 
     public func prepare() async throws {
@@ -51,8 +52,8 @@ public final class TBDParakeetEngine: TBDSpeechEngine, @unchecked Sendable {
     }
 
     private func load() async throws {
-        guard Self.isDownloaded(choice, modelsRoot: directory.deletingLastPathComponent()) else {
-            throw TBDSpeechError.modelNotDownloaded(choice.displayName)
+        guard Self.isDownloaded(kind, modelsRoot: directory.deletingLastPathComponent()) else {
+            throw TBDSpeechError.modelNotDownloaded(kind.displayName)
         }
         // macOS 14: the conformer encoder on GPU and one chunk at a time avoid the ANE reentrancy crash.
         let models = try await AsrModels.load(from: directory, version: version,
@@ -91,7 +92,7 @@ public final class TBDParakeetEngine: TBDSpeechEngine, @unchecked Sendable {
     }
 
     public func transcribe(samples: [Float], lane: TBDLane) async throws -> TBDTranscript {
-        guard !samples.isEmpty else { return TBDTranscript(text: "", engine: choice.rawValue) }
+        guard !samples.isEmpty else { return TBDTranscript(text: "", engine: kind.rawValue) }
         let (manager, layers) = try await manager(lane)
         // A short trailing pad lets the TDT decoder emit a final word that lands on the last frame.
         var padded = samples
@@ -109,7 +110,7 @@ public final class TBDParakeetEngine: TBDSpeechEngine, @unchecked Sendable {
         let tokens = (result.tokenTimings ?? []).map { (token: $0.token, start: $0.startTime, end: $0.endTime, confidence: $0.confidence) }
         return TBDTranscript(text: result.text.trimmingCharacters(in: .whitespacesAndNewlines),
                              words: TBDWordTiming.words(tokens: tokens), language: nil,
-                             engine: choice.rawValue, durationMs: Int(result.duration * 1000))
+                             engine: kind.rawValue, durationMs: Int(result.duration * 1000))
     }
 
     public func unload() async {

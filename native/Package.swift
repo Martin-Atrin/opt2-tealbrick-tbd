@@ -40,8 +40,13 @@ let package = Package(
         .executableTarget(name: "TBDListenCLI", dependencies: [
             "TBDSpeech",
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
-        ]),
+        ], exclude: ["README.md"]),
         .testTarget(name: "TBDModelsTests", dependencies: ["TBDModels"]),
-        .testTarget(name: "TBDSpeechTests", dependencies: ["TBDSpeech"]),
+        .testTarget(name: "TBDSpeechTests", dependencies: [
+            "TBDSpeech",
+            // CLI argument parsing and JSON shape tests (`@testable import TBDListenCLI`).
+            "TBDListenCLI",
+            .product(name: "ArgumentParser", package: "swift-argument-parser"),
+        ]),
     ]
 )

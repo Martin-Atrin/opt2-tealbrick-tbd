@@ -41,9 +41,9 @@ final class TBDFileQueue: ObservableObject {
     func promptForURL() {
         let alert = NSAlert()
         alert.messageText = "Transcribe a link"
-        alert.informativeText = "Paste a video or podcast link. Listening uses the yt-dlp already installed on this Mac."
+        alert.informativeText = "Paste a video or Apple Podcasts link, or type a podcast name and episode (for example “hard fork 120”). Podcasts are found with the Apple Podcasts directory; other videos use the yt-dlp already installed on this Mac."
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 360, height: 24))
-        field.placeholderString = "https://…"
+        field.placeholderString = "https://… or podcast name and episode"
         if let clip = NSPasteboard.general.string(forType: .string), TBDLinkDownloader.validate(clip) != nil { field.stringValue = clip }
         alert.accessoryView = field
         alert.addButton(withTitle: "Transcribe")
@@ -62,8 +62,9 @@ final class TBDFileQueue: ObservableObject {
     }
 
     func enqueue(link text: String) {
-        guard let url = TBDLinkDownloader.validate(text) else { onMessage?("Enter a valid http or https link."); return }
-        items.append(Item(source: .link(url), title: url.host ?? url.absoluteString))
+        guard let url = TBDLinkDownloader.linkOrPodcastSearch(text) else { onMessage?("Enter a link or a podcast name."); return }
+        let title = url.scheme == TBDLinkDownloader.podcastSearchScheme ? "Podcast: \(text.trimmingCharacters(in: .whitespacesAndNewlines))" : url.host ?? url.absoluteString
+        items.append(Item(source: .link(url), title: title))
         pump()
     }
 
@@ -120,7 +121,7 @@ final class TBDFileQueue: ObservableObject {
                 defer { try? FileManager.default.removeItem(at: download.file) }
                 update(id) { $0.title = download.title }
                 result = try await transcriber.transcribe(file: download.file, kind: .url, title: download.title,
-                                                          sourceURL: url.absoluteString, keepAudio: env.preferences.keepAudio, progress: progress)
+                                                          sourceURL: download.sourceURL ?? url.absoluteString, keepAudio: env.preferences.keepAudio, progress: progress)
             }
             update(id) { $0.state = .done(result.id) }
             env.selectedTranscriptionID = result.id

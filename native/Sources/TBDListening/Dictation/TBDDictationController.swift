@@ -8,6 +8,8 @@ final class TBDDictationController: ObservableObject {
     @Published private(set) var isRecording = false
     @Published private(set) var isProcessing = false
     @Published var lastMessage = ""
+    /// Display-only text while recording (engines with live preview); empty otherwise.
+    @Published private(set) var livePartial = ""
 
     private let env: TBDListeningEnvironment
     private var gesture = TBDHotkeyGesture()
@@ -18,6 +20,7 @@ final class TBDDictationController: ObservableObject {
     private var processing: Task<Void, Never>?
     private var starting: Task<Void, Never>?
     private var hotkeyHeld = false
+    private var preview: TBDLivePreview?
 
     init(env: TBDListeningEnvironment) {
         self.env = env
@@ -78,15 +81,26 @@ final class TBDDictationController: ObservableObject {
         let recorder = TBDAudioRecorder(microphone: env.microphone)
         self.recorder = recorder
         isRecording = true
+        // The preview buffers samples from the first one while the live engine attaches.
+        let preview = env.preferences.dictationLivePreview ? TBDLivePreview { [weak self] text in self?.showPartial(text) } : nil
+        if let preview { recorder.sampleSink = { preview.append($0) } }
+        self.preview = preview
+        livePartial = ""
         env.overlay.show(.recording(handsFree: handsFree))
         starting = Task {
             defer { starting = nil }
             do {
                 try await recorder.start()
                 // finish() and cancel() wait for this task, so only the live UI is started here.
-                if self.recorder === recorder { startLevelTimer(recorder) }
+                if self.recorder === recorder {
+                    startLevelTimer(recorder)
+                    if let preview { await env.speech.startLivePreview(preview) }
+                }
             } catch {
-                if self.recorder === recorder { self.recorder = nil; isRecording = false }
+                if self.recorder === recorder {
+                    self.recorder = nil; isRecording = false
+                    await takePreview()?.stop()
+                }
                 gesture.reset(keyHeld: hotkeyHeld)
                 show(error.localizedDescription)
             }
@@ -105,10 +119,27 @@ final class TBDDictationController: ObservableObject {
         }
     }
 
+    /// Shows a partial while still recording.
+    private func showPartial(_ text: String) {
+        guard isRecording else { return }
+        livePartial = text
+        env.overlay.update(partial: text)
+    }
+
+    /// Detaches the live preview; the caller awaits the result before the final pass.
+    private func takePreview() -> TBDLivePreview? {
+        defer { preview = nil }
+        livePartial = ""
+        env.overlay.update(partial: "")
+        return preview
+    }
+
     func cancel() {
         levelTimer?.invalidate()
         gesture.reset(keyHeld: hotkeyHeld)
         processing?.cancel()
+        let preview = takePreview()
+        Task { await preview?.stop() }
         guard let recorder else { if isProcessing { env.overlay.hide() }; return }
         self.recorder = nil
         isRecording = false
@@ -130,11 +161,14 @@ final class TBDDictationController: ObservableObject {
         env.overlay.show(.processing("Transcribing…"))
         let target = targetApp
         let startup = starting
+        let preview = takePreview()
         processing = Task {
             defer { isProcessing = false; processing = nil }
             do {
                 await startup?.value
                 let recording = try await recorder.stop()
+                // Free the live engine's interactive lane before the final pass.
+                await preview?.stop()
                 guard recording.durationMs >= 250 else {
                     try? FileManager.default.removeItem(at: recording.url)
                     env.overlay.hide()

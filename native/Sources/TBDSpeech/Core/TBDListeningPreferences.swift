@@ -1,18 +1,5 @@
 import Foundation
 
-/// Speech engines Listening can run. One is resident at a time.
-public enum TBDEngineChoice: String, CaseIterable, Codable, Sendable {
-    case parakeetV3, parakeetV2, whisper
-
-    public var displayName: String {
-        switch self {
-        case .parakeetV3: "Parakeet v3 (multilingual)"
-        case .parakeetV2: "Parakeet v2 (English)"
-        case .whisper: "Whisper Large v3 Turbo"
-        }
-    }
-}
-
 /// A saved prompt for text transforms.
 public struct TBDTransformPrompt: Codable, Sendable, Equatable, Identifiable, Hashable {
     public var id: String
@@ -36,8 +23,15 @@ public struct TBDListeningPreferences: @unchecked Sendable {
     public init(defaults: UserDefaults = .standard) { self.defaults = defaults }
 
     enum Key {
+        /// Live route (dictation, meeting preview). The original single-engine key, so upgrades keep their choice.
         static let engine = "tbd.listening.engine"
+        /// Final route override (files, links, meeting transcript). Absent: follows the live engine.
+        static let finalEngine = "tbd.listening.finalEngine"
         static let whisperLanguage = "tbd.listening.whisperLanguage"
+        static let nemotronLanguage = "tbd.listening.nemotronLanguage"
+        static let cohereLanguage = "tbd.listening.cohereLanguage"
+        static let dictationLivePreview = "tbd.listening.dictationLivePreview"
+        static let meetingLivePreview = "tbd.listening.meetingLivePreview"
         static let microphoneUID = "tbd.listening.microphoneUID"
         static let keepAudio = "tbd.listening.keepAudio"
         static let keepHistory = "tbd.listening.keepHistory"
@@ -54,25 +48,106 @@ public struct TBDListeningPreferences: @unchecked Sendable {
         static let diarize = "tbd.listening.diarize"
     }
 
-    /// In-memory override of the engine for this process only (argument domain; nothing is written).
-    public func overridingEngine(_ engine: TBDEngineChoice) {
+    /// In-memory override of both routes for this process only (argument domain; nothing is written).
+    public func overridingEngine(_ engine: TBDSpeechEngineKind) {
         var arguments = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
         arguments[Key.engine] = engine.rawValue
+        arguments[Key.finalEngine] = engine.rawValue
         defaults.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain)
     }
+
+    /// Keys `tbd-listen config` may read and write, with their defaults.
+    public static let configKeys: [String] = [
+        "liveEngine", "finalEngine", "whisperLanguage", "nemotronLanguage", "cohereLanguage", "dictationLivePreview",
+        "meetingLivePreview", "keepAudio", "keepHistory", "removeFillers", "dictationCleanup", "diarize",
+        "calendarReminders", "calendarAutoStart", "dictationHotkey", "transformHotkey", "microphoneUID",
+    ]
 
     private func bool(_ key: String, default value: Bool) -> Bool {
         defaults.object(forKey: key) == nil ? value : defaults.bool(forKey: key)
     }
 
-    public var engine: TBDEngineChoice {
-        get { TBDEngineChoice(rawValue: defaults.string(forKey: Key.engine) ?? "") ?? .parakeetV3 }
+    /// The live engine (dictation and meeting preview). Same as `liveEngine`.
+    public var engine: TBDSpeechEngineKind {
+        get { TBDSpeechEngineKind(rawValue: defaults.string(forKey: Key.engine) ?? "") ?? .parakeetV3 }
         nonmutating set { defaults.set(newValue.rawValue, forKey: Key.engine) }
     }
+    public var liveEngine: TBDSpeechEngineKind {
+        get { engine }
+        nonmutating set { engine = newValue }
+    }
+    /// Explicit final engine, or nil to follow the live engine. An override equal to the live
+    /// engine stays set, so changing the live engine later does not move the final route.
+    public var finalEngineOverride: TBDSpeechEngineKind? {
+        get { defaults.string(forKey: Key.finalEngine).flatMap(TBDSpeechEngineKind.init(rawValue:)) }
+        nonmutating set {
+            if let newValue { defaults.set(newValue.rawValue, forKey: Key.finalEngine) } else { defaults.removeObject(forKey: Key.finalEngine) }
+        }
+    }
+    /// The final engine (files, links, meeting transcript).
+    public var finalEngine: TBDSpeechEngineKind { finalEngineOverride ?? engine }
+
+    public func engine(for route: TBDSpeechRoute) -> TBDSpeechEngineKind { route == .live ? engine : finalEngine }
+
+    /// Engine and language for a route.
+    public func selection(for route: TBDSpeechRoute) -> TBDEngineSelection {
+        let kind = engine(for: route)
+        return TBDEngineSelection(kind: kind, language: language(for: kind))
+    }
+
+    /// Stored language preference for an engine (nil: automatic or engine default).
+    public func language(for kind: TBDSpeechEngineKind) -> String? {
+        switch kind {
+        case .whisper: whisperLanguage
+        case .nemotronMultilingual: nemotronLanguage
+        case .cohere: cohereLanguage
+        default: nil
+        }
+    }
+
+    public func setLanguage(_ language: String?, for kind: TBDSpeechEngineKind) {
+        let value = Self.normalizedLanguage(language)
+        switch kind {
+        case .whisper: whisperLanguage = value
+        case .nemotronMultilingual: nemotronLanguage = value
+        case .cohere: cohereLanguage = value.flatMap { TBDEngineCapabilities.cohereLanguages.contains($0) ? $0 : nil }
+        default: break
+        }
+    }
+
+    /// Lower-cased primary subtag ("en-US" → "en"); empty or "auto" → nil.
+    public static func normalizedLanguage(_ language: String?) -> String? {
+        guard let trimmed = language?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              !trimmed.isEmpty, trimmed != "auto" else { return nil }
+        let primary = trimmed.replacingOccurrences(of: "_", with: "-").split(separator: "-").first.map(String.init) ?? trimmed
+        guard (2...3).contains(primary.count), primary.allSatisfy(\.isLetter) else { return nil }
+        return primary
+    }
+
     /// ISO code, or nil for automatic detection (Whisper only).
     public var whisperLanguage: String? {
         get { defaults.string(forKey: Key.whisperLanguage).flatMap { $0.isEmpty ? nil : $0 } }
         nonmutating set { defaults.set(newValue, forKey: Key.whisperLanguage) }
+    }
+    /// Language hint for Nemotron Multilingual, or nil for automatic detection.
+    public var nemotronLanguage: String? {
+        get { defaults.string(forKey: Key.nemotronLanguage).flatMap { $0.isEmpty ? nil : $0 } }
+        nonmutating set { defaults.set(newValue, forKey: Key.nemotronLanguage) }
+    }
+    /// Cohere has no language detection; nil means English.
+    public var cohereLanguage: String? {
+        get { defaults.string(forKey: Key.cohereLanguage).flatMap { $0.isEmpty ? nil : $0 } }
+        nonmutating set { defaults.set(newValue, forKey: Key.cohereLanguage) }
+    }
+    /// Show text in the dictation pill while speaking (engines with live preview only).
+    public var dictationLivePreview: Bool {
+        get { bool(Key.dictationLivePreview, default: true) }
+        nonmutating set { defaults.set(newValue, forKey: Key.dictationLivePreview) }
+    }
+    /// Transcribe meetings live while recording.
+    public var meetingLivePreview: Bool {
+        get { bool(Key.meetingLivePreview, default: true) }
+        nonmutating set { defaults.set(newValue, forKey: Key.meetingLivePreview) }
     }
     /// Input device UID, or nil to follow the System Default input.
     public var microphoneUID: String? {

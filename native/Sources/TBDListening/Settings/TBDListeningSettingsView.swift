@@ -41,14 +41,19 @@ final class TBDModelsModel: ObservableObject {
     @Published var statuses: [TBDModelManager.Status] = []
     @Published var progress: [TBDModelManager.Model: Double] = [:]
     @Published var error: String?
-    let manager = TBDModelManager()
+    /// Reads the Nemotron language preference, which picks that model's variant.
+    var manager: TBDModelManager { TBDModelManager(preferences: TBDListeningPreferences()) }
 
     func refresh() { statuses = manager.status() }
 
+    func isDownloaded(_ engine: TBDSpeechEngineKind) -> Bool { manager.isDownloaded(engine: engine) }
+
+    /// Downloads only here, on the person's click.
     func download(_ model: TBDModelManager.Model) {
         guard progress[model] == nil else { return }
         progress[model] = 0
         error = nil
+        let manager = self.manager
         Task {
             do {
                 try await manager.download(model) { value in Task { @MainActor in if self.progress[model] != nil { self.progress[model] = value } } }
@@ -61,12 +66,35 @@ final class TBDModelsModel: ObservableObject {
     func delete(_ model: TBDModelManager.Model, inUse: Bool) {
         let alert = NSAlert()
         alert.messageText = "Delete \(model.title)?"
-        alert.informativeText = inUse ? "This is the selected engine. Listening cannot transcribe until you download it again or choose another engine." : "You can download it again later."
+        alert.informativeText = inUse ? "This is a selected engine. Listening cannot use it until you download it again or choose another engine." : "You can download it again later."
         alert.addButton(withTitle: "Delete")
         alert.addButton(withTitle: "Cancel")
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         do { try manager.delete(model) } catch { self.error = error.localizedDescription }
         refresh()
+    }
+}
+
+/// Capability chips for one engine.
+struct TBDEngineCapabilityChips: View {
+    let kind: TBDSpeechEngineKind
+    var body: some View {
+        let capabilities = kind.capabilities
+        HStack(spacing: TBDTokens.Space.xs) {
+            TBDChip(languageText(capabilities), color: TBDTokens.muted)
+            TBDChip(capabilities.wordTimestamps ? "Timestamps" : "Plain text", color: capabilities.wordTimestamps ? TBDTokens.accent : TBDTokens.alert)
+            if capabilities.streaming { TBDChip("Streaming") } else if capabilities.tailPreview { TBDChip("Live preview") }
+            if capabilities.diarizationCompatible { TBDChip("Speakers") }
+            if !capabilities.satisfiesMemory() { TBDChip("Needs 16 GB", color: TBDTokens.alert) }
+        }
+    }
+
+    private func languageText(_ capabilities: TBDEngineCapabilities) -> String {
+        switch capabilities.languageMode {
+        case .fixed: "English"
+        case .automatic: "\(capabilities.languages?.count ?? 0) languages"
+        case .selectable: capabilities.languages.map { "\($0.count) languages" } ?? "Many languages"
+        }
     }
 }
 
@@ -76,46 +104,124 @@ struct TBDEngineSettings: View {
     @StateObject private var models = TBDModelsModel()
     @State private var tick = 0
 
+    private static let followLive = "follow-live"
+
     var body: some View {
         let prefs = env.preferences
         VStack(alignment: .leading, spacing: 0) {
-            TBDSettingsRow("Speech engine", help: "One model stays loaded. Models download only when you click Download.") {
-                Picker("", selection: tbdBinding({ prefs.engine }, { prefs.engine = $0 }, refresh: { tick += 1; Task { await env.speech.warmUp() } })) {
-                    ForEach(TBDEngineChoice.allCases, id: \.self) { Text($0.displayName).tag($0) }
+            Text("Choose one engine for live text (dictation and the meeting live transcript) and one for final transcripts (files, links, podcasts and the meeting transcript after you stop). Up to two models stay loaded.")
+                .foregroundStyle(TBDTokens.muted).fixedSize(horizontal: false, vertical: true).padding(.bottom, TBDTokens.Space.md)
+            TBDSettingsRow("Live engine", help: "Dictation and meeting live transcript. Streaming engines show text while you speak.") {
+                VStack(alignment: .trailing, spacing: TBDTokens.Space.xs) {
+                    Picker("", selection: tbdBinding({ prefs.liveEngine }, { prefs.liveEngine = $0 }, refresh: changed)) {
+                        ForEach(TBDSpeechEngineKind.allCases) { Text(label($0)).tag($0) }
+                    }
+                    .labelsHidden().frame(width: 260)
+                    TBDEngineCapabilityChips(kind: prefs.liveEngine)
                 }
-                .labelsHidden().frame(width: 240)
             }
-            if prefs.engine == .whisper {
-                TBDSettingsRow("Whisper language", help: "ISO code such as en, de, ko. Leave empty to detect automatically.") {
-                    TextField("auto", text: tbdBinding({ prefs.whisperLanguage ?? "" }, { prefs.whisperLanguage = $0.trimmingCharacters(in: .whitespaces).lowercased() }))
-                        .tbdField().frame(width: 80)
+            TBDSettingsRow("Final engine", help: "Files, links, podcasts and meeting transcripts. Pick an accurate engine here; speed matters less.") {
+                VStack(alignment: .trailing, spacing: TBDTokens.Space.xs) {
+                    Picker("", selection: tbdBinding({ prefs.finalEngineOverride?.rawValue ?? Self.followLive },
+                                                     { prefs.finalEngineOverride = TBDSpeechEngineKind(rawValue: $0) }, refresh: changed)) {
+                        Text("Same as live engine").tag(Self.followLive)
+                        Divider()
+                        ForEach(TBDSpeechEngineKind.allCases) { Text(label($0)).tag($0.rawValue) }
+                    }
+                    .labelsHidden().frame(width: 260)
+                    TBDEngineCapabilityChips(kind: prefs.finalEngine)
                 }
             }
-            TBDSettingsRow("Speaker detection", help: "Label speakers in meetings and files (needs the speaker model).") {
+            if !prefs.finalEngine.capabilities.wordTimestamps {
+                Text("\(prefs.finalEngine.displayName) returns plain text: no subtitles (SRT, VTT), no speaker labels and no word timing for final transcripts.")
+                    .font(.system(size: 12)).foregroundStyle(TBDTokens.alert).fixedSize(horizontal: false, vertical: true)
+                    .padding(.vertical, TBDTokens.Space.xs)
+            }
+            ForEach(languageEngines(prefs)) { kind in languageRow(kind, prefs: prefs) }
+            TBDSettingsRow("Show text while dictating", help: prefs.liveEngine.capabilities.livePreview
+                           ? "Live preview in the dictation pill. The pasted text still comes from the full recording."
+                           : "\(prefs.liveEngine.displayName) has no live preview. Choose Parakeet or a streaming engine.") {
+                Toggle("", isOn: tbdBinding({ prefs.dictationLivePreview }, { prefs.dictationLivePreview = $0 }, refresh: changed))
+                    .labelsHidden().toggleStyle(.switch).disabled(!prefs.liveEngine.capabilities.livePreview)
+            }
+            TBDSettingsRow("Meeting live transcript", help: prefs.liveEngine.capabilities.meetingLivePreview
+                           ? "Transcribe meetings while recording, cut at pauses (voice activity model) when it is downloaded."
+                           : "\(prefs.liveEngine.displayName) has no timestamps, so meetings show no live transcript.") {
+                Toggle("", isOn: tbdBinding({ prefs.meetingLivePreview }, { prefs.meetingLivePreview = $0 }, refresh: changed))
+                    .labelsHidden().toggleStyle(.switch).disabled(!prefs.liveEngine.capabilities.meetingLivePreview)
+            }
+            TBDSettingsRow("Speaker detection", help: "Label speakers in meetings and files (needs the speaker model and an engine with timestamps).") {
                 Toggle("", isOn: tbdBinding({ prefs.diarize }, { prefs.diarize = $0 }, refresh: { tick += 1 })).labelsHidden().toggleStyle(.switch)
             }
             TBDLabel("Models").padding(.top, TBDTokens.Space.xl).padding(.bottom, TBDTokens.Space.xs)
-            ForEach(models.statuses) { status in
-                TBDSettingsRow(status.model.title, help: status.model.detail) {
-                    HStack(spacing: TBDTokens.Space.sm) {
-                        if let value = models.progress[status.model] {
-                            ProgressView(value: value).frame(width: 120)
-                        } else if status.downloaded {
-                            Text(status.bytes.tbdByteString).foregroundStyle(TBDTokens.muted)
-                            Button("Delete") { models.delete(status.model, inUse: TBDModelManager.Model(engine: prefs.engine) == status.model) }
-                                .buttonStyle(TBDButtonStyle(.quiet))
-                        } else {
-                            Button("Download") { models.download(status.model) }.buttonStyle(TBDButtonStyle(.secondary))
-                        }
-                    }
-                }
-            }
+            ForEach(models.statuses) { status in modelRow(status, prefs: prefs) }
             if let error = models.error { Text(error).foregroundStyle(TBDTokens.alert).padding(.top, TBDTokens.Space.sm) }
-            Text("Models are stored in \(TBDListeningPaths.models.path) · \(models.manager.totalBytes.tbdByteString) used")
-                .font(.system(size: 11)).foregroundStyle(TBDTokens.muted).padding(.top, TBDTokens.Space.md).textSelection(.enabled)
+            Text("Models download only when you click Download (from Hugging Face). Podcast links and searches use the Apple Podcasts directory (itunes.apple.com) and the show's RSS feed to find the episode audio; nothing else leaves this Mac. Models are stored in \(TBDListeningPaths.models.path) · \(models.manager.totalBytes.tbdByteString) used.")
+                .font(.system(size: 11)).foregroundStyle(TBDTokens.muted).fixedSize(horizontal: false, vertical: true)
+                .padding(.top, TBDTokens.Space.md).textSelection(.enabled)
         }
         .id(tick)
         .onAppear { models.refresh() }
+    }
+
+    private func changed() {
+        tick += 1
+        models.refresh()
+        Task { await env.speech.warmUp() }
+    }
+
+    private func label(_ kind: TBDSpeechEngineKind) -> String {
+        kind.displayName + (models.isDownloaded(kind) ? "" : " (not downloaded)")
+    }
+
+    /// Selected engines that take a language choice.
+    private func languageEngines(_ prefs: TBDListeningPreferences) -> [TBDSpeechEngineKind] {
+        var kinds: [TBDSpeechEngineKind] = []
+        for kind in [prefs.liveEngine, prefs.finalEngine] where kind.capabilities.languageMode == .selectable && !kinds.contains(kind) {
+            kinds.append(kind)
+        }
+        return kinds
+    }
+
+    @ViewBuilder
+    private func languageRow(_ kind: TBDSpeechEngineKind, prefs: TBDListeningPreferences) -> some View {
+        let capabilities = kind.capabilities
+        let help = kind == .cohere ? "Cohere cannot detect the language; it transcribes in the one you choose."
+            : kind == .nemotronMultilingual ? "A language hint loads a smaller, faster model for English, Spanish, French, Italian, Portuguese and German (a separate download)."
+            : "ISO code such as en, de, ko. Leave empty to detect automatically."
+        TBDSettingsRow("\(capabilities.displayName) language", help: help) {
+            if let languages = capabilities.languages {
+                Picker("", selection: tbdBinding({ prefs.language(for: kind) ?? capabilities.defaultLanguage ?? "" },
+                                                 { prefs.setLanguage($0, for: kind) }, refresh: changed)) {
+                    ForEach(languages, id: \.self) { code in
+                        Text(Locale.current.localizedString(forLanguageCode: code).map { "\($0) (\(code))" } ?? code).tag(code)
+                    }
+                }
+                .labelsHidden().frame(width: 200)
+            } else {
+                TextField("auto", text: tbdBinding({ prefs.language(for: kind) ?? "" }, { prefs.setLanguage($0, for: kind) }, refresh: { models.refresh() }))
+                    .tbdField().frame(width: 80)
+            }
+        }
+    }
+
+    private func modelRow(_ status: TBDModelManager.Status, prefs: TBDListeningPreferences) -> some View {
+        let model = status.model
+        let roles = [model.engine == prefs.liveEngine ? "live" : nil, model.engine == prefs.finalEngine ? "final" : nil].compactMap { $0 }
+        let inUse = !roles.isEmpty
+        let title = model.title + (roles.isEmpty ? "" : " · " + roles.joined(separator: " and "))
+        return TBDSettingsRow(title, help: model.detail) {
+            HStack(spacing: TBDTokens.Space.sm) {
+                if let value = models.progress[model] {
+                    ProgressView(value: value).frame(width: 120)
+                } else if status.downloaded {
+                    Text(status.bytes.tbdByteString).foregroundStyle(TBDTokens.muted)
+                    Button("Delete") { models.delete(model, inUse: inUse) }.buttonStyle(TBDButtonStyle(.quiet))
+                } else {
+                    Button("Download") { models.download(model) }.buttonStyle(TBDButtonStyle(inUse ? .primary : .secondary))
+                }
+            }
+        }
     }
 }
 

@@ -108,7 +108,10 @@ struct TBDModelBanner: View {
     @StateObject private var models = TBDModelsModel()
 
     var body: some View {
-        let model = TBDModelManager.Model(engine: env.preferences.engine)
+        // The live engine first (dictation), then the final engine if it differs.
+        let prefs = env.preferences
+        let engine = models.manager.isDownloaded(engine: prefs.liveEngine) ? prefs.finalEngine : prefs.liveEngine
+        let model = TBDModelManager.Model(engine: engine)
         if !models.manager.isDownloaded(model) {
             HStack(spacing: TBDTokens.Space.md) {
                 VStack(alignment: .leading, spacing: 2) {
