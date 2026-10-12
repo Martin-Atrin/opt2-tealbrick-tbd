@@ -10,6 +10,8 @@ public struct TBDMeetingManifest: Codable, Sendable, Equatable {
     public var state: State
     public var durationMs: Int
     public var transcriptionID: String?
+    /// Final engine fixed when the meeting started (nil in older manifests: the current final route).
+    public var finalEngine: TBDEngineSelection?
 
     static let fileName = "meeting.json"
 
@@ -36,7 +38,9 @@ public struct TBDPreviewLine: Sendable, Identifiable, Equatable {
 }
 
 /// Records a meeting: microphone and system audio to separate crash-safe WAV tracks, with a
-/// live transcript preview from VAD-guided chunks. `finalize` produces the stored transcript.
+/// live transcript preview cut at speech boundaries (Silero VAD; energy fallback when the VAD
+/// model is absent). The engines are fixed at start (`TBDMeetingSpeechPlan`): preview on the
+/// live route, the transcript on the final route. `finalize` produces the stored transcript.
 public final class TBDMeetingRecorder: @unchecked Sendable {
     public enum State: Equatable, Sendable { case idle, recording, paused }
 
@@ -51,8 +55,10 @@ public final class TBDMeetingRecorder: @unchecked Sendable {
     private var micToken: TBDSharedMicrophone.Token?
     private var system: TBDSystemAudioCapture?
     private let micResampler = TBDMonoResampler()
-    private var micChunker = TBDLiveChunker()
-    private var systemChunker = TBDLiveChunker()
+    private var plan: TBDMeetingSpeechPlan?
+    private var micFeed: AsyncStream<[Float]>.Continuation?
+    private var systemFeed: AsyncStream<[Float]>.Continuation?
+    private var feedTasks: [Task<Void, Never>] = []
     private var micLevel: Float = 0
     private var systemLevel: Float = 0
 
@@ -82,17 +88,27 @@ public final class TBDMeetingRecorder: @unchecked Sendable {
         guard await TBDSharedMicrophone.requestPermission() else { throw TBDSpeechError.microphoneDenied }
         let id = tbdNewID()
         let folder = try TBDListeningPaths.ensure(TBDListeningPaths.meetings.appendingPathComponent(id, isDirectory: true))
-        let manifest = TBDMeetingManifest(id: id, title: title, startedAt: Date(), state: .recording, durationMs: 0)
+        let plan = TBDMeetingSpeechPlan.resolve(live: speech.selection(for: .live), final: speech.selection(for: .final),
+                                                previewEnabled: speech.preferences.meetingLivePreview && speech.isReady(.live))
+        var manifest = TBDMeetingManifest(id: id, title: title, startedAt: Date(), state: .recording, durationMs: 0)
+        manifest.finalEngine = plan.final
         try manifest.write(to: folder)
         let micWriter = try TBDWAVWriter(url: folder.appendingPathComponent("microphone.wav"))
+        let feeds = await makePreviewFeeds(plan)
         let current = UUID()
-        try lock.withLock {
-            guard state == .idle else { throw TBDSpeechError.busy("A meeting recording") }
-            state = .recording
-            session = current
-            clockAccumulated = 0; clockStarted = Date()
-            self.manifest = manifest; self.folder = folder; self.micWriter = micWriter; systemWriter = nil
-            micChunker = TBDLiveChunker(); systemChunker = TBDLiveChunker()
+        do {
+            try lock.withLock {
+                guard state == .idle else { throw TBDSpeechError.busy("A meeting recording") }
+                state = .recording
+                session = current
+                clockAccumulated = 0; clockStarted = Date()
+                self.manifest = manifest; self.folder = folder; self.micWriter = micWriter; systemWriter = nil
+                self.plan = plan
+                micFeed = feeds?.mic; systemFeed = feeds?.system; feedTasks = feeds?.tasks ?? []
+            }
+        } catch {
+            feeds?.mic.finish(); feeds?.system.finish()
+            throw error
         }
         do {
             let token = try await microphone.subscribe(onInterruption: { [weak self] error in
@@ -111,9 +127,13 @@ public final class TBDMeetingRecorder: @unchecked Sendable {
                 throw CancellationError()
             }
         } catch {
-            lock.withLock {
-                if session == current { state = .idle; session = nil; self.micWriter = nil; self.manifest = nil; self.folder = nil }
+            let feeds = lock.withLock { () -> [AsyncStream<[Float]>.Continuation] in
+                guard session == current else { return [] }
+                state = .idle; session = nil; self.micWriter = nil; self.manifest = nil; self.folder = nil; self.plan = nil
+                defer { micFeed = nil; systemFeed = nil; feedTasks = [] }
+                return [micFeed, systemFeed].compactMap { $0 }
             }
+            for feed in feeds { feed.finish() }
             try? micWriter.close()
             try? FileManager.default.removeItem(at: folder)
             throw error
@@ -144,43 +164,67 @@ public final class TBDMeetingRecorder: @unchecked Sendable {
         }
     }
 
-    /// Appends samples, first padding with silence when the track fell more than a second behind the clock.
-    private func appendLocked(_ samples: [Float], to writer: TBDWAVWriter, chunker: inout TBDLiveChunker) -> [TBDLiveChunker.Chunk] {
-        var chunks: [TBDLiveChunker.Chunk] = []
+    /// One chunker and one serial consumer per track (the chunker must see one caller at a time).
+    /// Nil when the plan has no preview.
+    private func makePreviewFeeds(_ plan: TBDMeetingSpeechPlan) async
+        -> (mic: AsyncStream<[Float]>.Continuation, system: AsyncStream<[Float]>.Continuation, tasks: [Task<Void, Never>])? {
+        guard let engine = plan.preview else { return nil }
+        let vad = await TBDSileroVAD.loadIfDownloaded(modelsRoot: speech.modelsRoot)
+        func chunker() -> any TBDLiveAudioChunking { vad.map { TBDSpeechBoundaryChunker(vad: $0) } ?? TBDEnergyChunker() }
+        var tasks: [Task<Void, Never>] = []
+        func feed(_ source: TBDPreviewLine.Source) -> AsyncStream<[Float]>.Continuation {
+            let (stream, continuation) = AsyncStream.makeStream(of: [Float].self, bufferingPolicy: .unbounded)
+            let chunker = chunker()
+            tasks.append(Task { [weak self] in
+                for await samples in stream {
+                    for chunk in await chunker.addSamples(samples) { self?.preview(chunk, source: source, engine: engine) }
+                }
+                if let last = await chunker.flush() { self?.preview(last, source: source, engine: engine) }
+            })
+            return continuation
+        }
+        let mic = feed(.me), system = feed(.others)
+        return (mic, system, tasks)
+    }
+
+    /// Appends samples, first padding with silence when the track fell more than a second behind
+    /// the clock. Returns what was written (for the preview feed, so its timeline matches the track).
+    private func appendLocked(_ samples: [Float], to writer: TBDWAVWriter) -> [Float] {
         let expected = Int(recordedSeconds * 16_000)
         let gap = expected - writer.samplesWritten - samples.count
+        var written = samples
         if gap > 16_000 {
             let silence = [Float](repeating: 0, count: gap)
             writer.append(silence)
-            chunks += chunker.append(silence)
+            written = silence + samples
         }
         writer.append(samples)
-        return chunks + chunker.append(samples)
+        return written
     }
 
     private func consumeMic(_ samples: [Float]) {
         guard !samples.isEmpty else { return }
-        let chunks: [TBDLiveChunker.Chunk] = lock.withLock {
-            guard state == .recording, let micWriter else { return [] }
+        lock.withLock {
+            guard state == .recording, let micWriter else { return }
             micLevel = TBDAudioLevel.normalized(samples)
-            return appendLocked(samples, to: micWriter, chunker: &micChunker)
+            let written = appendLocked(samples, to: micWriter)
+            micFeed?.yield(written)
         }
-        for chunk in chunks { preview(chunk, source: .me) }
     }
 
     private func consumeSystem(_ samples: [Float]) {
-        let chunks: [TBDLiveChunker.Chunk] = lock.withLock {
-            guard state == .recording, let systemWriter else { return [] }
+        lock.withLock {
+            guard state == .recording, let systemWriter else { return }
             systemLevel = TBDAudioLevel.normalized(samples)
-            return appendLocked(samples, to: systemWriter, chunker: &systemChunker)
+            let written = appendLocked(samples, to: systemWriter)
+            systemFeed?.yield(written)
         }
-        for chunk in chunks { preview(chunk, source: .others) }
     }
 
-    private func preview(_ chunk: TBDLiveChunker.Chunk, source: TBDPreviewLine.Source) {
+    private func preview(_ chunk: TBDLiveChunker.Chunk, source: TBDPreviewLine.Source, engine: TBDEngineSelection) {
         let speech = self.speech
         Task { [weak self] in
-            guard let transcript = try? await speech.transcribe(samples: chunk.samples, kind: .meetingLive) else { return }
+            guard let transcript = try? await speech.transcribe(samples: chunk.samples, kind: .meetingLive, engine: engine) else { return }
             let text = transcript.trimmedText
             guard !text.isEmpty else { return }
             self?.onPreview?(TBDPreviewLine(source: source, startMs: chunk.startMs, text: text))
@@ -207,6 +251,12 @@ public final class TBDMeetingRecorder: @unchecked Sendable {
     public func stop() async throws -> (manifest: TBDMeetingManifest, folder: URL) {
         let (token, system, manifest, folder) = lock.withLock { (micToken, self.system, self.manifest, self.folder) }
         guard var manifest, let folder else { throw TBDSpeechError.audioUnreadable("no meeting is recording") }
+        // Trailing chunks of the live preview are flushed in the background.
+        let feeds = lock.withLock { () -> [AsyncStream<[Float]>.Continuation] in
+            defer { micFeed = nil; systemFeed = nil; feedTasks = []; plan = nil }
+            return [micFeed, systemFeed].compactMap { $0 }
+        }
+        for feed in feeds { feed.finish() }
         if let token { await microphone.unsubscribe(token) }
         await system?.stop()
         let writers = lock.withLock { () -> [TBDWAVWriter] in
@@ -250,14 +300,14 @@ public final class TBDMeetingRecorder: @unchecked Sendable {
             var engine = ""
             if tracks.contains(mic) {
                 progress?("Transcribing your microphone…")
-                let result = try await speech.transcribe(url: mic, kind: .meetingFinal)
+                let result = try await speech.transcribe(url: mic, kind: .meetingFinal, engine: manifest.finalEngine)
                 words += result.timedWords.map { var word = $0; word.speaker = "me"; return word }
                 if !words.isEmpty { speakers.append(TBDSpeaker(id: "me", label: "Me")) }
                 language = result.language; engine = result.engine
             }
             if tracks.contains(system), TBDAudioDecoder.durationMs(of: system) > 500 {
                 progress?("Transcribing other participants…")
-                let result = try await speech.transcribe(url: system, kind: .meetingFinal)
+                let result = try await speech.transcribe(url: system, kind: .meetingFinal, engine: manifest.finalEngine)
                 var others = result.timedWords.map { var word = $0; word.speaker = "S1"; return word }
                 progress?("Detecting speakers…")
                 if let turns = try? await speech.speakerTurns(system), !turns.isEmpty {
