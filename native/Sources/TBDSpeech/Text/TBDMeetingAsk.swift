@@ -99,8 +99,11 @@ public enum TBDMeetingAsk {
         return client.stream(messages(question: question, transcript: transcript, notes: notes, history: history))
     }
 
-    /// True when a model is assigned to the "analysis" route.
-    public static var available: Bool { ((try? TBDModelRegistry().configuration(for: .analysis)) ?? nil) != nil }
+    /// True when a model is assigned to the "analysis" route. Reads route metadata only (no Keychain access).
+    public static var available: Bool {
+        guard let state = try? TBDModelRegistry().load(), let route = state.routes[TBDModelTask.analysis.rawValue] else { return false }
+        return state.connections.contains { $0.id == route.connectionID }
+    }
 }
 
 /// Slash commands of the notes editor: `/action`, `/decision`, `/now`.
