@@ -99,9 +99,9 @@ final class TBDTranscriptDetailModel: ObservableObject {
         guard let item else { return }
         let panel = NSSavePanel()
         panel.nameFieldStringValue = item.title.replacingOccurrences(of: "/", with: "-") + "." + format.fileExtension
-        if let type = UTType(filenameExtension: format.fileExtension) { panel.allowedContentTypes = [type] }
+        if let type = UTType(filenameExtension: format == .dapt ? "xml" : format.fileExtension) { panel.allowedContentTypes = [type] }
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        do { try TBDExport.render(item, as: format, summaries: summaries).write(to: url, atomically: true, encoding: .utf8) }
+        do { try TBDExport.data(item, as: format, summaries: summaries).write(to: url, options: .atomic) }
         catch { self.error = error.localizedDescription }
     }
 

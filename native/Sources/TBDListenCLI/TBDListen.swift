@@ -113,7 +113,7 @@ struct Show: ParsableCommand {
     @Option(help: "Format: txt, md, srt, vtt or json.") var format = "txt"
 
     func run() throws {
-        guard let format = TBDExportFormat(rawValue: format.lowercased()) else { throw ValidationError("Unknown format \(format).") }
+        guard let format = TBDExportFormat(rawValue: format.lowercased()), !format.isBinary else { throw ValidationError("Unknown format \(format).") }
         let library = try openLibrary()
         guard let item = try library.transcription(id: id) else { throw ValidationError("No transcript matches \(id).") }
         output(TBDExport.render(item, as: format, summaries: (try? library.summaries(for: item.id)) ?? []))
