@@ -10,7 +10,7 @@ final class EngineSmokeTests: XCTestCase {
         let fixture = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("tests/fixtures/tbd-speech.wav")
         try XCTSkipUnless(FileManager.default.fileExists(atPath: fixture.path), "fixture missing")
-        let engine = TBDParakeetEngine(choice: .parakeetV3)
+        let engine = TBDParakeetEngine(kind: .parakeetV3)
         let transcript = try await engine.transcribe(url: fixture, lane: .background, progress: nil)
         XCTAssertFalse(transcript.trimmedText.isEmpty)
         XCTAssertFalse(transcript.words.isEmpty)

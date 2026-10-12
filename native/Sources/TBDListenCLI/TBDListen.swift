@@ -42,7 +42,7 @@ struct Transcribe: AsyncParsableCommand {
         guard FileManager.default.fileExists(atPath: url.path) else { throw ValidationError("File not found: \(file)") }
         let preferences = appPreferences
         if let engine {
-            guard let choice = TBDEngineChoice(rawValue: engine) else { throw ValidationError("Unknown engine \(engine).") }
+            guard let choice = TBDSpeechEngineKind(identifier: engine) else { throw ValidationError("Unknown engine \(engine).") }
             preferences.overridingEngine(choice)
         }
         let database = noSave ? try TBDListeningDatabase(inMemory: ()) : try TBDListeningDatabase()

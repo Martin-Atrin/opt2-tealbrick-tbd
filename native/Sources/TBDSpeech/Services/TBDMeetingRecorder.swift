@@ -251,14 +251,14 @@ public final class TBDMeetingRecorder: @unchecked Sendable {
             if tracks.contains(mic) {
                 progress?("Transcribing your microphone…")
                 let result = try await speech.transcribe(url: mic, kind: .meetingFinal)
-                words += result.words.map { var word = $0; word.speaker = "me"; return word }
-                if !result.words.isEmpty { speakers.append(TBDSpeaker(id: "me", label: "Me")) }
+                words += result.timedWords.map { var word = $0; word.speaker = "me"; return word }
+                if !words.isEmpty { speakers.append(TBDSpeaker(id: "me", label: "Me")) }
                 language = result.language; engine = result.engine
             }
             if tracks.contains(system), TBDAudioDecoder.durationMs(of: system) > 500 {
                 progress?("Transcribing other participants…")
                 let result = try await speech.transcribe(url: system, kind: .meetingFinal)
-                var others = result.words.map { var word = $0; word.speaker = "S1"; return word }
+                var others = result.timedWords.map { var word = $0; word.speaker = "S1"; return word }
                 progress?("Detecting speakers…")
                 if let turns = try? await speech.speakerTurns(system), !turns.isEmpty {
                     others = TBDTranscriptAssembler.attribute(others, turns: turns)

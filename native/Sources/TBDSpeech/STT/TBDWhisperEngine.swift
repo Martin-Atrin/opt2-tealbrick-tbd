@@ -4,7 +4,7 @@ import WhisperKit
 /// Whisper Large v3 Turbo through WhisperKit. Calls are serialised: WhisperKit is not reentrant.
 public final class TBDWhisperEngine: TBDSpeechEngine, @unchecked Sendable {
     public static let variant = "large-v3-v20240930_turbo_632MB"
-    public let choice = TBDEngineChoice.whisper
+    public let kind = TBDSpeechEngineKind.whisper
     private let base: URL
     private let language: String?
     private let gate = TBDAsyncLock()
@@ -61,7 +61,7 @@ public final class TBDWhisperEngine: TBDSpeechEngine, @unchecked Sendable {
     }
 
     public func transcribe(samples: [Float], lane: TBDLane) async throws -> TBDTranscript {
-        guard !samples.isEmpty else { return TBDTranscript(text: "", engine: choice.rawValue) }
+        guard !samples.isEmpty else { return TBDTranscript(text: "", engine: kind.rawValue) }
         var transcript = try await run { kit, options in
             let results: [TranscriptionResult] = try await TBDInferenceGate.run {
                 try await kit.transcribe(audioArray: samples, decodeOptions: options)
@@ -86,7 +86,7 @@ public final class TBDWhisperEngine: TBDSpeechEngine, @unchecked Sendable {
                         end: Int(max(0, $0.end) * 1000), confidence: Double($0.probability))
             }.filter { !$0.text.isEmpty }
             return TBDTranscript(text: Self.clean(merged.text), words: words, language: merged.language,
-                                 engine: choice.rawValue, durationMs: words.last?.end ?? 0)
+                                 engine: kind.rawValue, durationMs: words.last?.end ?? 0)
         }
     }
 

@@ -68,4 +68,11 @@ public enum TBDSpeechError: Error, LocalizedError, Equatable {
 extension TBDTranscript {
     /// Text with a trailing tidy-up; engines sometimes emit leading spaces.
     public var trimmedText: String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    /// Word timings, or (for engines without timestamps, such as Cohere) the whole text as one
+    /// span over the audio so word-based assembly keeps it.
+    public var timedWords: [TBDWord] {
+        if !words.isEmpty || trimmedText.isEmpty { return words }
+        return [TBDWord(text: trimmedText, start: 0, end: max(durationMs, 1))]
+    }
 }
