@@ -84,6 +84,8 @@ public struct TBDTranscription: Codable, Sendable, Equatable, Identifiable, Fetc
     /// When the retention clock for kept audio started (imports start it at import time, not at the
     /// recording date). Nil means `createdAt`.
     public var audioRetentionStartedAt: Date?
+    /// The person's own meeting notes (plain text, `[M:SS]` stamps where they typed /now).
+    public var userNotes: String?
 
     public init(id: String = tbdNewID(), title: String, sourceKind: TBDSourceKind, sourcePath: String? = nil, sourceURL: String? = nil,
                 status: TBDTranscriptionStatus = .processing) {
@@ -143,3 +145,29 @@ public struct TBDSummary: Codable, Sendable, Equatable, Identifiable, FetchableR
 }
 
 extension TBDSummary.Kind: DatabaseValueConvertible {}
+
+/// One message of an Ask conversation. `prompt` is what the model saw when it differs from the
+/// shown text (quick prompts show their label).
+public struct TBDAskMessage: Codable, Sendable, Equatable {
+    public enum Role: String, Codable, Sendable { case user, assistant }
+    public var role: Role
+    public var content: String
+    public var prompt: String?
+    public init(_ role: Role, _ content: String, prompt: String? = nil) { self.role = role; self.content = content; self.prompt = prompt }
+    public var modelContent: String { prompt ?? content }
+}
+
+/// Questions and answers about one transcript, saved with it.
+public struct TBDAskConversation: Codable, Sendable, Equatable, Identifiable, FetchableRecord, PersistableRecord {
+    public static let databaseTableName = "askConversation"
+    public var id: String
+    public var transcriptionId: String
+    public var title: String
+    public var messages: [TBDAskMessage]
+    public var createdAt: Date
+    public var updatedAt: Date
+    public init(id: String = tbdNewID(), transcriptionId: String, title: String, messages: [TBDAskMessage] = []) {
+        self.id = id; self.transcriptionId = transcriptionId; self.title = title; self.messages = messages
+        createdAt = Date(); updatedAt = createdAt
+    }
+}

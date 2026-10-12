@@ -68,30 +68,48 @@ struct TBDMeetingsView: View {
                 default: EmptyView()
                 }
             }
-            ScrollViewReader { proxy in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: TBDTokens.Space.xs) {
-                        if meetings.preview.isEmpty {
-                            Text("Live preview appears here as people speak.").foregroundStyle(TBDTokens.muted)
-                        }
-                        ForEach(meetings.preview) { line in
-                            HStack(alignment: .firstTextBaseline, spacing: TBDTokens.Space.sm) {
-                                Text(TBDExport.clock(line.startMs)).font(.system(size: 11, design: .monospaced)).foregroundStyle(TBDTokens.muted)
-                                Text(line.source == .me ? "Me" : "Others").font(TBDTokens.Typography.label).foregroundStyle(TBDTokens.accent)
-                                Text(line.text).font(TBDTokens.Typography.body).foregroundStyle(TBDTokens.ink).textSelection(.enabled)
-                            }
-                            .id(line.id)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .frame(height: 160)
-                .onChange(of: meetings.preview.count) { _, _ in
-                    if let last = meetings.preview.last { proxy.scrollTo(last.id, anchor: .bottom) }
+            Picker("", selection: $meetings.liveTab) {
+                ForEach(TBDMeetingController.LiveTab.allCases) { tab in
+                    Text(tab == .ask && meetings.liveAsk.streaming ? "Ask •" : tab.title).tag(tab)
                 }
             }
+            .pickerStyle(.segmented).labelsHidden().fixedSize()
+            Group {
+                switch meetings.liveTab {
+                case .notes:
+                    TBDNotesEditor(text: Binding(get: { meetings.notes }, set: { meetings.editNotes($0) }),
+                                   elapsedMs: { meetings.elapsedMs }, footnote: "Auto-saved with the recording. Stays on this Mac.")
+                case .transcript: livePreview
+                case .ask: TBDAskView(model: meetings.liveAsk, showsHistory: false)
+                }
+            }
+            .frame(height: 260)
         }
         .tbdCard(padding: TBDTokens.Space.md)
+    }
+
+    private var livePreview: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: TBDTokens.Space.xs) {
+                    if meetings.preview.isEmpty {
+                        Text("Live preview appears here as people speak.").foregroundStyle(TBDTokens.muted)
+                    }
+                    ForEach(meetings.preview) { line in
+                        HStack(alignment: .firstTextBaseline, spacing: TBDTokens.Space.sm) {
+                            Text(TBDExport.clock(line.startMs)).font(.system(size: 11, design: .monospaced)).foregroundStyle(TBDTokens.muted)
+                            Text(line.source == .me ? "Me" : "Others").font(TBDTokens.Typography.label).foregroundStyle(TBDTokens.accent)
+                            Text(line.text).font(TBDTokens.Typography.body).foregroundStyle(TBDTokens.ink).textSelection(.enabled)
+                        }
+                        .id(line.id)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .onChange(of: meetings.preview.count) { _, _ in
+                if let last = meetings.preview.last { proxy.scrollTo(last.id, anchor: .bottom) }
+            }
+        }
     }
 
     private var upcomingPanel: some View {

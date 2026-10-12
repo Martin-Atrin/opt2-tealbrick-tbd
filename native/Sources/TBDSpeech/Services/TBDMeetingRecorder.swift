@@ -10,6 +10,8 @@ public struct TBDMeetingManifest: Codable, Sendable, Equatable {
     public var state: State
     public var durationMs: Int
     public var transcriptionID: String?
+    /// The person's notes, rewritten on every save so a crash keeps them.
+    public var notes: String?
 
     static let fileName = "meeting.json"
 
@@ -82,7 +84,7 @@ public final class TBDMeetingRecorder: @unchecked Sendable {
         guard await TBDSharedMicrophone.requestPermission() else { throw TBDSpeechError.microphoneDenied }
         let id = tbdNewID()
         let folder = try TBDListeningPaths.ensure(TBDListeningPaths.meetings.appendingPathComponent(id, isDirectory: true))
-        let manifest = TBDMeetingManifest(id: id, title: title, startedAt: Date(), state: .recording, durationMs: 0)
+        let manifest = TBDMeetingManifest(id: id, title: title, startedAt: Date(), state: .recording, durationMs: 0, transcriptionID: tbdNewID())
         try manifest.write(to: folder)
         let micWriter = try TBDWAVWriter(url: folder.appendingPathComponent("microphone.wav"))
         let current = UUID()
@@ -187,6 +189,19 @@ public final class TBDMeetingRecorder: @unchecked Sendable {
         }
     }
 
+    /// Saves the notes into the recording's manifest (crash-safe). Blank text clears them.
+    public func updateNotes(_ text: String) {
+        lock.withLock {
+            guard var manifest, let folder else { return }
+            manifest.notes = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : text
+            self.manifest = manifest
+            try? manifest.write(to: folder)
+        }
+    }
+
+    /// The transcript id the recording will be saved under.
+    public var currentTranscriptionID: String? { lock.withLock { manifest?.transcriptionID } }
+
     public func pause() {
         lock.withLock {
             guard state == .recording else { return }
@@ -236,6 +251,7 @@ public final class TBDMeetingRecorder: @unchecked Sendable {
         var item = (manifest.transcriptionID.flatMap { try? database.transcription(id: $0) })
             ?? TBDTranscription(id: manifest.transcriptionID ?? tbdNewID(), title: manifest.title, sourceKind: .meeting)
         item.createdAt = manifest.startedAt
+        if item.userNotes == nil { item.userNotes = manifest.notes }
         item.status = .processing
         item.errorMessage = nil
         item.audioPaths = tracks.map(\.path)
@@ -277,6 +293,11 @@ public final class TBDMeetingRecorder: @unchecked Sendable {
             if !keepAudio {
                 for track in tracks { try? FileManager.default.removeItem(at: track) }
                 item.audioPaths = []
+            }
+            // The title and notes may have been edited while this ran.
+            if let latest = try? database.transcription(id: item.id) {
+                item.title = latest.title
+                item.userNotes = latest.userNotes
             }
             try database.save(item)
             manifest.state = .done

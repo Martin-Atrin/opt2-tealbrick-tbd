@@ -53,6 +53,7 @@ public struct TBDListeningPreferences: @unchecked Sendable {
         static let cleanupPrompt = "tbd.listening.cleanupPrompt"
         static let diarize = "tbd.listening.diarize"
         static let retention = "tbd.listening.retention"
+        static let autoSummarizeMeetings = "tbd.listening.autoSummarizeMeetings"
         static let lastRetentionSweep = "tbd.listening.lastRetentionSweep"
     }
 
@@ -155,6 +156,12 @@ public struct TBDListeningPreferences: @unchecked Sendable {
         nonmutating set { defaults.set(newValue, forKey: Key.lastRetentionSweep) }
     }
 
+    /// Summarise each meeting when its transcript is saved (needs a model on the "analysis" route).
+    public var autoSummarizeMeetings: Bool {
+        get { bool(Key.autoSummarizeMeetings, default: true) }
+        nonmutating set { defaults.set(newValue, forKey: Key.autoSummarizeMeetings) }
+    }
+
     public var summaryPrompt: String {
         get { defaults.string(forKey: Key.summaryPrompt) ?? Self.defaultSummaryPrompt }
         nonmutating set { defaults.set(newValue, forKey: Key.summaryPrompt) }
@@ -165,8 +172,17 @@ public struct TBDListeningPreferences: @unchecked Sendable {
     }
 
     public static let defaultSummaryPrompt = """
-    Summarise this transcript. Start with a two-sentence overview, then list key points, decisions and action items \
-    (with owners when stated). Use the transcript's language. Do not invent facts.
+    Analyze this transcript and produce a structured summary.
+
+    Open with a single sentence that captures what this is about and why it matters. Then organize the rest under clear headings:
+
+    **Key Points** — The 3–7 most important ideas, findings, or arguments. Each should be a complete thought, not a fragment. If speakers are identified, attribute claims to them.
+
+    **Decisions & Outcomes** — Anything that was agreed upon, concluded, or resolved. If nothing was decided, omit this section entirely — don't fabricate consensus.
+
+    **Open Questions** — Unresolved threads, disagreements, or topics raised but not settled. Only include these if they're genuinely unresolved in the transcript.
+
+    Be direct. Prefer specifics over generalizations — names, numbers, and concrete details beat vague summaries. If the transcript is short or straightforward, keep the output proportionally brief. Don't pad.
     """
     public static let defaultCleanupPrompt = """
     Correct punctuation and obvious recognition mistakes. Preserve language, meaning and all factual details. \

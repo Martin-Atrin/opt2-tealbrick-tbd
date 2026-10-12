@@ -43,6 +43,9 @@ public enum TBDExport {
         for summary in summaries {
             out += summary.kind == .summary ? "## Summary\n\n\(summary.content)\n\n" : "## Q: \(summary.prompt)\n\n\(summary.content)\n\n"
         }
+        if let notes = item.userNotes?.trimmingCharacters(in: .whitespacesAndNewlines), !notes.isEmpty {
+            out += "## Notes\n\n\(notes)\n\n"
+        }
         out += "## Transcript\n\n"
         for segment in displaySegments(item) {
             let who = item.speakerLabel(segment.speaker).map { "**\($0)** " } ?? ""

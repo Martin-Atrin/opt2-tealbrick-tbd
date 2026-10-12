@@ -202,6 +202,10 @@ struct TBDMeetingSettings: View {
                 Toggle("", isOn: tbdBinding({ prefs.calendarAutoStart }, { prefs.calendarAutoStart = $0 },
                                             refresh: { tick += 1; context.meetings.configureCalendar() })).labelsHidden().toggleStyle(.switch)
             }
+            TBDSettingsRow("Summarise each meeting", help: "When a meeting transcript is saved, summarise it with the summary prompt. Needs a model on the Analysis route.") {
+                Toggle("", isOn: tbdBinding({ prefs.autoSummarizeMeetings }, { prefs.autoSummarizeMeetings = $0 }, refresh: { tick += 1 }))
+                    .labelsHidden().toggleStyle(.switch)
+            }
             TBDSettingsRow("Other participants", help: "Recording system audio needs Screen & System Audio Recording permission for TBD. Without it, only your microphone is recorded.") {
                 Button("Open Privacy Settings") {
                     if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") { NSWorkspace.shared.open(url) }

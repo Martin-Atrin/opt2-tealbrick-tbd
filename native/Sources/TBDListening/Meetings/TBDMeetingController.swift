@@ -16,7 +16,18 @@ final class TBDMeetingController: ObservableObject {
     @Published private(set) var upcoming: [TBDCalendarMonitor.Meeting] = []
     /// Stage of a final transcription running in the background (a new meeting can start meanwhile).
     @Published private(set) var finalizingStage: String?
+    /// The person's notes for the meeting being recorded.
+    @Published private(set) var notes = ""
+    @Published var liveTab: LiveTab = .notes
+    /// Ask during the meeting; saved with the transcript afterwards.
+    let liveAsk: TBDAskModel
     var onMessage: ((String) -> Void)?
+
+    enum LiveTab: String, CaseIterable, Identifiable {
+        case notes, transcript, ask
+        var id: String { rawValue }
+        var title: String { rawValue.capitalized }
+    }
 
     private let env: TBDListeningEnvironment
     private let recorder: TBDMeetingRecorder
@@ -24,10 +35,12 @@ final class TBDMeetingController: ObservableObject {
     private var ticker: Timer?
     private var finalizing: Set<String> = []
     private var currentTitle = "Meeting"
+    private var notesSave: Task<Void, Never>?
 
     init(env: TBDListeningEnvironment) {
         self.env = env
         recorder = TBDMeetingRecorder(speech: env.speech, microphone: env.microphone)
+        liveAsk = TBDAskModel(database: env.database)
         recorder.onPreview = { [weak self] line in
             Task { @MainActor in
                 guard let self else { return }
@@ -38,6 +51,23 @@ final class TBDMeetingController: ObservableObject {
         }
         recorder.onWarning = { [weak self] message in Task { @MainActor in self?.warning = message } }
         calendar.onEvent = { [weak self] event in Task { @MainActor in self?.handle(event) } }
+        liveAsk.context = { [weak self] in (self?.liveTranscript ?? "", self?.notes) }
+    }
+
+    /// Live preview as `[M:SS] Me/Others: text` lines for Ask.
+    var liveTranscript: String {
+        preview.map { "[\(TBDExport.clock($0.startMs))] \($0.source == .me ? "Me" : "Others"): \($0.text)" }.joined(separator: "\n")
+    }
+
+    /// Edits the live notes; saved into the recording (crash-safe) after a short pause in typing.
+    func editNotes(_ text: String) {
+        notes = text
+        notesSave?.cancel()
+        notesSave = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled, let self else { return }
+            self.recorder.updateNotes(self.notes)
+        }
     }
 
     var isRecording: Bool { phase == .recording || phase == .paused || phase == .starting }
@@ -74,6 +104,9 @@ final class TBDMeetingController: ObservableObject {
         phase = .starting
         warning = nil
         preview = []
+        notes = ""
+        liveTab = .notes
+        liveAsk.reset()
         currentTitle = title ?? "Meeting " + Date().formatted(date: .abbreviated, time: .shortened)
         Task {
             do {
@@ -94,12 +127,16 @@ final class TBDMeetingController: ObservableObject {
         guard phase == .recording || phase == .paused else { return }
         ticker?.invalidate()
         phase = .processing("Saving…")
+        notesSave?.cancel()
+        recorder.updateNotes(notes)
+        liveAsk.stop()
+        let askHistory = liveAsk.history
         Task {
             do {
-                let (_, folder) = try await recorder.stop()
+                let (manifest, folder) = try await recorder.stop()
                 phase = .idle
                 micLevel = 0; systemLevel = 0
-                await finalize(folder)
+                await finalize(folder, askHistory: askHistory, transcriptionID: manifest.transcriptionID)
             } catch {
                 phase = .idle
                 onMessage?(error.localizedDescription)
@@ -119,11 +156,15 @@ final class TBDMeetingController: ObservableObject {
         }
     }
 
-    private func finalize(_ folder: URL) async {
+    private func finalize(_ folder: URL, askHistory: [TBDAskMessage] = [], transcriptionID: String? = nil) async {
         guard let database = env.database, finalizing.insert(folder.path).inserted else { return }
         defer {
             finalizing.remove(folder.path)
             if finalizing.isEmpty { finalizingStage = nil }
+            // Ask from the live meeting is kept even when transcription failed (the record exists).
+            if let transcriptionID, (try? database.transcription(id: transcriptionID)) != nil {
+                TBDAskModel.save(askHistory, to: transcriptionID, database: database)
+            }
         }
         finalizingStage = "Preparing transcript…"
         do {
@@ -132,11 +173,30 @@ final class TBDMeetingController: ObservableObject {
             }
             env.selectedTranscriptionID = item.id
             onMessage?("Meeting transcript saved")
+            summarizeAutomatically(item)
         } catch is CancellationError {
         } catch {
             onMessage?("Meeting transcription failed: \(error.localizedDescription). The audio is kept; use Transcribe again.")
         }
         env.changed()
+    }
+
+    /// Summarises a finished meeting with the saved summary prompt when a model is assigned.
+    private func summarizeAutomatically(_ item: TBDTranscription) {
+        let prefs = env.preferences
+        guard prefs.autoSummarizeMeetings, TBDMeetingAsk.available, !item.text.isEmpty, let database = env.database,
+              ((try? database.summaries(for: item.id)) ?? []).isEmpty else { return }
+        let prompt = prefs.summaryPrompt
+        Task {
+            do {
+                let content = try await TBDListeningAI.summarize(item, prompt: prompt)
+                try database.save(TBDSummary(transcriptionId: item.id, kind: .summary, prompt: prompt, content: content))
+                env.changed()
+            } catch is CancellationError {
+            } catch {
+                onMessage?("Meeting summary failed: \(error.localizedDescription)")
+            }
+        }
     }
 
     /// Re-runs the final transcription of a stored meeting.

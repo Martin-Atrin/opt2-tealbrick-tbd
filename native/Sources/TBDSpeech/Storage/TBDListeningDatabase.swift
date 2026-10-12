@@ -116,8 +116,47 @@ public final class TBDListeningDatabase: @unchecked Sendable {
             try db.alter(table: "transcription") { t in t.add(column: "audioRetentionStartedAt", .datetime) }
             try db.create(index: "transcription_kind_createdAt", on: "transcription", columns: ["sourceKind", "createdAt"])
         }
+        // Meeting notes and saved Ask conversations.
+        migrator.registerMigration("v3-notes-ask") { db in
+            try db.alter(table: "transcription") { t in t.add(column: "userNotes", .text) }
+            try db.create(table: "askConversation") { t in
+                t.primaryKey("id", .text)
+                t.column("transcriptionId", .text).notNull().indexed().references("transcription", onDelete: .cascade)
+                t.column("title", .text).notNull().defaults(to: "")
+                t.column("messages", .jsonText).notNull().defaults(to: "[]")
+                t.column("createdAt", .datetime).notNull()
+                t.column("updatedAt", .datetime).notNull()
+            }
+        }
         return migrator
     }
+
+    // MARK: - Notes and Ask
+
+    /// Saves meeting notes; blank text clears them.
+    public func updateUserNotes(id: String, notes: String?) throws {
+        let value = notes.flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }
+        try writer.write { db in
+            try db.execute(sql: "UPDATE transcription SET userNotes = ?, updatedAt = ? WHERE id = ?", arguments: [value, Date(), id])
+        }
+    }
+
+    /// Conversations about a transcript, newest first. Empty ones are dropped.
+    public func askConversations(for transcriptionId: String) throws -> [TBDAskConversation] {
+        try writer.write { db in
+            try db.execute(sql: "DELETE FROM askConversation WHERE transcriptionId = ? AND messages = '[]'", arguments: [transcriptionId])
+            return try TBDAskConversation.filter(Column("transcriptionId") == transcriptionId)
+                .order(Column("updatedAt").desc).fetchAll(db)
+        }
+    }
+
+    public func save(_ conversation: TBDAskConversation) throws {
+        var item = conversation
+        item.updatedAt = Date()
+        try writer.write { try item.save($0) }
+    }
+
+    public func deleteAskConversation(id: String) throws { _ = try writer.write { try TBDAskConversation.deleteOne($0, key: id) } }
 
     // MARK: - Retention
 
@@ -125,6 +164,7 @@ public final class TBDListeningDatabase: @unchecked Sendable {
     public func deleteAllListeningData() throws {
         try writer.write { db in
             try TBDSummary.deleteAll(db)
+            try TBDAskConversation.deleteAll(db)
             try TBDTranscription.deleteAll(db)
             try TBDDictation.deleteAll(db)
         }

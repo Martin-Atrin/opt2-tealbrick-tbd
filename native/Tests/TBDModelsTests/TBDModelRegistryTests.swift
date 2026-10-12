@@ -76,4 +76,20 @@ final class TBDModelRegistryTests: XCTestCase {
         let an = #"{"content":[{"type":"text","text":"a"},{"type":"text","text":"b"}]}"#.data(using: .utf8)!
         XCTAssertEqual(try TBDChatClient.parse(an, kind: .anthropic), "ab")
     }
+
+    func testParseStreamLines() throws {
+        let oa = #"data: {"choices":[{"delta":{"content":"Hel"}}]}"#
+        XCTAssertEqual(try TBDChatClient.parseStreamLine(oa, kind: .openAICompatible), .text("Hel"))
+        XCTAssertEqual(try TBDChatClient.parseStreamLine("data: [DONE]", kind: .openAICompatible), .done)
+        XCTAssertEqual(try TBDChatClient.parseStreamLine(": keep-alive", kind: .openAICompatible), .ignore)
+        XCTAssertEqual(try TBDChatClient.parseStreamLine(#"{"choices":[]}"#, kind: .openAICompatible), .notEvent)
+        let an = #"data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"lo"}}"#
+        XCTAssertEqual(try TBDChatClient.parseStreamLine(an, kind: .anthropic), .text("lo"))
+        XCTAssertEqual(try TBDChatClient.parseStreamLine("event: message_stop", kind: .anthropic), .ignore)
+        XCTAssertEqual(try TBDChatClient.parseStreamLine(#"data: {"type":"message_stop"}"#, kind: .anthropic), .done)
+        XCTAssertThrowsError(try TBDChatClient.parseStreamLine(#"data: {"type":"error","error":{"message":"overloaded"}}"#, kind: .anthropic))
+        let config = TBDModelConfig(kind: .openAICompatible, baseURL: URL(string: "https://x.test/v1")!, apiKey: nil, model: "m", isLocal: false)
+        let body = try JSONSerialization.jsonObject(with: TBDChatClient(config: config).makeRequest([.init(.user, "u")], maxTokens: 5, temperature: nil, stream: true).httpBody!) as! [String: Any]
+        XCTAssertEqual(body["stream"] as? Bool, true)
+    }
 }

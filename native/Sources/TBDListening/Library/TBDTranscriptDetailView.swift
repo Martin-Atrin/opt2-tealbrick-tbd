@@ -10,29 +10,70 @@ final class TBDTranscriptDetailModel: ObservableObject {
     @Published var summaries: [TBDSummary] = []
     @Published var working: String?
     @Published var error: String?
-    @Published var question = ""
+    @Published var tab: Tab = .transcript
+    @Published private(set) var notes = ""
+    @Published private(set) var notesStatus: String?
     let id: String
+    let ask: TBDAskModel
     private let env: TBDListeningEnvironment
+    private var notesSave: Task<Void, Never>?
+    private var notesDirty = false
 
-    init(id: String, env: TBDListeningEnvironment) { self.id = id; self.env = env }
+    enum Tab: String, CaseIterable, Identifiable {
+        case transcript, notes, ask
+        var id: String { rawValue }
+        var title: String { rawValue.capitalized }
+    }
+
+    init(id: String, env: TBDListeningEnvironment) {
+        self.id = id
+        self.env = env
+        ask = TBDAskModel(database: env.database, transcriptionID: id)
+        ask.context = { [weak self] in
+            guard let self, let item = self.item else { return ("", nil) }
+            return (TBDMeetingAsk.transcript(item), self.notes.isEmpty ? nil : self.notes)
+        }
+    }
 
     func load() {
         item = try? env.database?.transcription(id: id)
         summaries = (try? env.database?.summaries(for: id)) ?? []
+        if !notesDirty { notes = item?.userNotes ?? "" }
+        ask.load()
+    }
+
+    var tabs: [Tab] { item?.sourceKind == .meeting ? Tab.allCases : [.transcript, .ask] }
+
+    /// Edits saved notes; written to the library after a short pause in typing.
+    func editNotes(_ text: String) {
+        guard text != notes else { return }
+        notes = text
+        notesDirty = true
+        notesStatus = "Saving…"
+        notesSave?.cancel()
+        notesSave = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled else { return }
+            self?.flushNotes()
+        }
+    }
+
+    func flushNotes() {
+        notesSave?.cancel()
+        guard notesDirty else { return }
+        do {
+            try env.database?.updateUserNotes(id: id, notes: notes)
+            notesDirty = false
+            notesStatus = "Saved"
+        } catch {
+            notesStatus = "Not saved: \(error.localizedDescription)"
+        }
     }
 
     func summarize() { runAI("Summarising…") { item in
         let prompt = self.env.preferences.summaryPrompt
         return TBDSummary(transcriptionId: item.id, kind: .summary, prompt: prompt, content: try await TBDListeningAI.summarize(item, prompt: prompt))
     } }
-
-    func ask() {
-        let question = self.question.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !question.isEmpty else { return }
-        runAI("Thinking…") { item in
-            TBDSummary(transcriptionId: item.id, kind: .qa, prompt: question, content: try await TBDListeningAI.ask(question, about: item))
-        }
-    }
 
     private func runAI(_ label: String, _ body: @escaping (TBDTranscription) async throws -> TBDSummary) {
         guard let item, working == nil else { return }
@@ -42,7 +83,6 @@ final class TBDTranscriptDetailModel: ObservableObject {
             do {
                 let summary = try await body(item)
                 try env.database?.save(summary)
-                if summary.kind == .qa { question = "" }
                 load()
             } catch { self.error = error.localizedDescription }
         }
@@ -115,8 +155,24 @@ struct TBDTranscriptDetailView: View {
                         case .failed, .cancelled: failure(item)
                         case .completed: EmptyView()
                         }
-                        if item.status == .completed { ai(item) }
-                        transcript(item)
+                        if model.tabs.count > 1 {
+                            Picker("", selection: $model.tab) {
+                                ForEach(model.tabs) { Text($0 == .ask && model.ask.streaming ? "Ask •" : $0.title).tag($0) }
+                            }
+                            .pickerStyle(.segmented).labelsHidden().fixedSize()
+                        }
+                        switch model.tab {
+                        case .transcript:
+                            if item.status == .completed { ai(item) }
+                            transcript(item)
+                        case .notes:
+                            TBDNotesEditor(text: Binding(get: { model.notes }, set: { model.editNotes($0) }), status: model.notesStatus,
+                                           placeholder: "Your notes for this meeting…").frame(minHeight: 320)
+                        case .ask:
+                            TBDAskView(model: model.ask, starters: item.sourceKind == .meeting ? TBDQuickPrompt.starters : TBDQuickPrompt.transcriptStarters,
+                                       placeholder: item.sourceKind == .meeting ? "Ask about the meeting…" : "Ask about this transcript…")
+                                .frame(minHeight: 360)
+                        }
                     }
                     .padding(.trailing, TBDTokens.Space.md)
                 }
@@ -125,6 +181,7 @@ struct TBDTranscriptDetailView: View {
             }
         }
         .onAppear { model.load(); title = model.item?.title ?? "" }
+        .onDisappear { model.flushNotes(); model.ask.stop() }
         .onChange(of: env.revision) { _, _ in model.load() }
     }
 
@@ -175,9 +232,8 @@ struct TBDTranscriptDetailView: View {
             HStack(spacing: TBDTokens.Space.sm) {
                 Button { model.summarize() } label: { Label("Summarise", systemImage: "text.alignleft") }
                     .buttonStyle(TBDButtonStyle(.primary)).disabled(model.working != nil)
-                TextField("Ask about this transcript", text: $model.question).onSubmit { model.ask() }.tbdField()
-                Button("Ask") { model.ask() }.buttonStyle(TBDButtonStyle(.secondary))
-                    .disabled(model.working != nil || model.question.trimmingCharacters(in: .whitespaces).isEmpty)
+                Button { model.tab = .ask } label: { Label("Ask", systemImage: "bubble.left.and.text.bubble.right") }
+                    .buttonStyle(TBDButtonStyle(.secondary))
             }
             if let working = model.working {
                 HStack { ProgressView().controlSize(.small); Text(working).foregroundStyle(TBDTokens.muted) }
