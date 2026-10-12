@@ -46,7 +46,7 @@ final class TBDRetentionController: ObservableObject {
             alert.informativeText = message
             alert.addButton(withTitle: policy.mode == .deleteAudioAfterTranscription ? "Stop keeping audio" : "Turn on deletion")
             alert.addButton(withTitle: "Cancel")
-            guard alert.runModal() == .alertFirstButtonReturn else { return }
+            guard alert.runModal() == .alertFirstButtonReturn else { objectWillChange.send(); return }
         }
         settings[kind] = policy
         env.preferences.retention = settings

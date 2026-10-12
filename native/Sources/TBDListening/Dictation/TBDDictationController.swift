@@ -137,8 +137,11 @@ final class TBDDictationController: ObservableObject {
         undoTarget = targetApp
         Task {
             await startup?.value
-            guard let recording = try? await recorder.stop(), recording.durationMs >= 250 else {
-                env.overlay.hide()
+            guard let recording = try? await recorder.stop() else { env.overlay.hide(); return }
+            // Too short to matter, or a new dictation already started: nothing to bring back.
+            guard recording.durationMs >= 250, self.recorder == nil, !isProcessing else {
+                try? FileManager.default.removeItem(at: recording.url)
+                if self.recorder == nil, !isProcessing { env.overlay.hide() }
                 return
             }
             let held = undo.hold(recording.url, durationMs: recording.durationMs, window: window)
