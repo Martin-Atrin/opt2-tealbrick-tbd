@@ -6,7 +6,9 @@ import UniformTypeIdentifiers
 
 @MainActor
 final class TBDTranscriptDetailModel: ObservableObject {
+    /// The transcript as shown (stored words with the person's edits applied). Never save it whole.
     @Published var item: TBDTranscription?
+    @Published private(set) var projection: TBDTranscriptEditor.Projection?
     @Published var summaries: [TBDSummary] = []
     @Published var working: String?
     @Published var error: String?
@@ -36,7 +38,8 @@ final class TBDTranscriptDetailModel: ObservableObject {
     }
 
     func load() {
-        item = try? env.database?.transcription(id: id)
+        projection = try? env.database?.projectedTranscription(id: id)
+        item = projection?.item
         summaries = (try? env.database?.summaries(for: id)) ?? []
         if !notesDirty { notes = item?.userNotes ?? "" }
         ask.load()
@@ -103,11 +106,59 @@ final class TBDTranscriptDetailModel: ObservableObject {
     }
 
     func rename(_ title: String) {
-        guard var item, !title.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-        item.title = title
-        try? env.database?.save(item)
-        self.item = item
+        guard item != nil, !title.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        try? env.database?.rename(transcriptionId: id, title: title)
+        load()
         env.changed()
+    }
+
+    // MARK: Edits
+
+    var editCount: Int { projection?.editCount ?? 0 }
+
+    func apply(_ edit: TBDTranscriptEdit) {
+        guard let database = env.database, let stored = try? database.transcription(id: id) else { return }
+        do {
+            try database.applyEdit(edit, to: id, fingerprint: TBDTranscriptEditor.fingerprint(stored))
+            error = nil
+        } catch {
+            self.error = error.localizedDescription
+        }
+        load()
+        env.changed()
+    }
+
+    func undoEdit() {
+        do { try env.database?.undoLastEdit(of: id) } catch { self.error = error.localizedDescription }
+        load()
+        env.changed()
+    }
+
+    func renameSpeaker(_ speaker: TBDSpeaker) {
+        guard let label = TBDTextPrompt.ask("Rename speaker", message: "Name for \(speaker.label) in this transcript.",
+                                             initial: speaker.label, action: "Rename") else { return }
+        apply(.renameSpeaker(id: speaker.id, label: label))
+    }
+
+    func assignNewSpeaker(_ range: TBDWordRange) {
+        guard let label = TBDTextPrompt.ask("New speaker", message: "Name the speaker of this passage.", initial: "", action: "Add") else { return }
+        let id = "user:" + tbdNewID()
+        apply(.addSpeaker(id: id, label: label))
+        apply(.assignSpeaker(range: range, speaker: id))
+    }
+
+    /// Re-runs the meeting transcription after confirming; edits are dropped, notes and answers stay.
+    func retranscribe(_ meetings: TBDMeetingController) {
+        let alert = NSAlert()
+        alert.messageText = "Retranscribe this meeting?"
+        alert.informativeText = "Replaces this transcript using the current speech engine. Notes, summaries and Ask conversations are kept."
+            + (editCount > 0 ? " Your transcript edits will be reset." : "")
+        alert.addButton(withTitle: "Retranscribe")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        try? env.database?.deleteEdits(of: id)
+        meetings.retranscribe(id)
+        load()
     }
 
     func delete() {
@@ -137,6 +188,9 @@ struct TBDTranscriptDetailView: View {
     @StateObject private var model: TBDTranscriptDetailModel
     @EnvironmentObject private var env: TBDListeningEnvironment
     @State private var title = ""
+    @State private var splitting = false
+    @State private var editing: TBDWordRange?
+    @State private var draft = ""
 
     init(context: TBDListeningContext, id: String) {
         self.context = context
@@ -182,6 +236,11 @@ struct TBDTranscriptDetailView: View {
         }
         .onAppear { model.load(); title = model.item?.title ?? "" }
         .onDisappear { model.flushNotes(); model.ask.stop() }
+        .sheet(isPresented: $splitting) {
+            if let item = model.item {
+                TBDSplitSheet(item: item) { cuts, titles in try context.meetings.split(item.id, cutsMs: cuts, titles: titles) }
+            }
+        }
         .onChange(of: env.revision) { _, _ in model.load() }
     }
 
@@ -202,9 +261,24 @@ struct TBDTranscriptDetailView: View {
                 } label: { Label("Export", systemImage: "square.and.arrow.up") }
                 .menuStyle(.borderlessButton).fixedSize()
                 if !item.speakers.isEmpty {
-                    Text(item.speakers.map(\.label).joined(separator: ", ")).font(.system(size: 11)).foregroundStyle(TBDTokens.muted)
+                    Menu {
+                        ForEach(item.speakers, id: \.id) { speaker in Button("Rename \(speaker.label)…") { model.renameSpeaker(speaker) } }
+                    } label: { Text(item.speakers.map(\.label).joined(separator: ", ")).font(.system(size: 11)) }
+                    .menuStyle(.borderlessButton).fixedSize().help("Rename speakers")
+                }
+                if model.editCount > 0 {
+                    Button { model.undoEdit() } label: { Label("Undo edit", systemImage: "arrow.uturn.backward") }
+                        .buttonStyle(TBDButtonStyle(.quiet))
                 }
                 Spacer()
+                if item.sourceKind == .meeting {
+                    Menu {
+                        Button("Retranscribe…") { model.retranscribe(context.meetings) }
+                            .disabled(item.status == .processing || !item.audioPaths.contains { FileManager.default.fileExists(atPath: $0) })
+                        Button("Split…") { splitting = true }.disabled(TBDMeetingSplitter.ineligibility(item) != nil)
+                    } label: { Image(systemName: "ellipsis.circle") }
+                    .menuStyle(.borderlessButton).fixedSize().help("Meeting actions")
+                }
                 Button { model.delete() } label: { Image(systemName: "trash") }.buttonStyle(TBDButtonStyle(.icon)).help("Delete")
                     .accessibilityLabel("Delete transcript")
             }
@@ -215,13 +289,13 @@ struct TBDTranscriptDetailView: View {
         HStack {
             Text(item.errorMessage ?? "Transcription did not finish.").foregroundStyle(TBDTokens.alert)
             Spacer()
-            if let path = item.sourcePath, FileManager.default.fileExists(atPath: path) {
+            if item.sourceKind == .meeting {
+                Button("Transcribe again") { context.meetings.retranscribe(item.id) }.buttonStyle(TBDButtonStyle(.secondary))
+            } else if let path = item.sourcePath, FileManager.default.fileExists(atPath: path) {
                 Button("Retry") { model.deleteQuietly(); context.files.enqueue(files: [URL(fileURLWithPath: path)]) }
                     .buttonStyle(TBDButtonStyle(.secondary))
             } else if let link = item.sourceURL {
                 Button("Retry") { model.deleteQuietly(); context.files.enqueue(link: link) }.buttonStyle(TBDButtonStyle(.secondary))
-            } else if item.sourceKind == .meeting {
-                Button("Transcribe again") { context.meetings.retranscribe(item.id) }.buttonStyle(TBDButtonStyle(.secondary))
             }
         }
         .tbdCard(padding: TBDTokens.Space.md)
@@ -257,24 +331,69 @@ struct TBDTranscriptDetailView: View {
     }
 
     private func transcript(_ item: TBDTranscription) -> some View {
-        let segments = item.segments.isEmpty && !item.text.isEmpty
+        let editable = model.projection?.segments ?? []
+        let fallback = item.segments.isEmpty && !item.text.isEmpty
             ? [TBDSegment(start: 0, end: item.durationMs, text: item.text)] : item.segments
         return VStack(alignment: .leading, spacing: TBDTokens.Space.md) {
-            TBDLabel("Transcript")
-            ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
-                HStack(alignment: .firstTextBaseline, spacing: TBDTokens.Space.md) {
-                    Text(TBDExport.clock(segment.start)).font(.system(size: 11, design: .monospaced)).foregroundStyle(TBDTokens.muted)
-                        .frame(width: 52, alignment: .trailing)
-                    VStack(alignment: .leading, spacing: 2) {
-                        if let speaker = item.speakerLabel(segment.speaker) {
-                            Text(speaker).font(TBDTokens.Typography.label).tracking(TBDTokens.Typography.labelTracking)
-                                .foregroundStyle(speakerColor(segment.speaker, in: item))
-                        }
-                        Text(segment.text).font(TBDTokens.Typography.body).foregroundStyle(TBDTokens.ink).textSelection(.enabled)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+            HStack {
+                TBDLabel("Transcript")
+                if !editable.isEmpty, item.status == .completed {
+                    Text("Right-click a passage to edit it or change its speaker.").font(.system(size: 11)).foregroundStyle(TBDTokens.muted)
                 }
             }
+            if editable.isEmpty {
+                ForEach(Array(fallback.enumerated()), id: \.offset) { _, segment in row(segment, in: item, range: nil, edited: false) }
+            } else {
+                ForEach(editable) { passage in row(passage.segment, in: item, range: passage.range, edited: passage.edited) }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func row(_ segment: TBDSegment, in item: TBDTranscription, range: TBDWordRange?, edited: Bool) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: TBDTokens.Space.md) {
+            Text(TBDExport.clock(segment.start)).font(.system(size: 11, design: .monospaced)).foregroundStyle(TBDTokens.muted)
+                .frame(width: 52, alignment: .trailing)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: TBDTokens.Space.xs) {
+                    if let speaker = item.speakerLabel(segment.speaker) {
+                        Text(speaker).font(TBDTokens.Typography.label).tracking(TBDTokens.Typography.labelTracking)
+                            .foregroundStyle(speakerColor(segment.speaker, in: item))
+                    }
+                    if edited { Text("Edited").font(.system(size: 10)).foregroundStyle(TBDTokens.muted) }
+                }
+                if let range, editing == range {
+                    TextEditor(text: $draft).font(TBDTokens.Typography.body).frame(minHeight: 60)
+                        .scrollContentBackground(.hidden).padding(TBDTokens.Space.xs)
+                        .background(TBDTokens.paper, in: RoundedRectangle(cornerRadius: TBDTokens.Radius.sm))
+                        .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.sm).strokeBorder(TBDTokens.accent))
+                    HStack {
+                        Button("Save") { model.apply(.editText(range: range, text: draft)); editing = nil }
+                            .buttonStyle(TBDButtonStyle(.primary)).disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        Button("Cancel") { editing = nil }.buttonStyle(TBDButtonStyle(.quiet))
+                    }
+                } else {
+                    Text(segment.text).font(TBDTokens.Typography.body).foregroundStyle(TBDTokens.ink).textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .contextMenu {
+            if let range, item.status == .completed {
+                Button("Edit text") { draft = segment.text; editing = range }
+                Menu("Speaker") {
+                    ForEach(item.speakers, id: \.id) { speaker in
+                        Button(speaker.label) { model.apply(.assignSpeaker(range: range, speaker: speaker.id)) }
+                            .disabled(speaker.id == segment.speaker)
+                    }
+                    Divider()
+                    Button("New speaker…") { model.assignNewSpeaker(range) }
+                }
+                if let speaker = item.speakers.first(where: { $0.id == segment.speaker }) {
+                    Button("Rename \(speaker.label)…") { model.renameSpeaker(speaker) }
+                }
+            }
+            Button("Copy passage") { TBDPasteService.copy(segment.text) }
         }
     }
 
@@ -289,5 +408,55 @@ extension TBDTranscriptDetailModel {
     func deleteQuietly() {
         try? env.database?.deleteTranscription(id: id)
         env.changed()
+    }
+}
+
+/// Choose split points for a meeting and name the parts.
+struct TBDSplitSheet: View {
+    let item: TBDTranscription
+    let split: ([Int], [String]) throws -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var points = ""
+    @State private var titles: [String] = []
+    @State private var error: String?
+
+    private var cuts: [Int]? {
+        let values = points.split(separator: ",").map { TBDTimecode.parse(String($0)) }
+        return values.contains(where: { $0 == nil }) || values.isEmpty ? nil : values.compactMap { $0 }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: TBDTokens.Space.md) {
+            Text("Split “\(item.title)”").font(TBDTokens.Typography.title)
+            Text("Each part becomes its own meeting with its own audio and transcript. The original stays as it is; notes, summaries and answers stay with it.")
+                .font(.system(size: 12)).foregroundStyle(TBDTokens.muted).fixedSize(horizontal: false, vertical: true)
+            TBDSettingsRow("Split at", help: "m:ss or h:mm:ss; separate several points with commas. Length \(TBDExport.clock(item.durationMs)).") {
+                TextField("12:30", text: $points).tbdField().frame(width: 180)
+            }
+            ForEach(titles.indices, id: \.self) { index in
+                TextField("Part \(index + 1)", text: $titles[index]).tbdField()
+            }
+            if let error { Text(error).font(.system(size: 12)).foregroundStyle(TBDTokens.alert) }
+            HStack {
+                Spacer()
+                Button("Cancel") { dismiss() }.buttonStyle(TBDButtonStyle(.quiet))
+                Button("Split") {
+                    guard let cuts else { error = "Enter time codes such as 12:30."; return }
+                    do { try split(cuts, titles); dismiss() } catch { self.error = error.localizedDescription }
+                }
+                .buttonStyle(TBDButtonStyle(.primary)).disabled(cuts == nil)
+            }
+        }
+        .padding(TBDTokens.Space.xl)
+        .frame(width: 440)
+        .onAppear {
+            points = TBDExport.clock(max(1000, item.durationMs / 2))
+            titles = TBDMeetingSplitter.defaultTitles(item.title, parts: 2)
+        }
+        .onChange(of: points) { _, _ in
+            let count = (cuts?.count ?? 1) + 1
+            if count != titles.count { titles = TBDMeetingSplitter.defaultTitles(item.title, parts: count) }
+            error = nil
+        }
     }
 }

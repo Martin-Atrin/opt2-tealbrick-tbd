@@ -38,6 +38,11 @@ struct TBDMeetingsView: View {
             if let warning = meetings.warning {
                 Text(warning).font(TBDTokens.Typography.body).foregroundStyle(TBDTokens.alert)
             }
+            HStack {
+                Spacer()
+                Button { meetings.importMeeting() } label: { Label("Import recording…", systemImage: "square.and.arrow.down") }
+                    .buttonStyle(TBDButtonStyle(.quiet)).help("Import an audio or video file as a meeting")
+            }
             TBDLibraryView(context: context, kind: .meeting)
         }
     }

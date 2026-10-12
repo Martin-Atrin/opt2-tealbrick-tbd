@@ -1,5 +1,6 @@
 import AppKit
 import TBDSpeech
+import UniformTypeIdentifiers
 
 /// Meeting recording for the UI: start, pause, stop, live preview, final transcript,
 /// crash recovery and calendar reminders.
@@ -156,7 +157,7 @@ final class TBDMeetingController: ObservableObject {
         }
     }
 
-    private func finalize(_ folder: URL, askHistory: [TBDAskMessage] = [], transcriptionID: String? = nil) async {
+    private func finalize(_ folder: URL, askHistory: [TBDAskMessage] = [], transcriptionID: String? = nil, select: Bool = true) async {
         guard let database = env.database, finalizing.insert(folder.path).inserted else { return }
         defer {
             finalizing.remove(folder.path)
@@ -171,7 +172,7 @@ final class TBDMeetingController: ObservableObject {
             let item = try await recorder.finalize(folder: folder, database: database, keepAudio: env.preferences.keepsAudio(.meetingAudio)) { stage in
                 Task { @MainActor [weak self] in if self?.finalizingStage != nil { self?.finalizingStage = stage } }
             }
-            env.selectedTranscriptionID = item.id
+            if select { env.selectedTranscriptionID = item.id }
             onMessage?("Meeting transcript saved")
             summarizeAutomatically(item)
         } catch is CancellationError {
@@ -207,6 +208,51 @@ final class TBDMeetingController: ObservableObject {
         }
         let folder = URL(fileURLWithPath: path).deletingLastPathComponent()
         Task { await finalize(folder) }
+    }
+
+    // MARK: Import and split
+
+    /// Imports an audio or video file as a meeting and transcribes it.
+    func importMeeting() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.allowedContentTypes = [.audio, .movie, .audiovisualContent]
+        panel.message = "Choose a recording to import as a meeting"
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        importMeeting(url)
+    }
+
+    func importMeeting(_ url: URL) {
+        guard let database = env.database else { onMessage?(env.databaseError ?? "Library unavailable"); return }
+        finalizingStage = "Importing \(url.lastPathComponent)…"
+        Task {
+            do {
+                let access = url.startAccessingSecurityScopedResource()
+                defer { if access { url.stopAccessingSecurityScopedResource() } }
+                let (item, folder) = try await TBDMeetingImporter.prepare(file: url, database: database)
+                env.selectedTab = .meetings
+                env.selectedTranscriptionID = item.id
+                env.changed()
+                await finalize(folder)
+            } catch {
+                if finalizing.isEmpty { finalizingStage = nil }
+                onMessage?("Import failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// Splits a stored meeting into parts and transcribes each part. The source stays as it is.
+    func split(_ id: String, cutsMs: [Int], titles: [String]) throws {
+        guard let database = env.database, let item = try database.transcription(id: id) else { return }
+        let parts = try TBDMeetingSplitter.prepare(item, cutsMs: cutsMs, titles: titles, database: database)
+        env.changed()
+        env.selectedTranscriptionID = parts.first?.item.id
+        Task {
+            for part in parts { await finalize(part.folder, select: false) }
+            onMessage?("Split into \(parts.count) meetings")
+        }
     }
 
     /// Finishes meetings interrupted by a crash or quit.

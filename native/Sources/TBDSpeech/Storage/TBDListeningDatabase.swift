@@ -128,6 +128,17 @@ public final class TBDListeningDatabase: @unchecked Sendable {
                 t.column("updatedAt", .datetime).notNull()
             }
         }
+        // Manual transcript edits, replayed over the recognised words.
+        migrator.registerMigration("v4-transcript-edits") { db in
+            try db.create(table: "transcriptCorrection") { t in
+                t.primaryKey("id", .text)
+                t.column("transcriptionId", .text).notNull().indexed().references("transcription", onDelete: .cascade)
+                t.column("sequence", .integer).notNull()
+                t.column("fingerprint", .text).notNull()
+                t.column("edit", .jsonText).notNull()
+                t.column("createdAt", .datetime).notNull()
+            }
+        }
         return migrator
     }
 
