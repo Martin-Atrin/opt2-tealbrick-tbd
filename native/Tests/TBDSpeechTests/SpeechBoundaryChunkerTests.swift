@@ -140,3 +140,28 @@ final class SpeechBoundaryChunkerTests: XCTestCase {
         XCTAssertNil(vad, "never downloads; meetings fall back to energy chunking")
     }
 }
+
+/// Real Silero VAD on the fixture (three sentences with pauses). Skips without the VAD model.
+final class SileroVADSmokeTests: XCTestCase {
+    func testSileroCutsTheFixtureAtPauses() async throws {
+        guard let vad = await TBDSileroVAD.loadIfDownloaded() else { throw XCTSkip("VAD model is not downloaded") }
+        let fixture = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("tests/fixtures/tbd-speech.wav")
+        let samples = try TBDAudioDecoder.samples(from: fixture) + [Float](repeating: 0, count: 16_000)
+        let chunker = TBDSpeechBoundaryChunker(vad: vad)
+        var chunks: [TBDLiveChunker.Chunk] = []
+        var index = 0
+        while index < samples.count {
+            let end = min(index + 1_600, samples.count)
+            chunks += await chunker.addSamples(Array(samples[index..<end]))
+            index = end
+        }
+        if let tail = await chunker.flush() { chunks.append(tail) }
+        let diagnostics = await chunker.diagnostics
+        print("VAD_SMOKE: chunks=\(chunks.map { "\($0.startMs)+\($0.samples.count / 16)" }) speechEnds=\(diagnostics.speechEndEvents)")
+        XCTAssertFalse(chunks.isEmpty)
+        XCTAssertGreaterThan(diagnostics.speechEndEvents, 0)
+        XCTAssertFalse(diagnostics.fellBackToFixed)
+        XCTAssertEqual(chunks.first?.startMs, 0)
+    }
+}
