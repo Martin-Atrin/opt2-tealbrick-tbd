@@ -30,9 +30,9 @@ final class TBDFileQueue: ObservableObject {
     func pickFiles() {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = true
-        panel.canChooseDirectories = false
-        panel.allowedContentTypes = [.audio, .movie, .audiovisualContent]
-        panel.message = "Choose audio or video files to transcribe"
+        panel.canChooseDirectories = true
+        panel.allowedContentTypes = [.audio, .movie, .audiovisualContent, .folder]
+        panel.message = "Choose one or more audio or video files, or a folder, to transcribe"
         NSApp.activate(ignoringOtherApps: true)
         guard panel.runModal() == .OK else { return }
         enqueue(files: panel.urls)
@@ -54,10 +54,22 @@ final class TBDFileQueue: ObservableObject {
         enqueue(link: field.stringValue)
     }
 
+    /// Queues files; folders are searched recursively for audio and video (up to 200 files, natural name order).
     func enqueue(files: [URL]) {
-        let accepted = files.filter { TBDAudioDecoder.supportedExtensions.contains($0.pathExtension.lowercased()) || UTType(filenameExtension: $0.pathExtension)?.conforms(to: .audiovisualContent) == true }
-        if accepted.count < files.count { onMessage?("Some files were skipped: not audio or video.") }
-        items += accepted.map { Item(source: .file($0), title: $0.lastPathComponent) }
+        let scoped = files.filter { $0.startAccessingSecurityScopedResource() }
+        defer { scoped.forEach { $0.stopAccessingSecurityScopedResource() } }
+        let result = TBDAudioFileEnumerator.expand(files)
+        if result.files.isEmpty {
+            let formats = TBDAudioDecoder.supportedExtensions.map { $0.uppercased() }.sorted().joined(separator: ", ")
+            onMessage?("Unsupported file type. Supported formats: \(formats).")
+            return
+        }
+        if result.dropped > 0 {
+            onMessage?("Queued the first \(result.files.count) files; \(result.stoppedEarly ? "at least " : "")\(result.dropped) more were skipped (\(TBDAudioFileEnumerator.defaultMaxFiles)-file limit).")
+        } else if result.skippedUnsupported > 0 {
+            onMessage?("Some files were skipped: not audio or video.")
+        }
+        items += result.files.map { Item(source: .file($0), title: $0.lastPathComponent) }
         pump()
     }
 

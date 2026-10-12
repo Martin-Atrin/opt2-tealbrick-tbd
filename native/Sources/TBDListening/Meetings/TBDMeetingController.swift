@@ -33,6 +33,7 @@ final class TBDMeetingController: ObservableObject {
     private let env: TBDListeningEnvironment
     private let recorder: TBDMeetingRecorder
     private let calendar = TBDCalendarMonitor()
+    let countdown = TBDMeetingCountdown()
     private var ticker: Timer?
     private var finalizing: Set<String> = []
     private var currentTitle = "Meeting"
@@ -255,18 +256,55 @@ final class TBDMeetingController: ObservableObject {
         }
     }
 
-    /// Finishes meetings interrupted by a crash or quit.
+    /// Offers to finish meetings interrupted by a crash or quit: Recover, Later or Discard.
     private func recoverInterrupted() {
-        let folders = TBDMeetingRecorder.pendingRecoveries()
-        guard !folders.isEmpty else { return }
-        Task {
-            for folder in folders { await finalize(folder) }
+        let (offer, empty) = TBDMeetingRecovery.scan(database: env.database)
+        // A recording that died within its first moment has nothing to recover.
+        for folder in empty { try? FileManager.default.removeItem(at: folder) }
+        guard !offer.isEmpty else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            self?.askToRecover(offer)
+        }
+    }
+
+    private func askToRecover(_ offer: [TBDMeetingRecovery.Candidate]) {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = offer.count == 1 ? "We found 1 interrupted recording" : "We found \(offer.count) interrupted recordings"
+        var lines = offer.prefix(5).map { candidate in
+            candidate.manifest.startedAt.formatted(date: .abbreviated, time: .shortened)
+                + (candidate.manifest.title.hasPrefix("Meeting ") ? "" : " — " + candidate.manifest.title)
+        }
+        if offer.count > 5 { lines.append("and \(offer.count - 5) more") }
+        alert.informativeText = lines.joined(separator: "\n") + "\n\nRecovery transcribes the saved audio and keeps your notes."
+        alert.addButton(withTitle: "Recover")
+        alert.addButton(withTitle: "Later")
+        alert.addButton(withTitle: "Discard")
+        alert.buttons.last?.hasDestructiveAction = true
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            Task {
+                for candidate in offer { await finalize(candidate.folder, select: candidate == offer.first) }
+            }
+        case .alertThirdButtonReturn:
+            for candidate in offer {
+                if let id = candidate.manifest.transcriptionID, let item = try? env.database?.transcription(id: id), item.status != .completed {
+                    try? env.database?.deleteTranscription(id: id)
+                }
+                try? FileManager.default.removeItem(at: candidate.folder)
+            }
+            env.changed()
+        default:
+            break
         }
     }
 
     // MARK: Calendar
 
     func configureCalendar() {
+        var skips = env.preferences.calendarSkips
+        skips.prune()
+        env.preferences.calendarSkips = skips
         guard env.preferences.calendarReminders || env.preferences.calendarAutoStart else { calendar.stop(); upcoming = []; return }
         Task {
             let granted = TBDCalendarMonitor.authorized ? true : await calendar.requestAccess()
@@ -290,9 +328,43 @@ final class TBDMeetingController: ObservableObject {
             }
             env.overlay.show(.prompt("\(meeting.title) starts in a minute", action: "Record"))
         case .started(let meeting):
-            guard env.preferences.calendarAutoStart, !isRecording else { return }
-            begin(title: meeting.title)
-            env.overlay.show(.message("Recording “\(meeting.title)”"))
+            guard env.preferences.calendarAutoStart, !isRecording, !isSkipped(meeting) else { return }
+            countdown.show(meeting) { [weak self] outcome in
+                guard let self else { return }
+                switch outcome {
+                case .completed, .startNow:
+                    guard !self.isRecording, !self.isSkipped(meeting) else { return }
+                    self.begin(title: meeting.title)
+                    self.env.overlay.show(.message("Recording “\(meeting.title)”"))
+                case .dismissed:
+                    self.skip(meeting, series: false)
+                case .replaced:
+                    break
+                }
+            }
         }
+    }
+
+    // MARK: Skips
+
+    func isSkipped(_ meeting: TBDCalendarMonitor.Meeting) -> Bool {
+        env.preferences.calendarSkips.skips(id: meeting.id, seriesID: meeting.seriesID, start: meeting.start)
+    }
+
+    /// Don't auto-record this occurrence, or the whole repeating series.
+    func skip(_ meeting: TBDCalendarMonitor.Meeting, series: Bool) {
+        var skips = env.preferences.calendarSkips
+        if series { skips.series.insert(meeting.seriesID) }
+        else { skips.occurrences.insert(TBDCalendarSkips.occurrenceKey(id: meeting.id, start: meeting.start)) }
+        env.preferences.calendarSkips = skips
+        objectWillChange.send()
+    }
+
+    func unskip(_ meeting: TBDCalendarMonitor.Meeting) {
+        var skips = env.preferences.calendarSkips
+        skips.series.remove(meeting.seriesID)
+        skips.occurrences.remove(TBDCalendarSkips.occurrenceKey(id: meeting.id, start: meeting.start))
+        env.preferences.calendarSkips = skips
+        objectWillChange.send()
     }
 }

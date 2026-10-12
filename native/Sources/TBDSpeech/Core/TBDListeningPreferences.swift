@@ -54,6 +54,8 @@ public struct TBDListeningPreferences: @unchecked Sendable {
         static let diarize = "tbd.listening.diarize"
         static let retention = "tbd.listening.retention"
         static let autoSummarizeMeetings = "tbd.listening.autoSummarizeMeetings"
+        static let dictationUndoWindow = "tbd.listening.dictationUndoWindow"
+        static let calendarSkips = "tbd.listening.calendarSkips"
         static let lastRetentionSweep = "tbd.listening.lastRetentionSweep"
     }
 
@@ -160,6 +162,18 @@ public struct TBDListeningPreferences: @unchecked Sendable {
     public var autoSummarizeMeetings: Bool {
         get { bool(Key.autoSummarizeMeetings, default: true) }
         nonmutating set { defaults.set(newValue, forKey: Key.autoSummarizeMeetings) }
+    }
+
+    /// How long a cancelled dictation can be brought back with Undo.
+    public var dictationUndoWindow: TBDCancelUndo.Window {
+        get { defaults.object(forKey: Key.dictationUndoWindow) == nil ? .fiveSeconds
+            : TBDCancelUndo.Window(rawValue: defaults.integer(forKey: Key.dictationUndoWindow)) ?? .fiveSeconds }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Key.dictationUndoWindow) }
+    }
+    /// Calendar meetings not to auto-record.
+    public var calendarSkips: TBDCalendarSkips {
+        get { defaults.data(forKey: Key.calendarSkips).flatMap { try? JSONDecoder().decode(TBDCalendarSkips.self, from: $0) } ?? TBDCalendarSkips() }
+        nonmutating set { defaults.set(try? JSONEncoder().encode(newValue), forKey: Key.calendarSkips) }
     }
 
     public var summaryPrompt: String {

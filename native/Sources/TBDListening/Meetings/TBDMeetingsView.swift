@@ -125,8 +125,21 @@ struct TBDMeetingsView: View {
                     Text(meeting.start.formatted(date: .omitted, time: .shortened)).font(.system(size: 11, design: .monospaced))
                         .foregroundStyle(TBDTokens.muted)
                     Text(meeting.title).font(TBDTokens.Typography.body)
+                    if context.env.preferences.calendarAutoStart, meetings.isSkipped(meeting) {
+                        Text("Won't auto-record").font(.system(size: 11)).foregroundStyle(TBDTokens.muted)
+                    }
                     Spacer()
                     Button("Record") { meetings.begin(title: meeting.title) }.buttonStyle(TBDButtonStyle(.quiet))
+                }
+                .contextMenu {
+                    if meetings.isSkipped(meeting) {
+                        Button(meeting.recurring ? "Auto-record this repeating meeting again" : "Auto-record again") { meetings.unskip(meeting) }
+                    } else {
+                        Button("Don't auto-record this meeting") { meetings.skip(meeting, series: false) }
+                        if meeting.recurring {
+                            Button("Don't auto-record this repeating meeting") { meetings.skip(meeting, series: true) }
+                        }
+                    }
                 }
             }
         }

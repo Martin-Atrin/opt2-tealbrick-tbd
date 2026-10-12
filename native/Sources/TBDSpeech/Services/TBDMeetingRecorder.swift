@@ -324,8 +324,7 @@ public final class TBDMeetingRecorder: @unchecked Sendable {
     }
 
     /// Meeting folders that were interrupted (crash, quit) and still need a transcript.
-    public static func pendingRecoveries() -> [URL] {
-        let root = TBDListeningPaths.meetings
+    public static func pendingRecoveries(root: URL = TBDListeningPaths.meetings) -> [URL] {
         let folders = (try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? []
         return folders.filter { folder in
             guard let manifest = TBDMeetingManifest.read(from: folder) else { return false }
