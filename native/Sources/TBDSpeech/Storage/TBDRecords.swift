@@ -3,6 +3,20 @@ import GRDB
 
 public func tbdNewID() -> String { UUID().uuidString.lowercased() }
 
+/// What produced a dictation record.
+public enum TBDDictationKind: String, Codable, Sendable, CaseIterable, DatabaseValueConvertible {
+    case dictation, voiceNote, chat
+
+    /// Kind inferred from the target app label older records carry.
+    public static func inferred(targetApp: String?) -> TBDDictationKind {
+        switch targetApp {
+        case "TBD Voice note": .voiceNote
+        case "TBD Chat": .chat
+        default: .dictation
+        }
+    }
+}
+
 /// A dictation, voice note or chat dictation. Raw text is always kept.
 public struct TBDDictation: Codable, Sendable, Equatable, Identifiable, FetchableRecord, PersistableRecord {
     public static let databaseTableName = "dictation"
@@ -16,11 +30,13 @@ public struct TBDDictation: Codable, Sendable, Equatable, Identifiable, Fetchabl
     public var audioPath: String?
     public var engine: String?
     public var wordCount: Int
+    public var kind: TBDDictationKind
 
     public init(id: String = tbdNewID(), createdAt: Date = Date(), durationMs: Int, rawText: String, cleanText: String? = nil,
-                targetApp: String? = nil, audioPath: String? = nil, engine: String? = nil) {
+                targetApp: String? = nil, audioPath: String? = nil, engine: String? = nil, kind: TBDDictationKind? = nil) {
         self.id = id; self.createdAt = createdAt; self.durationMs = durationMs; self.rawText = rawText
         self.cleanText = cleanText; self.targetApp = targetApp; self.audioPath = audioPath; self.engine = engine
+        self.kind = kind ?? .inferred(targetApp: targetApp)
         let shown = cleanText ?? rawText
         wordCount = shown.split(whereSeparator: \.isWhitespace).count
     }
@@ -65,6 +81,9 @@ public struct TBDTranscription: Codable, Sendable, Equatable, Identifiable, Fetc
     public var words: [TBDWord]
     public var speakers: [TBDSpeaker]
     public var audioPaths: [String]
+    /// When the retention clock for kept audio started (imports start it at import time, not at the
+    /// recording date). Nil means `createdAt`.
+    public var audioRetentionStartedAt: Date?
 
     public init(id: String = tbdNewID(), title: String, sourceKind: TBDSourceKind, sourcePath: String? = nil, sourceURL: String? = nil,
                 status: TBDTranscriptionStatus = .processing) {

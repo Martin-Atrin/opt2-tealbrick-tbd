@@ -235,25 +235,92 @@ struct TBDSystemSettings: View {
                 }
                 .labelsHidden().frame(width: 240)
             }
-            TBDSettingsRow("Keep audio recordings", help: "Keep dictation, voice note, link and meeting audio after transcription.") {
-                Toggle("", isOn: tbdBinding({ prefs.keepAudio }, { prefs.keepAudio = $0 }, refresh: { tick += 1 })).labelsHidden().toggleStyle(.switch)
-            }
             TBDSettingsRow("Save dictation history", help: "Voice notes are always saved.") {
                 Toggle("", isOn: tbdBinding({ prefs.keepHistory }, { prefs.keepHistory = $0 }, refresh: { tick += 1 })).labelsHidden().toggleStyle(.switch)
             }
+            TBDRetentionSettingsView(retention: context.retention)
             TBDLabel("Storage").padding(.top, TBDTokens.Space.xl).padding(.bottom, TBDTokens.Space.xs)
             ForEach(usage, id: \.0) { name, bytes in
                 HStack { Text(name); Spacer(); Text(bytes.tbdByteString).foregroundStyle(TBDTokens.muted) }.padding(.vertical, 3)
             }
-            Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([TBDListeningPaths.root]) }
-                .buttonStyle(TBDButtonStyle(.secondary)).padding(.top, TBDTokens.Space.md)
+            HStack(spacing: TBDTokens.Space.sm) {
+                Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([TBDListeningPaths.root]) }
+                    .buttonStyle(TBDButtonStyle(.secondary))
+                Spacer()
+                Button("Delete all Listening data…", role: .destructive) { context.retention.deleteAll(context: context); refreshUsage() }
+                    .buttonStyle(TBDButtonStyle(.destructive))
+            }
+            .padding(.top, TBDTokens.Space.md)
         }
         .id(tick)
         .onAppear {
             devices = TBDAudioDevices.inputs()
-            usage = [("Models", TBDListeningPaths.models), ("Meetings", TBDListeningPaths.meetings), ("Dictations", TBDListeningPaths.dictations),
-                     ("Voice notes", TBDListeningPaths.voiceNotes), ("Downloads", TBDListeningPaths.downloads), ("Library database", TBDListeningPaths.database)]
-                .map { ($0.0, TBDListeningPaths.diskUsage(of: $0.1)) }
+            refreshUsage()
         }
+    }
+
+    private func refreshUsage() {
+        usage = [("Models", TBDListeningPaths.models), ("Meetings", TBDListeningPaths.meetings), ("Dictations", TBDListeningPaths.dictations),
+                 ("Voice notes", TBDListeningPaths.voiceNotes), ("Downloads", TBDListeningPaths.downloads), ("Library database", TBDListeningPaths.database)]
+            .map { ($0.0, TBDListeningPaths.diskUsage(of: $0.1)) }
+    }
+}
+
+/// Per-kind retention: keep forever, delete after N days, or drop audio after transcription.
+struct TBDRetentionSettingsView: View {
+    @ObservedObject var retention: TBDRetentionController
+    @EnvironmentObject private var env: TBDListeningEnvironment
+
+    var body: some View {
+        let settings = env.preferences.retention
+        VStack(alignment: .leading, spacing: 0) {
+            TBDLabel("Retention").padding(.top, TBDTokens.Space.xl).padding(.bottom, TBDTokens.Space.xs)
+            ForEach(TBDRetentionKind.allCases) { kind in
+                let policy = settings[kind]
+                TBDSettingsRow(kind.title, help: kind.help) {
+                    HStack(spacing: TBDTokens.Space.sm) {
+                        Picker("", selection: Binding(get: { policy.mode }, set: { mode in
+                            retention.set(TBDRetentionPolicy(mode: mode, days: policy.days), for: kind)
+                        })) {
+                            ForEach(kind.modes, id: \.self) { Text($0.title(for: kind)).tag($0) }
+                        }
+                        .labelsHidden().frame(width: 240)
+                        if policy.mode == .deleteAfterDays {
+                            TBDRetentionDays(days: policy.days) { retention.set(TBDRetentionPolicy(mode: .deleteAfterDays, days: $0), for: kind) }
+                        }
+                    }
+                }
+            }
+            Text("Only “Delete after” removes existing items; it runs at launch and daily. Your original files are never removed.")
+                .font(.system(size: 11)).foregroundStyle(TBDTokens.muted).padding(.top, TBDTokens.Space.xs)
+            if let result = retention.lastResult, result.changed {
+                Text("Last cleanup removed \(result.deletedDictations + result.deletedTranscriptions) item(s) and audio from \(result.detachedAudio) meeting(s).")
+                    .font(.system(size: 11)).foregroundStyle(TBDTokens.muted)
+            }
+        }
+    }
+}
+
+/// Day count editor, 1–365, committed on submit or stepper change.
+struct TBDRetentionDays: View {
+    let days: Int
+    let commit: (Int) -> Void
+    @State private var text = ""
+
+    var body: some View {
+        HStack(spacing: TBDTokens.Space.xs) {
+            TextField("30", text: $text).tbdField().frame(width: 48)
+                .onSubmit { apply(Int(text) ?? days) }
+            Stepper("", value: Binding(get: { days }, set: { apply($0) }), in: TBDRetentionPolicy.dayRange).labelsHidden()
+            Text(days == 1 ? "day" : "days").foregroundStyle(TBDTokens.muted)
+        }
+        .onAppear { text = "\(days)" }
+        .onChange(of: days) { _, value in text = "\(value)" }
+    }
+
+    private func apply(_ value: Int) {
+        let clamped = min(max(value, TBDRetentionPolicy.dayRange.lowerBound), TBDRetentionPolicy.dayRange.upperBound)
+        text = "\(clamped)"
+        if clamped != days { commit(clamped) }
     }
 }

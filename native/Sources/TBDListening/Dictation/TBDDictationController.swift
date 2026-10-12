@@ -183,7 +183,7 @@ final class TBDDictationController: ObservableObject {
         var pasteError: Error?
         do { try TBDPasteService.paste(text) } catch { pasteError = error }
         let id = tbdNewID()
-        let audio = prefs.keepAudio ? try? env.keep(recording.url, in: TBDListeningPaths.dictations, name: id + ".wav") : nil
+        let audio = prefs.keepsAudio(.dictations) ? try? env.keep(recording.url, in: TBDListeningPaths.dictations, name: id + ".wav") : nil
         if audio == nil { try? FileManager.default.removeItem(at: recording.url) }
         if prefs.keepHistory {
             try? env.database?.save(TBDDictation(id: id, durationMs: recording.durationMs, rawText: raw, cleanText: text == raw ? nil : text,

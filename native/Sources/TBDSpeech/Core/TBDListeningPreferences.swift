@@ -52,6 +52,8 @@ public struct TBDListeningPreferences: @unchecked Sendable {
         static let summaryPrompt = "tbd.listening.summaryPrompt"
         static let cleanupPrompt = "tbd.listening.cleanupPrompt"
         static let diarize = "tbd.listening.diarize"
+        static let retention = "tbd.listening.retention"
+        static let lastRetentionSweep = "tbd.listening.lastRetentionSweep"
     }
 
     /// In-memory override of the engine for this process only (argument domain; nothing is written).
@@ -79,7 +81,7 @@ public struct TBDListeningPreferences: @unchecked Sendable {
         get { defaults.string(forKey: Key.microphoneUID).flatMap { $0.isEmpty ? nil : $0 } }
         nonmutating set { defaults.set(newValue, forKey: Key.microphoneUID) }
     }
-    /// Keep recorded audio after transcription.
+    /// Legacy single switch for keeping audio; seeds `retention` until that is saved.
     public var keepAudio: Bool {
         get { bool(Key.keepAudio, default: true) }
         nonmutating set { defaults.set(newValue, forKey: Key.keepAudio) }
@@ -134,6 +136,25 @@ public struct TBDListeningPreferences: @unchecked Sendable {
         get { bool(Key.diarize, default: true) }
         nonmutating set { defaults.set(newValue, forKey: Key.diarize) }
     }
+    /// Retention per kind. Until set, derived from the older "keep audio" switch.
+    public var retention: TBDRetentionSettings {
+        get {
+            guard let data = defaults.data(forKey: Key.retention),
+                  let settings = try? JSONDecoder().decode(TBDRetentionSettings.self, from: data) else {
+                return .migrated(keepAudio: keepAudio)
+            }
+            return settings
+        }
+        nonmutating set { defaults.set(try? JSONEncoder().encode(newValue), forKey: Key.retention) }
+    }
+    /// Whether new captures of `kind` keep their audio after transcription.
+    public func keepsAudio(_ kind: TBDRetentionKind) -> Bool { retention[kind].keepsFreshAudio(kind) }
+    /// Last successful retention sweep (throttles the daily run).
+    public var lastRetentionSweep: Date? {
+        get { defaults.object(forKey: Key.lastRetentionSweep) as? Date }
+        nonmutating set { defaults.set(newValue, forKey: Key.lastRetentionSweep) }
+    }
+
     public var summaryPrompt: String {
         get { defaults.string(forKey: Key.summaryPrompt) ?? Self.defaultSummaryPrompt }
         nonmutating set { defaults.set(newValue, forKey: Key.summaryPrompt) }

@@ -127,7 +127,7 @@ final class TBDMeetingController: ObservableObject {
         }
         finalizingStage = "Preparing transcript…"
         do {
-            let item = try await recorder.finalize(folder: folder, database: database, keepAudio: env.preferences.keepAudio) { stage in
+            let item = try await recorder.finalize(folder: folder, database: database, keepAudio: env.preferences.keepsAudio(.meetingAudio)) { stage in
                 Task { @MainActor [weak self] in if self?.finalizingStage != nil { self?.finalizingStage = stage } }
             }
             env.selectedTranscriptionID = item.id

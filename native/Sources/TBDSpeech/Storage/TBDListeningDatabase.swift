@@ -105,7 +105,29 @@ public final class TBDListeningDatabase: @unchecked Sendable {
                 t.column("cleanText")
             }
         }
+        // Retention: record kinds and the audio retention clock.
+        migrator.registerMigration("v2-retention") { db in
+            try db.alter(table: "dictation") { t in
+                t.add(column: "kind", .text).notNull().defaults(to: TBDDictationKind.dictation.rawValue)
+            }
+            try db.execute(sql: "UPDATE dictation SET kind = 'voiceNote' WHERE targetApp = 'TBD Voice note'")
+            try db.execute(sql: "UPDATE dictation SET kind = 'chat' WHERE targetApp = 'TBD Chat'")
+            try db.create(index: "dictation_kind_createdAt", on: "dictation", columns: ["kind", "createdAt"])
+            try db.alter(table: "transcription") { t in t.add(column: "audioRetentionStartedAt", .datetime) }
+            try db.create(index: "transcription_kind_createdAt", on: "transcription", columns: ["sourceKind", "createdAt"])
+        }
         return migrator
+    }
+
+    // MARK: - Retention
+
+    /// Removes every Listening record (history, library, summaries). Vocabulary and snippets stay.
+    public func deleteAllListeningData() throws {
+        try writer.write { db in
+            try TBDSummary.deleteAll(db)
+            try TBDTranscription.deleteAll(db)
+            try TBDDictation.deleteAll(db)
+        }
     }
 
     // MARK: - Dictations

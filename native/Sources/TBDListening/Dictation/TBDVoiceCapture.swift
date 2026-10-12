@@ -42,7 +42,7 @@ final class TBDVoiceCapture {
         let recording = try await recorder.stop()
         let url = try env.keep(recording.url, in: TBDListeningPaths.voiceNotes, name: tbdNewID() + ".wav")
         let output = try await transcribe(url, voiceNote: true, durationMs: recording.durationMs)
-        if !env.preferences.keepAudio { try? FileManager.default.removeItem(at: url) }
+        if !env.preferences.keepsAudio(.voiceNotes) { try? FileManager.default.removeItem(at: url) }
         return output["warning"].flatMap { $0.isEmpty ? nil : $0 } ?? "Voice note saved in dictation history"
     }
 
@@ -97,7 +97,7 @@ final class TBDVoiceCapture {
         let cleaned = try await TBDCleanup.apply(raw: raw, enabled: TBDCleanupPolicy.enabled(voiceNote: voiceNote),
                                                  formatter: TBDCleanup.modelFormatter(prompt: env.preferences.cleanupPrompt))
         if !cleaned.warning.isEmpty { onMessage?(cleaned.warning) }
-        let keepAudio = env.preferences.keepAudio
+        let keepAudio = env.preferences.keepsAudio(.voiceNotes)
         if voiceNote || env.preferences.keepHistory {
             try env.database?.save(TBDDictation(durationMs: durationMs, rawText: raw, cleanText: cleaned.text == raw ? nil : cleaned.text,
                                                 targetApp: voiceNote ? "TBD Voice note" : "TBD Chat",

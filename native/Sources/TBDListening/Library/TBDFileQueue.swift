@@ -120,7 +120,7 @@ final class TBDFileQueue: ObservableObject {
                 defer { try? FileManager.default.removeItem(at: download.file) }
                 update(id) { $0.title = download.title }
                 result = try await transcriber.transcribe(file: download.file, kind: .url, title: download.title,
-                                                          sourceURL: url.absoluteString, keepAudio: env.preferences.keepAudio, progress: progress)
+                                                          sourceURL: url.absoluteString, keepAudio: env.preferences.keepsAudio(.fileTranscriptions), progress: progress)
             }
             update(id) { $0.state = .done(result.id) }
             env.selectedTranscriptionID = result.id
