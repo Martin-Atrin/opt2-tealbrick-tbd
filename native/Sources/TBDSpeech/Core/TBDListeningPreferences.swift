@@ -56,6 +56,7 @@ public struct TBDListeningPreferences: @unchecked Sendable {
         static let autoSummarizeMeetings = "tbd.listening.autoSummarizeMeetings"
         static let dictationUndoWindow = "tbd.listening.dictationUndoWindow"
         static let calendarSkips = "tbd.listening.calendarSkips"
+        static let practiceCompleted = "tbd.listening.practiceCompleted"
         static let lastRetentionSweep = "tbd.listening.lastRetentionSweep"
     }
 
@@ -174,6 +175,12 @@ public struct TBDListeningPreferences: @unchecked Sendable {
     public var calendarSkips: TBDCalendarSkips {
         get { defaults.data(forKey: Key.calendarSkips).flatMap { try? JSONDecoder().decode(TBDCalendarSkips.self, from: $0) } ?? TBDCalendarSkips() }
         nonmutating set { defaults.set(try? JSONEncoder().encode(newValue), forKey: Key.calendarSkips) }
+    }
+
+    /// The first-run practice dictation was finished or skipped.
+    public var practiceCompleted: Bool {
+        get { bool(Key.practiceCompleted, default: false) }
+        nonmutating set { defaults.set(newValue, forKey: Key.practiceCompleted) }
     }
 
     public var summaryPrompt: String {
