@@ -36,7 +36,13 @@ This repository is public. It must never contain secrets or personal data:
 
 ## CI
 
-Woodpecker CI (shared opt2 pipeline template from `opt2-tealbrick-platform`).
+Woodpecker, shared opt2 template `ci-v5` (`.woodpecker/ci.yaml`, kind `desktop`, `tealbrick-ci.json` → `chat/`):
+secret scan, install, typecheck, lint (biome) and tests on Linux.
+
+The macOS part is not in CI: the native app, `native/` Swift tests, signing, notarization and publishing run on the
+release Mac with `scripts/release.sh` (one assembly path with `scripts/build.sh`, via `scripts/assemble.sh`).
+A tag containing `-` is published as a GitHub pre-release; stable releases need QA evidence and Coordinator approval.
+The release Mac then adds the desktop entry to the signed index (`tb-ci registry-add-desktop`, Lead · Platform).
 
 ## Language
 

@@ -45,3 +45,6 @@ inherited-cli-build-cache/
 !.env.*.example
 LocalSecrets.xcconfig
 *.noindex/
+
+# opt2 CI runner scratch
+.tb-ci/

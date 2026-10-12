@@ -29,7 +29,7 @@ test('post-login chooser gates history and agents until a workspace is selected'
 test('selected workspace restores history then loads agents; switch clears immediately',async()=>{
   const f=fixture('one');await f.store.getState().bootstrap();
   assert.equal(f.store.getState().portalWorkspaceId,'one');assert.ok(f.calls.indexOf('restore')<f.calls.indexOf('agents'));
-  let finish;f.api.selectPortalWorkspace=()=>new Promise(r=>{finish=r});
+  let finish: (v?: unknown) => void = () => {};f.api.selectPortalWorkspace=()=>new Promise(r=>{finish=r});
   const switching=f.store.getState().switchPortalWorkspace('two');
   assert.equal(f.store.getState().agents.length,0);
   assert.equal(Object.keys(f.store.getState().conversations).length,0);assert.equal(f.store.getState().portalWorkspaceId,null);
@@ -39,7 +39,7 @@ test('selected workspace restores history then loads agents; switch clears immed
 });
 test('late agent result from previous workspace is discarded',async()=>{
   const f=fixture('one');await f.store.getState().bootstrap();
-  let complete;let reads=0;f.api.listAgents=()=>++reads===1?new Promise(r=>{complete=r}):Promise.resolve([{id:'new',name:'New',url:null}]);
+  let complete: (v: unknown) => void = () => {};let reads=0;f.api.listAgents=()=>++reads===1?new Promise(r=>{complete=r}):Promise.resolve([{id:'new',name:'New',url:null}]);
   const pending=f.store.getState().refreshAgents();
   await f.store.getState().switchPortalWorkspace('two');complete([{id:'old',name:'Old'}]);await pending;
   assert.deepEqual(f.store.getState().agents.map(a=>a.id),['new']);

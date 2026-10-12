@@ -11,7 +11,6 @@ import Foundation
 
 enum TimelineFailureKind: String {
   // Actionable: the user has to do something before timelines resume.
-  case dayflowProRequired = "dayflow_pro_required"
   case providerLoginExpired = "provider_login_expired"
   case cliNotInstalled = "cli_not_installed"
   case cliOutdated = "cli_outdated"
@@ -58,14 +57,6 @@ struct TimelineFailureClassification {
       ?? "your AI provider"
 
     switch kind {
-    case .dayflowProRequired:
-      return TimelineFailureToastContent(
-        title: "Tealbrick Pro required",
-        body:
-          "Timeline generation is paused for this account. Subscribe, or refer a friend and earn a free month of Pro. Your recordings are safe — use Retry on the failed cards once you're back.",
-        destination: .account
-      )
-
     case .providerLoginExpired:
       let body: String
       if let command = reauthCommand(for: provider) {
@@ -233,7 +224,6 @@ enum TimelineFailureClassifier {
   /// Ordered: first matching rule wins, so specific/actionable rules must
   /// stay above the broad transient and model-flaky catch-alls.
   private static let rules: [(kind: TimelineFailureKind, patterns: [String])] = [
-    (.dayflowProRequired, ["dayflow pro is required"]),
     (
       .providerLoginExpired,
       [

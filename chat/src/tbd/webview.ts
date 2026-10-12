@@ -11,7 +11,7 @@ export const ipcRenderer = {
   off(channel: string, handler: (...args: any[]) => void) { listeners.get(channel)?.delete(handler); },
 };
 (window as any).__tbdReceive = (message: any) => {
-  if (message.type === 'event') { listeners.get(message.channel)?.forEach(fn => fn(null, message.payload)); return; }
+  if (message.type === 'event') { for (const fn of listeners.get(message.channel) ?? []) fn(null, message.payload); return; }
   const p = pending.get(message.id); if (!p) return; pending.delete(message.id);
   message.error ? p.reject(Error(message.error)) : p.resolve(message.value);
 };

@@ -4449,53 +4449,6 @@
         }
       }
     },
-    "1 month of Dayflow Pro (stackable!)" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "1 Monat Tealbrick Pro (kumulierbar!)"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "1 mois de Tealbrick Pro (cumulable !)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Pro 1か月分（累積可能！）"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Pro 1개월(중복 적용 가능!)"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "1 месяц Tealbrick Pro (можно суммировать!)"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "1 个月 Tealbrick Pro（可叠加！）"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "1 個月 Tealbrick Pro（可累加！）"
-          }
-        }
-      }
-    },
     "1:1 suggestions" : {
       "localizations" : {
         "de" : {
@@ -9341,52 +9294,6 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "使用邀請碼"
-          }
-        }
-      }
-    },
-    "Apply referral" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Empfehlungscode anwenden"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Appliquer le code de parrainage"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "紹介コードを適用"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "추천 코드 적용"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Применить реферальный код"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "使用推荐码"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "使用推薦碼"
           }
         }
       }
@@ -16792,52 +16699,6 @@
         }
       }
     },
-    "Congrats, enjoy a free month of Dayflow Pro on us!" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Glückwunsch! Genieße einen kostenlosen Monat Tealbrick Pro!"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Félicitations ! Profitez d’un mois gratuit de Tealbrick Pro !"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "おめでとうございます！Tealbrick Proを1か月無料でお楽しみください！"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "축하합니다! Tealbrick Pro를 한 달간 무료로 이용해 보세요!"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Поздравляем! Получите месяц Tealbrick Pro бесплатно!"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "恭喜！免费畅享一个月 Tealbrick Pro！"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "恭喜！免費享用一個月的 Tealbrick Pro！"
-          }
-        }
-      }
-    },
     "Connect" : {
       "localizations" : {
         "de" : {
@@ -17708,52 +17569,6 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "繼續前往每日回顧"
-          }
-        }
-      }
-    },
-    "Continue with Dayflow Pro" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Mit Tealbrick Pro fortfahren"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Continuer avec Tealbrick Pro"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Pro で続行"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Pro로 계속"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Продолжить с Tealbrick Pro"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "继续使用 Tealbrick Pro"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "繼續使用 Tealbrick Pro"
           }
         }
       }
@@ -21681,144 +21496,6 @@
         }
       }
     },
-    "Dayflow Pro" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Pro"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Pro"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Pro"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Pro"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Pro"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Pro"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Pro"
-          }
-        }
-      }
-    },
-    "Dayflow Pro active" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Pro ist aktiv"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Pro est actif"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Pro は有効です"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Pro 활성화됨"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Pro активен"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Pro 已激活"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Pro 已啟用"
-          }
-        }
-      }
-    },
-    "Dayflow Pro is required for hosted cards and transcription." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Für gehostete Karten und Transkription ist Tealbrick Pro erforderlich."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Pro est requis pour les cartes hébergées et la transcription."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "ホスト型カードと文字起こしには Tealbrick Pro が必要です。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "호스팅 카드 및 텍스트 변환에는 Tealbrick Pro가 필요합니다."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Для размещённых карточек и транскрибирования требуется Tealbrick Pro."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "托管卡片和转录需要 Tealbrick Pro。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "託管卡片和轉錄功能需要 Tealbrick Pro。"
-          }
-        }
-      }
-    },
     "Dayflow recording is currently turned off, so cards aren’t being produced." : {
       "localizations" : {
         "de" : {
@@ -23670,52 +23347,6 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "你有 ChatGPT 或 Claude 的付費帳號嗎？"
-          }
-        }
-      }
-    },
-    "Do you have a referral code?" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Hast du einen Empfehlungscode?"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Avez-vous un code de parrainage ?"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "紹介コードをお持ちですか？"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "추천 코드가 있나요?"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "У вас есть реферальный код?"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "你有推荐码吗？"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "你有推薦碼嗎？"
           }
         }
       }
@@ -25844,52 +25475,6 @@
         }
       }
     },
-    "Enjoy a free month of Dayflow Pro on us." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Genieße einen Monat Tealbrick Pro kostenlos."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Profitez gratuitement d’un mois de Tealbrick Pro."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Proを1か月無料でお楽しみください。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Pro를 한 달간 무료로 이용하세요."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Получите месяц Tealbrick Pro бесплатно."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "免费畅享一个月 Tealbrick Pro。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "免費暢享一個月 Tealbrick Pro。"
-          }
-        }
-      }
-    },
     "Enjoying Dayflow?" : {
       "localizations" : {
         "de" : {
@@ -25978,52 +25563,6 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "請確保 Tealbrick 可以擷取你的螢幕。"
-          }
-        }
-      }
-    },
-    "Enter a valid 6-character referral code." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Gib einen gültigen 6-stelligen Empfehlungscode ein."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Saisissez un code de parrainage valide à 6 caractères."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "有効な6文字の紹介コードを入力してください。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "유효한 6자 추천 코드를 입력하세요."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Введите действительный 6-значный реферальный код."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "请输入有效的 6 字符推荐码。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "請輸入有效的 6 字元推薦碼。"
           }
         }
       }
@@ -28938,53 +28477,6 @@
         }
       }
     },
-    "free month of Dayflow Pro!" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Ein Monat Tealbrick Pro kostenlos!"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Un mois de Tealbrick Pro offert !"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Proを1か月無料で！"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Pro 한 달 무료!"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Бесплатный месяц Tealbrick Pro!"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "免费畅享一个月 Tealbrick Pro！"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "免費享用一個月 Tealbrick Pro！"
-          }
-        }
-      }
-    },
     "Fri" : {
       "localizations" : {
         "de" : {
@@ -30554,52 +30046,6 @@
         }
       }
     },
-    "Give a month of Dayflow Pro and earn $20 in credits for each person you refer!" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Verschenke einen Monat Tealbrick Pro und erhalte für jede geworbene Person $20 Guthaben!"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Offrez un mois de Tealbrick Pro et gagnez $20 de crédits pour chaque personne parrainée !"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Pro を 1 か月分プレゼントし、紹介した人 1 人につき $20 のクレジットを獲得しましょう！"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Pro 한 달을 선물하고 추천한 사람마다 $20 크레딧을 받으세요!"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Подарите месяц Tealbrick Pro и получите $20 на счет за каждого приглашенного пользователя!"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "赠送一个月 Tealbrick Pro，每成功推荐一人即可获得 $20 额度！"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "贈送一個月 Tealbrick Pro，每成功推薦一人即可獲得 $20 額度！"
-          }
-        }
-      }
-    },
     "Give a star on GitHub" : {
       "localizations" : {
         "de" : {
@@ -31434,98 +30880,6 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "歷史記錄"
-          }
-        }
-      }
-    },
-    "Hosted cards & transcription • no API keys • requires Pro" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Gehostete Karten und Transkription • keine API-Schlüssel • Pro erforderlich"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Cartes hébergées et transcription • aucune clé API • Pro requis"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "ホスト型カードと文字起こし • APIキー不要 • Proが必要"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "호스팅 카드 및 전사 • API 키 불필요 • Pro 필요"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Облачные карточки и расшифровка • без ключей API • требуется Pro"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "托管式卡片与转录 • 无需 API 密钥 • 需要 Pro"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "託管式卡片與轉錄 • 不需 API 金鑰 • 需要 Pro"
-          }
-        }
-      }
-    },
-    "Hosted cards and transcription run through your Dayflow account." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Gehostete Karten und Transkriptionen werden über dein Tealbrick-Konto verarbeitet."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Les cartes hébergées et la transcription passent par votre compte Tealbrick."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "ホスト型カードと文字起こしはTealbrickアカウントを通じて処理されます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "호스팅 카드와 전사는 Tealbrick 계정을 통해 처리됩니다."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Облачные карточки и расшифровка обрабатываются через вашу учётную запись Tealbrick."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "托管卡片和转录通过你的 Tealbrick 账户运行。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "託管卡片和轉錄會透過你的 Tealbrick 帳號處理。"
           }
         }
       }
@@ -32404,52 +31758,6 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "如果 Tealbrick 對你有幫助，而且你希望讓更多人發現它，在 GitHub 上加上星號就能提供很大幫助。"
-          }
-        }
-      }
-    },
-    "If someone gave you a code, enter it here. Don't worry if you don't have a code, we'll gift you a free week of Dayflow Pro!" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Wenn dir jemand einen Code gegeben hat, gib ihn hier ein. Keine Sorge, falls du keinen hast – wir schenken dir eine kostenlose Woche Tealbrick Pro!"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Si quelqu’un vous a donné un code, saisissez-le ici. Pas d’inquiétude si vous n’en avez pas : nous vous offrons une semaine gratuite de Tealbrick Pro !"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "コードを受け取った場合は、ここに入力してください。コードがなくても大丈夫です。Tealbrick Proを1週間無料でプレゼントします！"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "누군가에게 코드를 받았다면 여기에 입력하세요. 코드가 없어도 걱정하지 마세요. Tealbrick Pro 1주 무료 이용권을 드립니다!"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Если вам дали код, введите его здесь. Не переживайте, если кода нет: мы подарим вам бесплатную неделю Tealbrick Pro!"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "如果有人给了你兑换码，请在此输入。没有也别担心，我们会赠送你一周免费的 Tealbrick Pro！"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "如果有人給了你兌換碼，請在此輸入。沒有也別擔心，我們會送你一週免費的 Tealbrick Pro！"
           }
         }
       }
@@ -36332,52 +35640,6 @@
         }
       }
     },
-    "Manage Dayflow Pro from Account." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Verwalte Tealbrick Pro unter „Konto“."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Gérez Tealbrick Pro depuis votre compte."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "「アカウント」でTealbrick Proを管理できます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "계정에서 Tealbrick Pro를 관리하세요."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Управляйте Tealbrick Pro в разделе «Учётная запись»."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "在“账户”中管理 Tealbrick Pro。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "在「帳號」中管理 Tealbrick Pro。"
-          }
-        }
-      }
-    },
     "Manage local model" : {
       "localizations" : {
         "de" : {
@@ -39472,52 +38734,6 @@
         }
       }
     },
-    "No referral code? Start with a free trial." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Kein Empfehlungscode? Starte mit einer kostenlosen Testversion."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Pas de code de parrainage ? Commencez par un essai gratuit."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "紹介コードがない場合は、無料トライアルから始めましょう。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "추천 코드가 없나요? 무료 체험으로 시작하세요."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Нет реферального кода? Начните с бесплатного пробного периода."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "没有推荐码？先开始免费试用。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "沒有推薦碼？可先免費試用。"
-          }
-        }
-      }
-    },
     "No response" : {
       "localizations" : {
         "de" : {
@@ -42557,52 +41773,6 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "第 2 部分，共 2 部分"
-          }
-        }
-      }
-    },
-    "Past referrals (%lld)" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Bisherige Empfehlungen (%lld)"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Parrainages précédents (%lld)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "過去の紹介（%lld）"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "지난 추천(%lld)"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Прошлые рекомендации (%lld)"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "历史推荐（%lld）"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "過往推薦（%lld）"
           }
         }
       }
@@ -45942,52 +45112,6 @@
         }
       }
     },
-    "Redeem a referral code" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Empfehlungscode einlösen"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Utiliser un code de parrainage"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "紹介コードを利用"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "추천 코드 사용"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Активировать реферальный код"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "兑换推荐码"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "兌換推薦碼"
-          }
-        }
-      }
-    },
     "Reducing the %@ limit to %@ will immediately delete the oldest %@ data to stay under the new cap." : {
       "localizations" : {
         "de" : {
@@ -46128,190 +45252,6 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "推薦好友並獲得獎勵"
-          }
-        }
-      }
-    },
-    "Referral code" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Empfehlungscode"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Code de parrainage"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "紹介コード"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "추천 코드"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Реферальный код"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "推荐码"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "推薦碼"
-          }
-        }
-      }
-    },
-    "Referral code ready to claim." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Der Empfehlungscode kann jetzt eingelöst werden."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Le code de parrainage est prêt à être utilisé."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "紹介コードを受け取る準備ができました。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "추천 코드를 받을 수 있습니다."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Реферальный код готов к активации."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "推荐码已可领取。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "推薦碼已可領取。"
-          }
-        }
-      }
-    },
-    "Referral code saved. Sign in to claim it." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Empfehlungscode gespeichert. Melde dich an, um ihn einzulösen."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Code de parrainage enregistré. Connectez-vous pour l’utiliser."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "紹介コードを保存しました。サインインして受け取ってください。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "추천 코드가 저장되었습니다. 로그인하여 받으세요."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Реферальный код сохранён. Войдите, чтобы активировать его."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "推荐码已保存。登录即可领取。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "推薦碼已儲存。登入即可領取。"
-          }
-        }
-      }
-    },
-    "Referral credits are tied to your Dayflow account so we can credit you when friends join." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Empfehlungsguthaben ist mit deinem Tealbrick-Konto verknüpft, damit wir es dir gutschreiben können, wenn Freunde beitreten."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Les crédits de parrainage sont liés à votre compte Tealbrick afin que nous puissions vous les attribuer lorsque vos amis nous rejoignent."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "紹介クレジットはTealbrickアカウントに紐付けられるため、友達が参加した際にクレジットを付与できます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "추천 크레딧은 Tealbrick 계정에 연결되므로 친구가 가입하면 크레딧을 지급해 드릴 수 있습니다."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Реферальные бонусы привязаны к вашей учётной записи Tealbrick, чтобы мы могли начислить их, когда присоединятся друзья."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "推荐奖励与你的 Tealbrick 账户绑定，以便好友加入时向你发放奖励。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "推薦額度會綁定至你的 Tealbrick 帳號，好友加入時，我們就能將額度發放給你。"
           }
         }
       }
@@ -47376,52 +46316,6 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "需要 16GB+ 記憶體和 4GB 可用磁碟空間，建議使用 M1 或更新款晶片"
-          }
-        }
-      }
-    },
-    "Requires Dayflow Pro" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Erfordert Tealbrick Pro"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Nécessite Tealbrick Pro"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Pro が必要です"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Pro 필요"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Требуется Tealbrick Pro"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "需要 Tealbrick Pro"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "需要 Tealbrick Pro"
           }
         }
       }
@@ -51371,98 +50265,6 @@
         }
       }
     },
-    "Sign in once to keep Dayflow Pro and cloud features attached to this Mac." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Melde dich einmal an, damit Tealbrick Pro und Cloud-Funktionen mit diesem Mac verknüpft bleiben."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Connectez-vous une fois pour associer Tealbrick Pro et les fonctionnalités cloud à ce Mac."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "一度サインインすると、Tealbrick Proとクラウド機能がこのMacに紐付けられます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "한 번 로그인하면 Tealbrick Pro와 클라우드 기능이 이 Mac에 계속 연결됩니다."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Войдите один раз, чтобы закрепить Tealbrick Pro и облачные функции за этим Mac."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "登录一次，即可让 Tealbrick Pro 和云功能与这台 Mac 保持关联。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "登入一次，即可讓 Tealbrick Pro 和雲端功能持續與這台 Mac 連結。"
-          }
-        }
-      }
-    },
-    "Sign in to claim this referral code." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Melde dich an, um diesen Empfehlungscode einzulösen."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Connectez-vous pour utiliser ce code de parrainage."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "サインインしてこの紹介コードを受け取ってください。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "로그인하여 이 추천 코드를 받으세요."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Войдите, чтобы активировать этот реферальный код."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "登录以领取此推荐码。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "登入以領取此推薦碼。"
-          }
-        }
-      }
-    },
     "Sign in to Dayflow" : {
       "localizations" : {
         "de" : {
@@ -51873,52 +50675,6 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "已登入。"
-          }
-        }
-      }
-    },
-    "Signed in. Referral code was not applied." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Angemeldet. Der Empfehlungscode wurde nicht angewendet."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Connecté. Le code de parrainage n’a pas été appliqué."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "サインインしました。紹介コードは適用されませんでした。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "로그인되었습니다. 추천 코드가 적용되지 않았습니다."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Вход выполнен. Реферальный код не был применён."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "已登录。推荐码未应用。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "已登入。推薦碼未套用。"
           }
         }
       }
@@ -56534,52 +55290,6 @@
         }
       }
     },
-    "They sign up and get a **free month of Dayflow Pro!**" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Nach der Registrierung erhalten sie **einen Monat Tealbrick Pro kostenlos!**"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "En s’inscrivant, ils bénéficient d’**un mois gratuit de Tealbrick Pro !**"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "登録すると、**Tealbrick Proを1か月無料で利用できます！**"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "가입하면 **Tealbrick Pro 1개월 무료 혜택을 받을 수 있습니다!**"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "После регистрации они получат **месяц Tealbrick Pro бесплатно!**"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "他们注册后即可获得 **一个月免费 Tealbrick Pro！**"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "他們註冊後即可獲得 **一個月免費 Tealbrick Pro！**"
-          }
-        }
-      }
-    },
     "Thinking" : {
       "localizations" : {
         "de" : {
@@ -59307,52 +58017,6 @@
         }
       }
     },
-    "Try Dayflow Pro free for 7 days." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Teste Tealbrick Pro 7 Tage kostenlos."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Essayez Tealbrick Pro gratuitement pendant 7 jours."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Proを7日間無料でお試しください。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Pro를 7일 동안 무료로 사용해 보세요."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Попробуйте Tealbrick Pro бесплатно в течение 7 дней."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "免费试用 Tealbrick Pro 7 天。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "免費試用 Tealbrick Pro 7 天。"
-          }
-        }
-      }
-    },
     "Try one of these" : {
       "localizations" : {
         "de" : {
@@ -60551,52 +59215,6 @@
         }
       }
     },
-    "Upgrade account" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Konto upgraden"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Passer à Pro"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "アカウントをアップグレード"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "계정 업그레이드"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Перейти на Pro"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "升级到 Pro"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "升級帳號"
-          }
-        }
-      }
-    },
     "Upgrade local model" : {
       "localizations" : {
         "de" : {
@@ -60731,52 +59349,6 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "升級至 %@"
-          }
-        }
-      }
-    },
-    "Upgrade to Dayflow Pro" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Auf Tealbrick Pro upgraden"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Passer à Tealbrick Pro"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Proにアップグレード"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Pro로 업그레이드"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Перейти на Tealbrick Pro"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "升级到 Tealbrick Pro"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "升級至 Tealbrick Pro"
           }
         }
       }
@@ -64661,52 +63233,6 @@
         }
       }
     },
-    "You earn **1 month of Dayflow Pro (stackable!)**, when they use Dayflow for a week." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Du erhältst **1 Monat Tealbrick Pro (stapelbar!)**, sobald die Person Tealbrick eine Woche lang verwendet hat."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Vous gagnez **1 mois de Tealbrick Pro (cumulable !)** lorsque la personne utilise Tealbrick pendant une semaine."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "相手が Tealbrick を1週間使用すると、**Tealbrick Pro 1か月分（積み上げ可能！）**を獲得できます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "상대방이 Tealbrick를 일주일 동안 사용하면 **Tealbrick Pro 1개월(중복 적립 가능!)**을 받습니다."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Вы получите **1 месяц Tealbrick Pro (можно суммировать!)**, когда приглашённый пользователь будет пользоваться Tealbrick в течение недели."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "当对方使用 Tealbrick 满一周后，你将获得 **1 个月 Tealbrick Pro（可叠加！）**。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "當對方使用 Tealbrick 滿一週後，你將獲得 **1 個月 Tealbrick Pro（可累加！）**。"
-          }
-        }
-      }
-    },
     "You have a new support reply. Open Support to read it." : {
       "localizations" : {
         "de" : {
@@ -64749,52 +63275,6 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "你收到了新的支援回覆。開啟「幫助」即可查看。"
-          }
-        }
-      }
-    },
-    "You have complimentary Dayflow Pro access. There is no billing to manage for this account." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Du hast kostenlosen Zugriff auf Tealbrick Pro. Für dieses Konto musst du keine Abrechnung verwalten."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Vous bénéficiez d’un accès gratuit à Tealbrick Pro. Aucune facturation n’est à gérer pour ce compte."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Proを無料でご利用いただけます。このアカウントで管理が必要な請求はありません。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Pro를 무료로 이용할 수 있습니다. 이 계정에서 관리할 결제 항목은 없습니다."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "У вас есть бесплатный доступ к Tealbrick Pro. Для этой учётной записи не нужно управлять оплатой."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "你已获赠 Tealbrick Pro 使用权限。此账户无需管理账单。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "你已獲贈 Tealbrick Pro 使用權限。此帳號無須管理帳務。"
           }
         }
       }
@@ -65213,52 +63693,6 @@
         }
       }
     },
-    "Your Dayflow Pro trial is active." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Deine Testversion von Tealbrick Pro ist aktiv."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Votre essai de Tealbrick Pro est actif."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Proのトライアルが有効です。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Pro 체험판이 활성화되었습니다."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Пробный период Tealbrick Pro активен."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "你的 Tealbrick Pro 试用版已启用。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "你的 Tealbrick Pro 試用版已啟用。"
-          }
-        }
-      }
-    },
     "Your email" : {
       "localizations" : {
         "de" : {
@@ -65440,52 +63874,6 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "你的專注狀況"
-          }
-        }
-      }
-    },
-    "Your free month of Dayflow Pro is ready." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Dein kostenloser Monat Tealbrick Pro ist verfügbar."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Votre mois gratuit de Tealbrick Pro est disponible."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Proを1か月無料で利用できます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tealbrick Pro 1개월 무료 이용이 준비되었습니다."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Ваш бесплатный месяц Tealbrick Pro готов."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "你的 Tealbrick Pro 免费一个月权益已就绪。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "你的 Tealbrick Pro 免費一個月優惠已準備就緒。"
           }
         }
       }
@@ -65716,98 +64104,6 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "你的 Pro 權限已在這台 Mac 上啟用，並已連結至你的 Tealbrick 帳號。"
-          }
-        }
-      }
-    },
-    "Your referral reward is active on this account." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Deine Empfehlungsprämie ist für dieses Konto aktiv."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Votre récompense de parrainage est active sur ce compte."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "このアカウントでは紹介特典が有効です。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "이 계정에 추천 보상이 적용되었습니다."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Реферальная награда активна для этой учётной записи."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "此账户的推荐奖励已生效。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "此帳號的推薦獎勵已生效。"
-          }
-        }
-      }
-    },
-    "Your referral reward is ready." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Deine Empfehlungsprämie ist verfügbar."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Votre récompense de parrainage est disponible."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "紹介特典が利用可能になりました。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "추천 보상이 준비되었습니다."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Ваша награда за приглашение готова."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "你的推荐奖励已就绪。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "你的推薦獎勵已準備就緒。"
           }
         }
       }

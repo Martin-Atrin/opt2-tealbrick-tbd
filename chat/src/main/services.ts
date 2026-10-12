@@ -103,7 +103,7 @@ export function getServices(): Services {
     model: async () => (await nativeCall("agentModel")) as { model: string; baseUrl?: string; apiKey: string },
     config: async () => {
       const c = agentIdentity.connection();
-      let relay;
+      let relay: { command: string; args: string[]; env: Record<string, string> } | undefined;
       if (c) {
         // K4 handle for the relay: signs agent assertions only (signerSocket.ts).
         const socketPath = join(dataDir(), "agent-signer.sock");

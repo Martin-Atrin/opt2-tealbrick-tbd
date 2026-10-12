@@ -38,8 +38,7 @@ export function startSignerSocket(path: string, connection: () => AgentConnectio
     socket.on("data", async (chunk: string) => {
       buf += chunk;
       if (buf.length > MAX_LINE * 2) { socket.destroy(); return; }
-      let nl: number;
-      while ((nl = buf.indexOf("\n")) >= 0) {
+      for (let nl = buf.indexOf("\n"); nl >= 0; nl = buf.indexOf("\n")) {
         const line = buf.slice(0, nl); buf = buf.slice(nl + 1);
         let reply: Record<string, unknown>;
         try {

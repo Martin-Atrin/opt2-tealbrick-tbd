@@ -151,7 +151,7 @@ export function createAgentIdentity(deps: AgentIdentityDeps) {
         while (now() < deadline) {
           await sleep(interval);
           if (cancelled) throw new AgentIdentityError("cancelled", "Connection cancelled.");
-          let token;
+          let token: DeviceAgentTokenResult | { scope: string };
           try {
             token = await portal<DeviceAgentTokenResult | { scope: string }>("/device/token", input);
           } catch (error) {

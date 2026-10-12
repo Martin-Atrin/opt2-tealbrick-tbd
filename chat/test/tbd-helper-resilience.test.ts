@@ -12,7 +12,7 @@ import { buildHelper } from "../scripts/tbd-helper-build.ts";
 // rejected by the host when macOS refused notifications. The unhandled rejection
 // exited the helper with code 1 and every chat showed "Chat transport stopped (1)".
 
-let dir, helper;
+let dir: string, helper: string;
 before(async () => {
   dir = mkdtempSync(join(tmpdir(), "tbd-helper-test-"));
   helper = await buildHelper(join(dir, "helper.cjs"));
