@@ -63,13 +63,14 @@ public actor TBDSpeechService {
         for engine in idle { Task { await engine.unload() } }
     }
 
-    private func begin(_ selection: TBDEngineSelection) -> any TBDSpeechEngine {
+    /// Marks an engine busy so a route change does not unload it mid-job.
+    func retain(_ selection: TBDEngineSelection) -> any TBDSpeechEngine {
         let engine = engine(for: selection)
         inFlight[ObjectIdentifier(engine), default: 0] += 1
         return engine
     }
 
-    private func end(_ engine: any TBDSpeechEngine) {
+    func release(_ engine: any TBDSpeechEngine) {
         inFlight[ObjectIdentifier(engine), default: 1] -= 1
         unloadRetired()
     }
@@ -92,14 +93,14 @@ public actor TBDSpeechService {
     /// meeting plan captured at start, or `tbd-listen --engine`).
     public func transcribe(url: URL, kind: TBDJobKind, engine override: TBDEngineSelection? = nil,
                            progress: (@Sendable (Double) -> Void)? = nil) async throws -> TBDTranscript {
-        let engine = begin(override ?? selection(for: kind.route))
-        defer { end(engine) }
+        let engine = retain(override ?? selection(for: kind.route))
+        defer { release(engine) }
         return try await scheduler.run(kind) { try await engine.transcribe(url: url, lane: kind.lane, progress: progress) }
     }
 
     public func transcribe(samples: [Float], kind: TBDJobKind, engine override: TBDEngineSelection? = nil) async throws -> TBDTranscript {
-        let engine = begin(override ?? selection(for: kind.route))
-        defer { end(engine) }
+        let engine = retain(override ?? selection(for: kind.route))
+        defer { release(engine) }
         return try await scheduler.run(kind) { try await engine.transcribe(samples: samples, lane: kind.lane) }
     }
 

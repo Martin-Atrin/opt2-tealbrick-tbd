@@ -9,6 +9,8 @@ final class TBDOverlayModel: ObservableObject {
     @Published var phase: Phase = .hidden
     @Published var levels: [Float] = Array(repeating: 0, count: 24)
     @Published var elapsedMs = 0
+    /// Live preview text while recording (display only; the pasted text comes from the final pass).
+    @Published var partial = ""
     var onStop: (() -> Void)?
     var onCancel: (() -> Void)?
     /// Prompt buttons (calendar reminder).
@@ -26,6 +28,7 @@ final class TBDDictationOverlay {
 
     func show(_ phase: TBDOverlayModel.Phase) {
         hideWork?.cancel()
+        if case .recording = phase {} else { model.partial = "" }
         model.phase = phase
         let panel = self.panel ?? makePanel()
         self.panel = panel
@@ -40,9 +43,15 @@ final class TBDDictationOverlay {
         let work = DispatchWorkItem { [weak self] in
             self?.panel?.orderOut(nil)
             self?.model.phase = .hidden
+            self?.model.partial = ""
         }
         hideWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
+    func update(partial: String) {
+        let text = partial.trimmingCharacters(in: .whitespacesAndNewlines)
+        if model.partial != text { model.partial = text }
     }
 
     func update(levels: [Float], elapsedMs: Int) {
@@ -53,7 +62,8 @@ final class TBDDictationOverlay {
     }
 
     private func makePanel() -> NSPanel {
-        let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 420, height: 56),
+        // Tall enough for two lines of live preview above the pill; the empty area is transparent.
+        let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 460, height: 132),
                             styleMask: [.nonactivatingPanel, .borderless], backing: .buffered, defer: false)
         panel.isFloatingPanel = true
         panel.level = .statusBar
@@ -76,11 +86,30 @@ final class TBDDictationOverlay {
     }
 }
 
-/// The pill: dark recording surface, live level bars, status and controls.
+/// The pill: dark recording surface, live level bars, status and controls, with the live
+/// preview text in a bubble above it while recording.
 struct TBDRecordingPill: View {
     @ObservedObject var model: TBDOverlayModel
 
+    private var showsPartial: Bool {
+        if case .recording = model.phase { return !model.partial.isEmpty }
+        return false
+    }
+
     var body: some View {
+        VStack(spacing: TBDTokens.Space.sm) {
+            Spacer(minLength: 0)
+            if showsPartial {
+                TBDLivePartialBubble(text: model.partial)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+            pill
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .animation(TBDMotion.quick, value: showsPartial)
+    }
+
+    private var pill: some View {
         HStack(spacing: TBDTokens.Space.md) {
             switch model.phase {
             case .recording(let handsFree):
@@ -112,7 +141,7 @@ struct TBDRecordingPill: View {
         .frame(height: 44)
         .background(TBDDesign.recordingSurface, in: RoundedRectangle(cornerRadius: TBDTokens.Radius.sm + 18, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.sm + 18, style: .continuous).strokeBorder(.white.opacity(0.12)))
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.bottom, 6)
         .animation(TBDMotion.instant, value: model.phase)
     }
 
@@ -122,6 +151,27 @@ struct TBDRecordingPill: View {
                 .frame(width: 22, height: 22).background(.white.opacity(0.14), in: Circle())
         }
         .buttonStyle(.plain).help(help).accessibilityLabel(help)
+    }
+}
+
+/// The newest words of the live preview, two lines at most, cut at the start so the end of
+/// what is being said stays visible.
+struct TBDLivePartialBubble: View {
+    let text: String
+    var body: some View {
+        Text(text)
+            .font(TBDTokens.Typography.control)
+            .foregroundStyle(.white.opacity(0.92))
+            .lineLimit(2)
+            .truncationMode(.head)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, TBDTokens.Space.md)
+            .padding(.vertical, TBDTokens.Space.sm)
+            .frame(maxWidth: 420)
+            .background(TBDDesign.recordingSurface.opacity(0.92), in: RoundedRectangle(cornerRadius: TBDTokens.Radius.sm + 10, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.sm + 10, style: .continuous).strokeBorder(.white.opacity(0.10)))
+            .animation(TBDMotion.instant, value: text)
+            .accessibilityLabel("Live transcript: \(text)")
     }
 }
 
