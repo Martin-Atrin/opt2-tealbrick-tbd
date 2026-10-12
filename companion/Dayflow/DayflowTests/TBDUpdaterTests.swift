@@ -94,4 +94,96 @@ final class TBDUpdaterTests: XCTestCase {
     XCTAssertNil(TBDUpdateVerifier.requirement(teamID: "ABC\" or true"))
     XCTAssertNil(TBDUpdateVerifier.requirement(teamID: ""))
   }
+
+  // MARK: dev to dev updates (C68a)
+
+  /// Info.plist of a build. `release` nil = a bundle from before TBDReleaseVersion existed.
+  private func info(short: String = "0.1.0", release: String?, id: String = "com.tealbrick.tbd")
+    -> [String: Any]
+  {
+    var d: [String: Any] = ["CFBundleIdentifier": id, "CFBundleShortVersionString": short]
+    if let release { d["TBDReleaseVersion"] = release }
+    return d
+  }
+
+  func testDevThreeIsOfferedToDevTwo() throws {
+    let offer = try XCTUnwrap(
+      try TBDUpdateOffer.parse(answer(version: "0.1.0-dev.3"), currentVersion: "0.1.0-dev.2", os: os14))
+    XCTAssertEqual(offer.version, "0.1.0-dev.3")
+  }
+
+  func testSameDevVersionIsNotOffered() throws {
+    XCTAssertNil(
+      try TBDUpdateOffer.parse(answer(version: "0.1.0-dev.3"), currentVersion: "0.1.0-dev.3", os: os14))
+  }
+
+  func testReleaseIsOfferedToItsLastPrerelease() throws {
+    XCTAssertNotNil(
+      try TBDUpdateOffer.parse(answer(version: "0.1.0"), currentVersion: "0.1.0-dev.9", os: os14))
+    // Numeric, not textual, order inside the pre-release.
+    XCTAssertNotNil(
+      try TBDUpdateOffer.parse(answer(version: "0.1.0-dev.10"), currentVersion: "0.1.0-dev.9", os: os14))
+  }
+
+  func testDowngradeIsNotOffered() throws {
+    XCTAssertNil(
+      try TBDUpdateOffer.parse(answer(version: "0.1.0-dev.2"), currentVersion: "0.1.0-dev.3", os: os14))
+    XCTAssertNil(
+      try TBDUpdateOffer.parse(answer(version: "0.1.0-dev.9"), currentVersion: "0.1.0", os: os14))
+  }
+
+  func testReleaseVersionPrefersTBDReleaseVersion() {
+    XCTAssertEqual(
+      TBDUpdateVerifier.releaseVersion(from: info(release: "0.1.0-dev.4")), "0.1.0-dev.4")
+  }
+
+  func testReleaseVersionFallsBackToShortVersion() {
+    XCTAssertEqual(TBDUpdateVerifier.releaseVersion(from: info(release: nil)), "0.1.0")
+    XCTAssertEqual(TBDUpdateVerifier.releaseVersion(from: info(release: "not a version")), "0.1.0")
+    XCTAssertEqual(TBDUpdateVerifier.releaseVersion(from: info(release: "")), "0.1.0")
+    XCTAssertNil(TBDUpdateVerifier.releaseVersion(from: ["CFBundleShortVersionString": "x"]))
+    XCTAssertNil(TBDUpdateVerifier.releaseVersion(from: nil))
+  }
+
+  func testDownloadedBundleMustBeStrictlyNewer() throws {
+    let dev3 = info(release: "0.1.0-dev.3")
+    XCTAssertNoThrow(
+      try TBDUpdateVerifier.checkBundleIsNewer(newInfo: info(release: "0.1.0-dev.4"), currentInfo: dev3))
+    XCTAssertNoThrow(
+      try TBDUpdateVerifier.checkBundleIsNewer(
+        newInfo: info(release: "0.1.0"), currentInfo: info(release: "0.1.0-dev.9")))
+    for old in ["0.1.0-dev.3", "0.1.0-dev.2", "0.0.9"] {
+      XCTAssertThrowsError(
+        try TBDUpdateVerifier.checkBundleIsNewer(newInfo: info(release: old), currentInfo: dev3)
+      ) { XCTAssertEqual($0 as? TBDUpdateError, .versionNotNewer) }
+    }
+  }
+
+  func testBundleCheckFallsBackWhenKeyIsMissing() throws {
+    // An installed build from before the key existed (short version only) updates to a dev build
+    // that carries the key only if the dev build outranks 0.1.0; a prerelease of 0.1.0 does not.
+    XCTAssertThrowsError(
+      try TBDUpdateVerifier.checkBundleIsNewer(
+        newInfo: info(release: "0.1.0-dev.4"), currentInfo: info(release: nil)))
+    XCTAssertNoThrow(
+      try TBDUpdateVerifier.checkBundleIsNewer(
+        newInfo: info(release: "0.2.0"), currentInfo: info(release: nil)))
+    // New bundle without the key: its short version is used.
+    XCTAssertNoThrow(
+      try TBDUpdateVerifier.checkBundleIsNewer(
+        newInfo: info(short: "0.2.0", release: nil), currentInfo: info(release: "0.1.0-dev.3")))
+    XCTAssertThrowsError(
+      try TBDUpdateVerifier.checkBundleIsNewer(
+        newInfo: info(release: nil), currentInfo: info(release: nil)))
+  }
+
+  func testBundleCheckRefusesWrongIdentifierOrMissingInfo() {
+    XCTAssertThrowsError(
+      try TBDUpdateVerifier.checkBundleIsNewer(
+        newInfo: info(release: "0.9.0", id: "com.example.other"), currentInfo: info(release: "0.1.0")))
+    XCTAssertThrowsError(
+      try TBDUpdateVerifier.checkBundleIsNewer(newInfo: nil, currentInfo: info(release: "0.1.0")))
+    XCTAssertThrowsError(
+      try TBDUpdateVerifier.checkBundleIsNewer(newInfo: info(release: "0.9.0"), currentInfo: nil))
+  }
 }

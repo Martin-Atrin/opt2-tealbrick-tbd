@@ -11,7 +11,14 @@
 #   TBD_NOTARY_PROFILE    notarytool keychain profile; unset = build + sign only, then print setup steps
 #   TBD_NODE_SOURCE       optional Node binary for the Chat helper (default: scripts/fetch-node.sh, pinned official build)
 #   TBD_PUBLISH=1         after notarization, publish a GitHub release on Martin-Atrin/opt2-tealbrick-tbd (Coordinator approval required)
-#   TBD_RELEASE_TAG       release tag (default v<CFBundleShortVersionString>); a tag with "-" (e.g. v0.1.0-dev.1) is published as a PRE-RELEASE
+#   TBD_RELEASE_TAG       release tag (default v<TBDReleaseVersion from the source Info.plist>); a tag with "-" (e.g. v0.1.0-dev.1) is published as a PRE-RELEASE
+#   TBD_BUILD_NUMBER      integer CFBundleVersion (default: number of commits on HEAD, which only grows on main)
+#
+# Versions (C68a): the tag names the release. The built app gets
+#   TBDReleaseVersion          = full semver of the release (0.1.0-dev.4); the updater compares this
+#   CFBundleShortVersionString = its x.y.z core (0.1.0)
+#   CFBundleVersion            = monotonically increasing build number
+# so dev.N -> dev.N+1 updates order correctly (the short version is equal for all 0.1.0 pre-releases).
 set -euo pipefail
 
 TBD_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -48,10 +55,22 @@ tbd_assemble Release "$DERIVED" "$LOGS"
 [ "$TBD_APP" = "$APP" ] || die "unexpected app path $TBD_APP"
 
 PLIST="$APP/Contents/Info.plist"
-VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$PLIST")"
-BUILD="$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$PLIST")"
-BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$PLIST")"
-printf 'TBD %s (build %s), %s\n' "$VERSION" "$BUILD" "$BUNDLE_ID"
+pb() { /usr/libexec/PlistBuddy "$@"; }
+if [ -n "${TBD_RELEASE_TAG:-}" ]; then
+  VERSION="${TBD_RELEASE_TAG#v}"
+else
+  VERSION="$(pb -c 'Print TBDReleaseVersion' "$PLIST" 2>/dev/null || pb -c 'Print CFBundleShortVersionString' "$PLIST")"
+fi
+printf '%s' "$VERSION" | /usr/bin/grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?$' \
+  || die "release version is not a semver (x.y.z or x.y.z-pre.N): '$VERSION'"
+BUILD="${TBD_BUILD_NUMBER:-$(git -C "$TBD_ROOT" rev-list --count HEAD 2>/dev/null || true)}"
+printf '%s' "$BUILD" | /usr/bin/grep -Eq '^[1-9][0-9]*$' || die "build number must be a positive integer: '$BUILD'"
+CORE="${VERSION%%-*}"
+pb -c "Set :CFBundleShortVersionString $CORE" "$PLIST"
+pb -c "Set :CFBundleVersion $BUILD" "$PLIST"
+pb -c "Set :TBDReleaseVersion $VERSION" "$PLIST" 2>/dev/null || pb -c "Add :TBDReleaseVersion string $VERSION" "$PLIST"
+BUNDLE_ID="$(pb -c 'Print CFBundleIdentifier' "$PLIST")"
+printf 'TBD %s (build %s, short %s), %s\n' "$VERSION" "$BUILD" "$CORE" "$BUNDLE_ID"
 
 step "Sign inside-out with: $IDENTITY"
 sign() { codesign --force --options runtime --timestamp --sign "$IDENTITY" "$@"; }

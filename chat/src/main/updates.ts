@@ -6,6 +6,10 @@ import { keySetFrom, verifyReleaseIndex, type ReleaseIndexBody } from "@opt2-tea
  * manifest implementation (`verifyReleaseIndex`, CORE §3), then picks the
  * newest TBD desktop release. The native updater downloads, checks sha256 and
  * the code signature, and installs only after the person clicks.
+ *
+ * `current.version` is the running app's `TBDReleaseVersion` (full semver such as
+ * 0.1.0-dev.3), which the native updater passes. `CFBundleShortVersionString` stays
+ * 0.1.0 for every 0.1.0 pre-release and must not be used here (C68a).
  */
 
 export const INDEX_URL = "https://github.com/Martin-Atrin/opt2-tealbrick-platform/releases/download/registry/index.json";
@@ -27,18 +31,33 @@ interface RawRelease {
   artifact?: { url?: string; sha256?: string } | null; minOs?: string | null; notarized?: boolean | null; publishedAt?: string;
 }
 
-/** semver compare incl. pre-release (a.b.c < a.b.c-x is false; release > prerelease). */
+/**
+ * Full semver 2.0 precedence (build metadata ignored): a release ranks above its own
+ * pre-releases, dot-separated pre-release identifiers compare numerically when both are
+ * numbers (dev.9 < dev.10), numeric < alphanumeric, and a shorter identifier list ranks lower.
+ * Also used for plain OS versions such as "14.5". Returns -1, 0 or 1.
+ */
 export function compareVersions(a: string, b: string): number {
   const parse = (v: string) => {
-    const [core, pre] = v.replace(/^v/, "").split("-", 2);
-    return { nums: core.split(".").map((n) => Number.parseInt(n, 10) || 0), pre: pre ?? null };
+    const text = v.trim().replace(/^v/i, "").split("+", 1)[0] ?? "";
+    const dash = text.indexOf("-");
+    const core = dash < 0 ? text : text.slice(0, dash);
+    const pre = dash < 0 ? [] : text.slice(dash + 1).split(".");
+    return { nums: core.split(".").map((n) => Number.parseInt(n, 10) || 0), pre };
   };
   const x = parse(a), y = parse(b);
   for (let i = 0; i < 3; i++) { const d = (x.nums[i] ?? 0) - (y.nums[i] ?? 0); if (d) return d < 0 ? -1 : 1; }
-  if (x.pre === y.pre) return 0;
-  if (x.pre === null) return 1;
-  if (y.pre === null) return -1;
-  return x.pre < y.pre ? -1 : 1;
+  if (x.pre.length === 0 || y.pre.length === 0) return x.pre.length === y.pre.length ? 0 : x.pre.length === 0 ? 1 : -1;
+  const numeric = /^\d+$/;
+  for (let i = 0; i < Math.min(x.pre.length, y.pre.length); i++) {
+    const p = x.pre[i] as string, q = y.pre[i] as string;
+    if (p === q) continue;
+    const pn = numeric.test(p), qn = numeric.test(q);
+    if (pn && qn) return Number(p) < Number(q) ? -1 : 1;
+    if (pn !== qn) return pn ? -1 : 1;
+    return p < q ? -1 : 1;
+  }
+  return x.pre.length === y.pre.length ? 0 : x.pre.length < y.pre.length ? -1 : 1;
 }
 
 export function selectDesktopRelease(body: ReleaseIndexBody, current: { version: string; os: string; channel?: "stable" | "dev" }): DesktopRelease | null {

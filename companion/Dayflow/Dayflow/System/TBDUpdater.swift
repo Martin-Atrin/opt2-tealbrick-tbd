@@ -180,6 +180,27 @@ enum TBDUpdateVerifier {
       >= (need.majorVersion, need.minorVersion, need.patchVersion)
   }
 
+  /// Info.plist key with the full semver of the release (for example 0.1.0-dev.4). The short
+  /// version string stays 0.1.0 for every 0.1.0 pre-release, so it cannot order dev builds (C68a).
+  static let releaseVersionKey = "TBDReleaseVersion"
+
+  /// The release version of a bundle: `TBDReleaseVersion` when it parses, else
+  /// `CFBundleShortVersionString` (bundles built before the key existed).
+  static func releaseVersion(from info: [String: Any]?) -> String? {
+    if let text = info?[releaseVersionKey] as? String, TBDSemver(text) != nil { return text }
+    if let text = info?["CFBundleShortVersionString"] as? String, TBDSemver(text) != nil { return text }
+    return nil
+  }
+
+  /// The downloaded bundle must be this app and strictly newer than the running release version.
+  static func checkBundleIsNewer(newInfo: [String: Any]?, currentInfo: [String: Any]?) throws {
+    guard
+      newInfo?["CFBundleIdentifier"] as? String == "com.tealbrick.tbd",
+      let new = releaseVersion(from: newInfo).flatMap(TBDSemver.init),
+      let cur = releaseVersion(from: currentInfo).flatMap(TBDSemver.init), new > cur
+    else { throw TBDUpdateError.versionNotNewer }
+  }
+
   /// Code requirement string for the downloaded bundle. The team id comes from the running app.
   static func requirement(teamID: String) -> String? {
     guard teamID.count == 10, teamID.allSatisfy({ $0.isASCII && ($0.isUppercase || $0.isNumber) })
@@ -301,8 +322,9 @@ final class TBDUpdater: ObservableObject {
 
   private init() {}
 
+  /// Full release semver of the running app (`TBDReleaseVersion`, else the short version string).
   var currentVersion: String {
-    Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
+    TBDUpdateVerifier.releaseVersion(from: Bundle.main.infoDictionary) ?? "0.0.0"
   }
 
   /// Channel name the helper expects: "stable", or "dev" when the person opted into beta.
@@ -489,13 +511,10 @@ final class TBDUpdater: ObservableObject {
   }
 
   private nonisolated static func verifyBundleVersion(of app: URL) throws {
-    let current = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
-    guard
-      let plist = NSDictionary(contentsOf: app.appendingPathComponent("Contents/Info.plist")),
-      plist["CFBundleIdentifier"] as? String == "com.tealbrick.tbd",
-      let newText = plist["CFBundleShortVersionString"] as? String,
-      let new = TBDSemver(newText), let cur = current.flatMap(TBDSemver.init), new > cur
-    else { throw TBDUpdateError.versionNotNewer }
+    try TBDUpdateVerifier.checkBundleIsNewer(
+      newInfo: NSDictionary(contentsOf: app.appendingPathComponent("Contents/Info.plist"))
+        as? [String: Any],
+      currentInfo: Bundle.main.infoDictionary)
   }
 
   /// Atomic swap on the same volume; the old bundle ends in the system replacement directory.
