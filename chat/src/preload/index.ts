@@ -60,6 +60,10 @@ const studio: StudioApi = {
   cancelAgentConnect: () => ipcRenderer.invoke("studio:cancelAgentConnect"),
   agentDisconnect: () => ipcRenderer.invoke("studio:agentDisconnect"),
   pendingHolds: () => ipcRenderer.invoke("studio:pendingHolds"),
+  agentFolders: () => ipcRenderer.invoke("studio:agentFolders"),
+  addAgentFolder: () => ipcRenderer.invoke("studio:addAgentFolder"),
+  removeAgentFolder: (path) => ipcRenderer.invoke("studio:removeAgentFolder", path),
+  openAgentWorkspace: () => ipcRenderer.invoke("studio:openAgentWorkspace"),
   openExternal: (url) => ipcRenderer.invoke("studio:openExternal", url),
   onAuthorization: (handler) => {
     const listener = (_e: unknown, payload: Parameters<typeof handler>[0]): void => handler(payload);

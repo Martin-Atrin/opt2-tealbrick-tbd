@@ -6,7 +6,8 @@ import type { Attachment, RemoteAgent } from "../shared/ipc";
 import { loadState, pickFolder, saveState } from "./store";
 import { localFileExists, openLocalFile, openRemoteFile, revealLocalFile, saveRemoteFile } from "./deliveredFile";
 import { answerAsk } from "./asks";
-import { getServices, resetServices } from "./services";
+import { addAgentFolder, agentFolders, agentWorkspace, ensurePerson, getServices, removeAgentFolder, resetServices } from "./services";
+import { dialog } from "../tbd/host";
 import { publicPersonSession } from "./portal";
 import { DEFAULT_AGENT_ID } from "./defaultAgent";
 import { buildMessage } from "../shared/message";
@@ -58,49 +59,54 @@ function requireDefaultAgent(agentId: unknown): void {
   if (agentId !== DEFAULT_AGENT_ID) throw new Error("TBD Chat talks only to TBD's own agent.");
 }
 
+/** Handlers that use the person session load it first (lazily, once; may ask for user presence). */
+function withPerson<A extends unknown[], R>(fn: (...args: A) => R | Promise<R>): (...args: A) => Promise<R> {
+  return async (...args: A) => { await ensurePerson(); return fn(...args); };
+}
+
 export function registerIpc(): void {
   const signedIn = () => Boolean(getServices().portal.session());
-  ipcMain.handle("studio:portalWorkspaces", () => portalWorkspaces());
-  ipcMain.handle("studio:selectPortalWorkspace", (_e, id: string) => selectPortalWorkspace(id));
+  ipcMain.handle("studio:portalWorkspaces", withPerson(() => portalWorkspaces()));
+  ipcMain.handle("studio:selectPortalWorkspace", withPerson((_e: unknown, id: string) => selectPortalWorkspace(id)));
   const requireSignedOut = (): void => assertPlaneSwitchAllowed(signedIn(), startingSignIn || Boolean(pendingSignIn));
   ipcMain.handle("studio:controlPlanes", () => controlPlanes());
-  ipcMain.handle("studio:activateControlPlane", (_e, id: string) => { requireSignedOut(); activateControlPlane(id); resetServices(); });
-  ipcMain.handle("studio:addControlPlane", (_e, input: { name: string; issuer: string }) => { requireSignedOut(); addControlPlane(input); resetServices(); });
+  ipcMain.handle("studio:activateControlPlane", async (_e, id: string) => { requireSignedOut(); activateControlPlane(id); resetServices(); });
+  ipcMain.handle("studio:addControlPlane", async (_e, input: { name: string; issuer: string }) => { requireSignedOut(); addControlPlane(input); resetServices(); });
   ipcMain.handle("studio:removeControlPlane", (_e, id: string) => { requireSignedOut(); return removeControlPlane(id); });
-  ipcMain.handle("studio:session", () => {
+  ipcMain.handle("studio:session", withPerson(async () => {
     const s = publicPersonSession(getServices().portal.session());
     return s ? { expiresAt: s.expiresAt, email: s.email ?? undefined } : null;
-  });
+  }));
 
   // Person sign-in: device flow client_id=tbd, scope=owner. The approval page opens in the system browser.
-  ipcMain.handle("studio:signIn", async () => {
+  ipcMain.handle("studio:signIn", withPerson(async () => {
     startingSignIn = true;
     try {
       pendingSignIn = await getServices().portal.startSignIn();
       void shell.openExternal(pendingSignIn.verification_uri_complete);
       return { userCode: pendingSignIn.user_code, verificationUri: pendingSignIn.verification_uri };
     } finally { startingSignIn = false; }
-  });
+  }));
   ipcMain.handle("studio:cancelSignIn", () => { getServices().portal.cancelSignIn(); pendingSignIn = null; });
-  ipcMain.handle("studio:awaitSignIn", async () => {
+  ipcMain.handle("studio:awaitSignIn", withPerson(async () => {
     if (!pendingSignIn) throw new Error("No sign-in in progress.");
     try {
       const s = await getServices().portal.awaitSignIn(pendingSignIn);
       return { expiresAt: s.expiresAt, email: s.email ?? undefined };
     } finally { pendingSignIn = null; }
-  });
-  ipcMain.handle("studio:signOut", async () => {
+  }));
+  ipcMain.handle("studio:signOut", withPerson(async () => {
     pendingSignIn = null;
     await getServices().portal.signOut();
     resetServices();
     app.emit("tbd:reset-session");
-  });
+  }));
 
   // The agent directory is TBD's own agent only.
-  ipcMain.handle("studio:listAgents", async () => {
+  ipcMain.handle("studio:listAgents", withPerson(async () => {
     if (!signedIn()) throw new Error("Not signed in.");
     return [await defaultAgentRow()];
-  });
+  }));
   ipcMain.handle("studio:saveAgentProfile", () => undefined);
   ipcMain.handle("studio:agentInfo", (_e, agentId: string) => {
     requireDefaultAgent(agentId);
@@ -124,12 +130,12 @@ export function registerIpc(): void {
     const c = getServices().agentIdentity.connection();
     return c ? { connected: true, workspaceId: c.workspaceId, agentId: c.agentId } : { connected: false };
   });
-  ipcMain.handle("studio:agentConnect", async () => {
+  ipcMain.handle("studio:agentConnect", withPerson(async () => {
     if (!signedIn()) throw new Error("Sign in first.");
     const start = await getServices().agentIdentity.start();
     void shell.openExternal(start.verification_uri_complete);
     return { userCode: start.user_code, verificationUri: start.verification_uri };
-  });
+  }));
   ipcMain.handle("studio:awaitAgentConnect", async () => {
     const c = await getServices().agentIdentity.await();
     getServices().agent.stop(); // restart with the relay on the next turn
@@ -138,10 +144,20 @@ export function registerIpc(): void {
   ipcMain.handle("studio:cancelAgentConnect", () => getServices().agentIdentity.cancel());
   ipcMain.handle("studio:agentDisconnect", async () => { await getServices().agentIdentity.disconnect(); getServices().agent.stop(); });
 
-  // Approvals: counts only (S2/C24); the hold pages open in the system browser.
-  ipcMain.handle("studio:pendingHolds", async () => {
-    try { return await getServices().portal.pendingHolds(selectedPortalWorkspace()); } catch { return []; }
+  // SEC-04: the agent's working folder and the folders the person lets it read.
+  ipcMain.handle("studio:agentFolders", () => ({ workspace: agentWorkspace(), folders: agentFolders() }));
+  ipcMain.handle("studio:addAgentFolder", async () => {
+    const picked = (await dialog.showOpenDialog({ properties: ["openDirectory"] })) as { canceled?: boolean; filePaths?: string[] };
+    if (picked?.canceled || !picked?.filePaths?.[0]) return { workspace: agentWorkspace(), folders: agentFolders() };
+    return { workspace: agentWorkspace(), folders: addAgentFolder(picked.filePaths[0]) };
   });
+  ipcMain.handle("studio:removeAgentFolder", (_e, path: string) => ({ workspace: agentWorkspace(), folders: removeAgentFolder(String(path)) }));
+  ipcMain.handle("studio:openAgentWorkspace", () => shell.openPath(agentWorkspace()));
+
+  // Approvals: counts only (S2/C24); the hold pages open in the system browser.
+  ipcMain.handle("studio:pendingHolds", withPerson(async () => {
+    try { return await getServices().portal.pendingHolds(selectedPortalWorkspace()); } catch { return []; }
+  }));
 
   // Update feed for the native updater: verified release index → newest TBD desktop release, or null.
   ipcMain.handle("studio:checkUpdate", (_e, input: { version: string; os: string; channel?: "stable" | "dev" }) =>

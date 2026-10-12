@@ -2,7 +2,6 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
 import { randomUUID } from "node:crypto";
 import type { AgentConfig, AgentEvent, AgentToHelper, HelperToAgent } from "../agent/protocol";
-import type { LocalAsk } from "../shared/ipc";
 
 /**
  * Supervisor for TBD's default agent process (C24: TBD Chat talks only to it).
@@ -30,7 +29,8 @@ export interface DefaultAgentDeps {
   model(): Promise<{ model: string; baseUrl?: string; apiKey: string }>;
   /** Everything else the agent needs; no credentials. */
   config(): Promise<Omit<AgentConfig, "model">>;
-  ask(ask: LocalAsk): Promise<{ allow: boolean; remember: boolean }>;
+  /** Decide one tool call (file policy + person consent, SEC-04); message is shown to the agent on deny. */
+  permission(req: { tool: string; detail: string; input: Record<string, unknown> }): Promise<{ allow: boolean; message?: string }>;
   /** For tests: spawn replacement. */
   spawnProcess?: typeof spawn;
 }
@@ -93,8 +93,8 @@ export function createDefaultAgent(deps: DefaultAgentDeps) {
       else if (e.kind === "activity") t.onActivity(e.label);
       else if (e.kind === "session") { t.sessionId = e.sessionId; t.onTurn?.({ sessionId: e.sessionId, turnId: m.id }); }
     } else if (m.type === "permission_request") {
-      void deps.ask({ id: m.reqId, agent: "TBD", action: "run-command", label: m.tool, detail: m.detail })
-        .then((d) => send({ type: "permission", reqId: m.reqId, allow: d.allow }))
+      void deps.permission({ tool: m.tool, detail: m.detail, input: m.input ?? {} })
+        .then((d) => send({ type: "permission", reqId: m.reqId, allow: d.allow, message: d.message }))
         .catch(() => send({ type: "permission", reqId: m.reqId, allow: false }));
     } else if (m.type === "done") {
       const t = turns.get(m.id);

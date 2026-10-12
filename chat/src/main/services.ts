@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { hostname } from "node:os";
-import { join } from "node:path";
-import { app, nativeCall, safeStorage } from "../tbd/host";
+import { homedir, hostname } from "node:os";
+import { join, resolve } from "node:path";
+import { app, nativeCall } from "../tbd/host";
+import { decide, realPath, sandboxSettings, type PolicyContext } from "./filePolicy";
 import { currentControlPlane } from "./controlPlanes";
 import { createPortal, type PersonSession, type Portal } from "./portal";
 import { createAgentIdentity, type AgentConnection, type AgentIdentity, type AgentSigner, type Ed25519Jwk } from "./agentIdentity";
@@ -22,22 +23,32 @@ function dataDir(): string {
   return dir;
 }
 
-/** Person session, encrypted with the host's Keychain-held key. */
+/**
+ * Person session (K3) in the Keychain item `tealbrick.person` (CREDENTIALS §12), one account per
+ * Portal origin. Loaded once into memory (`loadPersonSession`, may ask for user presence) and
+ * written through to the Keychain by the native host. Never on disk in a file.
+ */
+let personCache: PersonSession | null = null;
+let personReady: Promise<void> | null = null;
+/** Load the person session once, on first use (the Keychain may ask for user presence). */
+export function ensurePerson(): Promise<void> {
+  personReady ??= loadPersonSession();
+  return personReady;
+}
+export async function loadPersonSession(): Promise<void> {
+  try {
+    const raw = (await nativeCall("personLoad", currentControlPlane().issuer)) as string | null;
+    personCache = raw ? (JSON.parse(raw) as PersonSession) : null;
+  } catch { personCache = null; }
+}
 function personStore() {
-  const file = () => join(dataDir(), "person.bin");
-  let cache: PersonSession | null | undefined;
   return {
-    load(): PersonSession | null {
-      if (cache !== undefined) return cache;
-      try {
-        cache = existsSync(file()) && safeStorage.isEncryptionAvailable() ? (JSON.parse(safeStorage.decryptString(readFileSync(file()))) as PersonSession) : null;
-      } catch { cache = null; }
-      return cache;
-    },
+    load: (): PersonSession | null => personCache,
     save(s: PersonSession | null): void {
-      cache = s;
-      if (!s) { rmSync(file(), { force: true }); return; }
-      if (safeStorage.isEncryptionAvailable()) writeFileSync(file(), safeStorage.encryptString(JSON.stringify(s)), { mode: 0o600 });
+      personCache = s;
+      const origin = currentControlPlane().issuer;
+      void (s ? nativeCall("personSave", origin, JSON.stringify(s)) : nativeCall("personClear", origin))
+        .catch((e) => console.error(`[person] keychain write failed: ${e instanceof Error ? e.message : String(e)}`));
     },
   };
 }
@@ -64,6 +75,55 @@ export const keychainSigner: AgentSigner = {
   rename: async (from, to) => { await nativeCall("agentKeyRename", from, to); },
   remove: async (label) => { await nativeCall("agentKeyDelete", label); },
 };
+
+/** The agent's own working folder (SEC-04): TBD-owned, outside TBD's data, created 0700. */
+export function agentWorkspace(): string {
+  const dir = join(homedir(), "Library", "Application Support", "TBD Agent", "Workspace");
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  return realPath(dir);
+}
+
+/** Folders the person allowed the agent to read (managed in TBD's agent settings). */
+function foldersFile(): string { return join(dataDir(), "agent-folders.json"); }
+export function agentFolders(): string[] {
+  try { const v = JSON.parse(readFileSync(foldersFile(), "utf8")); return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []; } catch { return []; }
+}
+function saveFolders(list: string[]): void {
+  writeFileSync(foldersFile(), JSON.stringify([...new Set(list)].sort(), null, 2), { mode: 0o600 });
+}
+export function policyContext(): PolicyContext {
+  const home = realPath(homedir());
+  return { home, workspace: agentWorkspace(), allowed: agentFolders().map((f) => realPath(f)), tbdData: realPath(join(home, "Library", "Application Support", "TBD")) };
+}
+/** Grant a folder; refuses the home folder itself, the root, and protected locations. */
+export function addAgentFolder(path: string): string[] {
+  const ctx = policyContext();
+  const p = realPath(resolve(path));
+  if (p === ctx.home || p === "/" || !p.startsWith("/")) throw new Error("Choose a specific folder, not your whole home folder.");
+  const verdict = decide("Read", { file_path: join(p, "x") }, { ...ctx, allowed: [p] });
+  if (verdict.kind === "deny") throw new Error(verdict.reason);
+  saveFolders([...agentFolders(), p]);
+  services?.agent.stop(); // the shell sandbox picks up the new list on the next turn
+  return agentFolders();
+}
+export function removeAgentFolder(path: string): string[] {
+  saveFolders(agentFolders().filter((f) => f !== path));
+  services?.agent.stop();
+  return agentFolders();
+}
+
+/** One tool call: policy first, the person only when needed (SEC-04). */
+async function permission(req: { tool: string; detail: string; input: Record<string, unknown> }): Promise<{ allow: boolean; message?: string }> {
+  const ctx = policyContext();
+  const verdict = decide(req.tool, req.input, ctx);
+  if (verdict.kind === "allow") return { allow: true };
+  if (verdict.kind === "deny") return { allow: false, message: verdict.reason };
+  const answer = await askPerson({ id: `ask-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, agent: "TBD's agent", action: "run-command", label: req.tool, detail: req.detail, folder: verdict.folder });
+  if (answer.allow && answer.remember && verdict.folder) {
+    try { addAgentFolder(verdict.folder); } catch { /* refused folder: still allowed once */ }
+  }
+  return answer.allow ? { allow: true } : { allow: false, message: "The person declined this action." };
+}
 
 export function machineLabel(): string {
   const host = hostname().replace(/\.local$/, "").slice(0, 40);
@@ -123,15 +183,17 @@ export function getServices(): Services {
         };
       }
       return {
-        cwd: app.getPath("home"),
+        cwd: agentWorkspace(),
         stateDir: join(dataDir(), "agent"),
         claudeExecutable: join(resources, "claude"),
         companionCli: process.env.TBD_COMPANION_CLI,
         listeningCli: process.env.TBD_LISTENING_CLI,
         relay,
+        sandbox: sandboxSettings(policyContext()),
+        systemAppend: `Your working folder is ${agentWorkspace()}. Other folders need the person's consent; some locations (keys, credentials, browser data) are never available.`,
       };
     },
-    ask: (a) => askPerson(a),
+    permission,
   });
   services = { portal, agentIdentity, agent };
   return services;
@@ -139,6 +201,8 @@ export function getServices(): Services {
 
 /** Workspace or account change: stop the agent, drop cached clients. */
 export function resetServices(): void {
+  personReady = null;
+  personCache = null;
   services?.agent.stop();
   services = null;
   signerServer?.close();

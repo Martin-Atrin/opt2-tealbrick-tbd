@@ -323,6 +323,10 @@ final class TBDChatRuntime: NSObject, ObservableObject, WKScriptMessageHandler, 
     case "agentModel":
       let config = try Self.agentModel()
       return ["model": config.model, "baseUrl": config.baseURL.absoluteString, "apiKey": config.apiKey ?? ""]
+    // Person session (K3): Keychain item tealbrick.person, user presence where available.
+    case "personLoad": return try TBDKeychain.personLoad(origin: text) ?? NSNull()
+    case "personSave": try TBDKeychain.personSave(origin: text, value: args.dropFirst().first as? String ?? ""); return NSNull()
+    case "personClear": try TBDKeychain.personClear(origin: text); return NSNull()
     // Agent key (K4): the private key stays in the Keychain; the helper only gets public keys and signatures.
     case "agentKeyCreate": return try TBDAgentKeys.create(label: text)
     case "agentKeyPublic": return try TBDAgentKeys.publicJwk(label: text)

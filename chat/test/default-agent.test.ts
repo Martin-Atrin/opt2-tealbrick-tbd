@@ -13,7 +13,7 @@ test("default agent: allow-listed env with only the model key, events streamed, 
     entry,
     model: async () => ({ model: "m", apiKey: "sk-test" }),
     config: async () => ({ cwd: "/tmp", stateDir: "/tmp/tbd-agent-test" }),
-    ask: async (a) => { asks.push(a.detail); return { allow: true, remember: false }; },
+    permission: async (r) => { asks.push(r.detail); return { allow: true }; },
   });
   try {
     const deltas: string[] = [];
@@ -40,7 +40,7 @@ test("a denied tool call is reported back to the agent", async () => {
     node: process.execPath, entry,
     model: async () => ({ model: "m", apiKey: "sk-test" }),
     config: async () => ({ cwd: "/tmp", stateDir: "/tmp/tbd-agent-test" }),
-    ask: async () => ({ allow: false, remember: false }),
+    permission: async () => ({ allow: false }),
   });
   try {
     const r = await agent.sendTurn({ text: "x", onDelta: () => {}, onActivity: () => {} });

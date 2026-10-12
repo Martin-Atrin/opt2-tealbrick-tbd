@@ -42,7 +42,7 @@ function options(c: AgentConfig, id: string, abort: AbortController, sessionId?:
     env: process.env,
     modelKeyEnv: "ANTHROPIC_API_KEY",
     model: c.model.model,
-    builtinTools: ["Read", "Glob", "Grep"],
+    builtinTools: [],
     extraMcpServers: localServers(c),
     appendSystemPrompt: [
       "You are TBD, the person's default Teal Brick agent, running on their Mac.",
@@ -64,9 +64,10 @@ function options(c: AgentConfig, id: string, abort: AbortController, sessionId?:
     abortController: abort,
     resume: sessionId,
     includePartialMessages: true,
-    // Available built-ins; only Read/Glob/Grep are auto-allowed (harness), the rest ask the person.
+    // Available built-ins; none is auto-allowed: every call goes through canUseTool (SEC-04).
     tools: AGENT_TOOLS,
     pathToClaudeCodeExecutable: c.claudeExecutable,
+    ...(c.sandbox ? { sandbox: c.sandbox as Options["sandbox"] } : {}),
     env: {
       ...base.env,
       // The harness's own state, isolated from the person's Claude setup.
@@ -76,7 +77,7 @@ function options(c: AgentConfig, id: string, abort: AbortController, sessionId?:
     canUseTool: async (tool, input, { signal }): Promise<PermissionResult> => {
       if (!needsPermission(tool)) return { behavior: "allow", updatedInput: input };
       const reqId = `p${++nextReq}`;
-      out({ type: "permission_request", id, reqId, tool, detail: describeToolCall(tool, input) });
+      out({ type: "permission_request", id, reqId, tool, detail: describeToolCall(tool, input), input });
       const decision = await new Promise<{ allow: boolean; message?: string }>((resolve) => {
         permissions.set(reqId, resolve);
         signal.addEventListener("abort", () => resolve({ allow: false, message: "Turn stopped." }), { once: true });

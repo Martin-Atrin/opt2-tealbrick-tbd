@@ -4,12 +4,13 @@ import Security
 
 /// TBD's AGENT key (K4, CREDENTIALS §9, §12 b): an Ed25519 key pair whose private
 /// half never leaves this process. It lives in the Keychain (this device only,
-/// when unlocked) as generic-password service `tealbrick.agent`, account
-/// `<label>`; after Portal approves the connection the label becomes the
-/// connection id (`con_…`). The Chat helper can ask for the public JWK and for
+/// when unlocked) as item `tealbrick.agent.<label>` (account `k4`); after Portal
+/// approves the connection the label becomes the connection id, so the item is
+/// `tealbrick.agent.<con>` as the spec names it. The Chat helper can ask for the public JWK and for
 /// signatures over agent assertions; it never receives the private key.
 enum TBDAgentKeys {
-  static let service = "tealbrick.agent"
+  static let servicePrefix = "tealbrick.agent."
+  static let account = "k4"
 
   struct Failure: LocalizedError {
     let message: String
@@ -47,7 +48,7 @@ enum TBDAgentKeys {
   /// Moves a key to a new label (e.g. pending → connection id).
   static func rename(from: String, to: String) throws {
     try validate(from); try validate(to)
-    let status = SecItemUpdate(base(from) as CFDictionary, [kSecAttrAccount as String: to] as CFDictionary)
+    let status = SecItemUpdate(base(from) as CFDictionary, [kSecAttrService as String: servicePrefix + to] as CFDictionary)
     guard status == errSecSuccess else { throw Failure(message: "Unable to rename agent key (\(status))") }
   }
 
@@ -67,8 +68,8 @@ enum TBDAgentKeys {
 
   private static func base(_ label: String) -> [String: Any] {
     [kSecClass as String: kSecClassGenericPassword,
-     kSecAttrService as String: service,
-     kSecAttrAccount as String: label]
+     kSecAttrService as String: servicePrefix + label,
+     kSecAttrAccount as String: account]
   }
 
   private static func load(_ label: String) throws -> Curve25519.Signing.PrivateKey? {

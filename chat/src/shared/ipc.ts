@@ -78,6 +78,8 @@ export interface LocalAsk {
   action: LocalAction;
   label: string;
   detail: string;
+  /** Set when "always" would add this folder to the agent's allow-list; absent = one-time consent only. */
+  folder?: string | null;
 }
 
 /**
@@ -159,6 +161,11 @@ export interface StudioApi {
   awaitAgentConnect(): Promise<{ connected: boolean; workspaceId?: string; agentId?: string }>;
   cancelAgentConnect(): Promise<void>;
   agentDisconnect(): Promise<void>;
+  /** The agent's working folder and the folders it may read (SEC-04). */
+  agentFolders(): Promise<{ workspace: string; folders: string[] }>;
+  addAgentFolder(): Promise<{ workspace: string; folders: string[] }>;
+  removeAgentFolder(path: string): Promise<{ workspace: string; folders: string[] }>;
+  openAgentWorkspace(): Promise<unknown>;
   /** Owner approvals waiting in apps: counts only; the hold pages open in the browser. */
   pendingHolds(): Promise<{ product: string; count: number }[]>;
   openExternal(url: string): Promise<void>;

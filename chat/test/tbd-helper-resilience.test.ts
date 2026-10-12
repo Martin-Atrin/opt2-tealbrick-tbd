@@ -28,6 +28,8 @@ function startHelper(nodeArgs = []) {
   const waiters = [];
   createInterface({ input: child.stdout }).on("line", (line) => {
     const message = JSON.parse(line);
+    // The real host answers Keychain reads; this one has no stored person session.
+    if (message.type === "native" && message.method === "personLoad") { child.stdin.write(JSON.stringify({ type: "nativeReply", id: message.id, value: null }) + "\n"); return; }
     messages.push(message);
     for (const w of [...waiters]) if (w.match(message)) { waiters.splice(waiters.indexOf(w), 1); w.resolve(message); }
   });

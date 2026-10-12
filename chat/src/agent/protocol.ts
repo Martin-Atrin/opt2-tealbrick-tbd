@@ -30,6 +30,8 @@ export interface AgentConfig {
   relay?: { command: string; args: string[]; env: Record<string, string> };
   /** Extra system prompt text (identity, workspace). */
   systemAppend?: string;
+  /** OS sandbox for the shell tool (filePolicy.sandboxSettings, SEC-04). */
+  sandbox?: Record<string, unknown>;
 }
 
 export type HelperToAgent =
@@ -48,17 +50,21 @@ export type AgentEvent =
 export type AgentToHelper =
   | { type: "ready" }
   | { type: "event"; id: string; event: AgentEvent }
-  | { type: "permission_request"; id: string; reqId: string; tool: string; detail: string }
+  | { type: "permission_request"; id: string; reqId: string; tool: string; detail: string; input: Record<string, unknown> }
   | { type: "done"; id: string; sessionId: string; reply: string }
   | { type: "error"; id?: string; message: string };
 
 /** Built-in tools the default agent has at all; anything that changes this Mac asks the person first. */
 export const AGENT_TOOLS = ["Read", "Glob", "Grep", "Edit", "Write", "Bash", "WebFetch", "WebSearch"];
 
-/** Whether a tool call needs the person's click (C5: harness-local policy, shown by TBD). */
+/**
+ * Whether TBD's helper must decide a tool call (SEC-04). Harness-local tools and the bridge
+ * (which decides its own calls) pass; every built-in file, shell and web tool goes to the
+ * helper's file policy: free inside the agent workspace and granted folders, secrets refused,
+ * everything else asks the person.
+ */
 export function needsPermission(tool: string): boolean {
-  if (tool.startsWith("mcp__companion__") || tool.startsWith("mcp__listening__") || tool.startsWith("mcp__tealbrick__")) return false;
-  return !["Read", "Glob", "Grep"].includes(tool);
+  return !(tool.startsWith("mcp__companion__") || tool.startsWith("mcp__listening__") || tool.startsWith("mcp__tealbrick__"));
 }
 
 /** One line for the consent card: the exact effect, never "the agent wants a tool". */

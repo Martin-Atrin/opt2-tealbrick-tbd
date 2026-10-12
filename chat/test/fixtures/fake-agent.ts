@@ -9,7 +9,7 @@ createInterface({ input: process.stdin }).on("line", (line) => {
     out({ type: "event", id: m.id, event: { kind: "session", sessionId: "sess-1" } });
     out({ type: "event", id: m.id, event: { kind: "activity", label: "Thinking" } });
     out({ type: "event", id: m.id, event: { kind: "delta", text: "Hello " } });
-    out({ type: "permission_request", id: m.id, reqId: "p1", tool: "Bash", detail: "Run: ls" });
+    out({ type: "permission_request", id: m.id, reqId: "p1", tool: "Bash", detail: "Run: ls", input: { command: "ls" } });
     (globalThis as any).pending = m;
   }
   if (m.type === "permission") {

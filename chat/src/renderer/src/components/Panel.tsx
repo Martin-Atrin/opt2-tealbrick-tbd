@@ -346,6 +346,38 @@ function AgentConnectCard(): ReactNode {
   );
 }
 
+/** SEC-04: where TBD's agent may read files. Its own folder is always available; others only when granted here. */
+function AgentFoldersCard(): ReactNode {
+  const [state, setState] = useState<{ workspace: string; folders: string[] } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => { void window.studio.agentFolders().then(setState).catch(() => {}); }, []);
+  const run = (p: Promise<{ workspace: string; folders: string[] }>): void => {
+    setError(null);
+    void p.then(setState).catch((e) => setError(e instanceof Error ? e.message : String(e)));
+  };
+  if (!state) return null;
+  return (
+    <div className="card">
+      <div style={{ marginBottom: 6 }}>Files the agent can read</div>
+      <div className="stack-row" style={{ marginBottom: 6 }}>
+        <div className="muted" style={{ flex: 1 }}>Its own folder: <span style={{ fontFamily: "var(--font-mono)" }}>{state.workspace}</span></div>
+        <button type="button" className="btn" onClick={() => void window.studio.openAgentWorkspace()}>Open</button>
+      </div>
+      {state.folders.map((f) => (
+        <div className="stack-row" key={f} style={{ marginBottom: 4 }}>
+          <div style={{ flex: 1, fontFamily: "var(--font-mono)", fontSize: 12.5 }}>{f}</div>
+          <button type="button" className="btn" onClick={() => run(window.studio.removeAgentFolder(f))}>Remove</button>
+        </div>
+      ))}
+      <div className="stack-row">
+        <div className="muted" style={{ flex: 1 }}>Other folders ask first. Keys, credentials and browser data are never available.</div>
+        <button type="button" className="btn" onClick={() => run(window.studio.addAgentFolder())}>Add folder…</button>
+      </div>
+      {error ? <div className="muted" style={{ color: "var(--danger)", marginTop: 6 }}>{error}</div> : null}
+    </div>
+  );
+}
+
 function Settings(): ReactNode {
   const { agents, activeAgentId, patchAgent, setPanel, details, models, resetConversation, sessions } =
     useStore();
@@ -413,6 +445,8 @@ function Settings(): ReactNode {
 
 
         <AgentConnectCard />
+
+        <AgentFoldersCard />
 
         <div className="card stack-row">
           <div style={{ flex: 1 }}>

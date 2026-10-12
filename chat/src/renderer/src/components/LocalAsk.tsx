@@ -51,18 +51,21 @@ export function LocalAskCard(): ReactNode {
       {current.detail ? <div className="ask__detail">{current.detail}</div> : null}
 
       <div className="ask__who">
-        {current.agent} is asking. This applies to every agent you use.
+        {current.agent} is asking to use this Mac.
+        {current.folder ? <> &ldquo;Always&rdquo; lets it read <span style={{ fontFamily: "var(--font-mono)" }}>{current.folder}</span> from now on; you can remove the folder in its Settings.</> : null}
       </div>
 
       <div className="ask__actions">
-        <button className="btn btn--primary" onClick={() => answer(true, true)}>
-          Always allow
-        </button>
-        <button className="btn" onClick={() => answer(true, false)}>
+        {current.folder ? (
+          <button type="button" className="btn btn--primary" onClick={() => answer(true, true)}>
+            Always allow this folder
+          </button>
+        ) : null}
+        <button type="button" className={current.folder ? "btn" : "btn btn--primary"} onClick={() => answer(true, false)}>
           Allow once
         </button>
-        <button className="btn" onClick={() => answer(false, true)}>
-          Never
+        <button type="button" className="btn" onClick={() => answer(false, false)}>
+          Deny
         </button>
       </div>
 
