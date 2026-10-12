@@ -36,7 +36,7 @@ This repository is public. It must never contain secrets or personal data:
 
 ## CI
 
-Woodpecker, shared opt2 template `ci-v5` (`.woodpecker/ci.yaml`, kind `desktop`, `tealbrick-ci.json` → `chat/`):
+Woodpecker, shared opt2 template `ci-v7` (`.woodpecker/ci.yaml`, kind `desktop`, `tealbrick-ci.json` → `chat/`):
 secret scan, install, typecheck, lint (biome) and tests on Linux.
 
 The macOS part is not in CI: the native app, `native/` Swift tests, signing, notarization and publishing run on the
