@@ -23,5 +23,11 @@ await build({
   banner: { js: "import { createRequire as __tbdRequire } from 'node:module'; const require = __tbdRequire(import.meta.url);" },
   logLevel: 'error',
 });
-copyFileSync('node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64/claude', 'out/tbd/claude');
-chmodSync('out/tbd/claude', 0o755);
+// The darwin-arm64 executable only installs on macOS. On the Linux CI host the bundles above are
+// built and checked; the app itself is assembled and signed on the release Mac (scripts/release.sh).
+if (process.platform === 'darwin') {
+  copyFileSync('node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64/claude', 'out/tbd/claude');
+  chmodSync('out/tbd/claude', 0o755);
+} else {
+  console.log(`build-tbd: skipped the darwin-arm64 Claude executable on ${process.platform} (macOS app assembly only)`);
+}
