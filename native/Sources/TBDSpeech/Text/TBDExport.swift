@@ -2,8 +2,8 @@ import Foundation
 
 /// Transcript export formats.
 public enum TBDExportFormat: String, CaseIterable, Sendable {
-    case txt, md, srt, vtt, json
-    public var fileExtension: String { rawValue }
+    case txt, md, srt, vtt, json, docx, pdf, dapt
+    public var fileExtension: String { self == .dapt ? "dapt.xml" : rawValue }
     public var title: String {
         switch self {
         case .txt: "Plain text"
@@ -11,8 +11,13 @@ public enum TBDExportFormat: String, CaseIterable, Sendable {
         case .srt: "SubRip (SRT)"
         case .vtt: "WebVTT"
         case .json: "JSON"
+        case .docx: "Word document"
+        case .pdf: "PDF"
+        case .dapt: "DAPT transcript"
         }
     }
+    /// DOCX and PDF are binary: use `TBDExport.data`.
+    public var isBinary: Bool { self == .docx || self == .pdf }
 }
 
 public enum TBDExport {
@@ -23,6 +28,17 @@ public enum TBDExport {
         case .srt: subtitles(item, vtt: false)
         case .vtt: subtitles(item, vtt: true)
         case .json: TBDListenJSON.encode(TBDListenJSON.Detail(item, summaries: summaries))
+        case .dapt: TBDDAPTExport.render(item)
+        case .docx, .pdf: text(item)   // Binary formats: see `data(_:as:summaries:)`.
+        }
+    }
+
+    /// File contents for any format.
+    public static func data(_ item: TBDTranscription, as format: TBDExportFormat, summaries: [TBDSummary] = []) -> Data {
+        switch format {
+        case .docx: TBDDocxExport.render(TBDDocumentModel(item, summaries: summaries))
+        case .pdf: TBDPDFExport.render(TBDDocumentModel(item, summaries: summaries))
+        default: Data(render(item, as: format, summaries: summaries).utf8)
         }
     }
 
@@ -42,6 +58,9 @@ public enum TBDExport {
         out += "- Source: \(item.sourceKind.label)\(item.sourceURL.map { " (\($0))" } ?? "")\n- Date: \(date)\n- Duration: \(clock(item.durationMs))\n\n"
         for summary in summaries {
             out += summary.kind == .summary ? "## Summary\n\n\(summary.content)\n\n" : "## Q: \(summary.prompt)\n\n\(summary.content)\n\n"
+        }
+        if let notes = item.userNotes?.trimmingCharacters(in: .whitespacesAndNewlines), !notes.isEmpty {
+            out += "## Notes\n\n\(notes)\n\n"
         }
         out += "## Transcript\n\n"
         for segment in displaySegments(item) {

@@ -38,6 +38,11 @@ struct TBDMeetingsView: View {
             if let warning = meetings.warning {
                 Text(warning).font(TBDTokens.Typography.body).foregroundStyle(TBDTokens.alert)
             }
+            HStack {
+                Spacer()
+                Button { meetings.importMeeting() } label: { Label("Import recording…", systemImage: "square.and.arrow.down") }
+                    .buttonStyle(TBDButtonStyle(.quiet)).help("Import an audio or video file as a meeting")
+            }
             TBDLibraryView(context: context, kind: .meeting)
         }
     }
@@ -68,30 +73,48 @@ struct TBDMeetingsView: View {
                 default: EmptyView()
                 }
             }
-            ScrollViewReader { proxy in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: TBDTokens.Space.xs) {
-                        if meetings.preview.isEmpty {
-                            Text("Live preview appears here as people speak.").foregroundStyle(TBDTokens.muted)
-                        }
-                        ForEach(meetings.preview) { line in
-                            HStack(alignment: .firstTextBaseline, spacing: TBDTokens.Space.sm) {
-                                Text(TBDExport.clock(line.startMs)).font(.system(size: 11, design: .monospaced)).foregroundStyle(TBDTokens.muted)
-                                Text(line.source == .me ? "Me" : "Others").font(TBDTokens.Typography.label).foregroundStyle(TBDTokens.accent)
-                                Text(line.text).font(TBDTokens.Typography.body).foregroundStyle(TBDTokens.ink).textSelection(.enabled)
-                            }
-                            .id(line.id)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .frame(height: 160)
-                .onChange(of: meetings.preview.count) { _, _ in
-                    if let last = meetings.preview.last { proxy.scrollTo(last.id, anchor: .bottom) }
+            Picker("", selection: $meetings.liveTab) {
+                ForEach(TBDMeetingController.LiveTab.allCases) { tab in
+                    Text(tab == .ask && meetings.liveAsk.streaming ? "Ask •" : tab.title).tag(tab)
                 }
             }
+            .pickerStyle(.segmented).labelsHidden().fixedSize()
+            Group {
+                switch meetings.liveTab {
+                case .notes:
+                    TBDNotesEditor(text: Binding(get: { meetings.notes }, set: { meetings.editNotes($0) }),
+                                   elapsedMs: { meetings.elapsedMs }, footnote: "Auto-saved with the recording. Stays on this Mac.")
+                case .transcript: livePreview
+                case .ask: TBDAskView(model: meetings.liveAsk, showsHistory: false)
+                }
+            }
+            .frame(height: 260)
         }
         .tbdCard(padding: TBDTokens.Space.md)
+    }
+
+    private var livePreview: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: TBDTokens.Space.xs) {
+                    if meetings.preview.isEmpty {
+                        Text("Live preview appears here as people speak.").foregroundStyle(TBDTokens.muted)
+                    }
+                    ForEach(meetings.preview) { line in
+                        HStack(alignment: .firstTextBaseline, spacing: TBDTokens.Space.sm) {
+                            Text(TBDExport.clock(line.startMs)).font(.system(size: 11, design: .monospaced)).foregroundStyle(TBDTokens.muted)
+                            Text(line.source == .me ? "Me" : "Others").font(TBDTokens.Typography.label).foregroundStyle(TBDTokens.accent)
+                            Text(line.text).font(TBDTokens.Typography.body).foregroundStyle(TBDTokens.ink).textSelection(.enabled)
+                        }
+                        .id(line.id)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .onChange(of: meetings.preview.count) { _, _ in
+                if let last = meetings.preview.last { proxy.scrollTo(last.id, anchor: .bottom) }
+            }
+        }
     }
 
     private var upcomingPanel: some View {
@@ -102,8 +125,21 @@ struct TBDMeetingsView: View {
                     Text(meeting.start.formatted(date: .omitted, time: .shortened)).font(.system(size: 11, design: .monospaced))
                         .foregroundStyle(TBDTokens.muted)
                     Text(meeting.title).font(TBDTokens.Typography.body)
+                    if context.env.preferences.calendarAutoStart, meetings.isSkipped(meeting) {
+                        Text("Won't auto-record").font(.system(size: 11)).foregroundStyle(TBDTokens.muted)
+                    }
                     Spacer()
                     Button("Record") { meetings.begin(title: meeting.title) }.buttonStyle(TBDButtonStyle(.quiet))
+                }
+                .contextMenu {
+                    if meetings.isSkipped(meeting) {
+                        Button(meeting.recurring ? "Auto-record this repeating meeting again" : "Auto-record again") { meetings.unskip(meeting) }
+                    } else {
+                        Button("Don't auto-record this meeting") { meetings.skip(meeting, series: false) }
+                        if meeting.recurring {
+                            Button("Don't auto-record this repeating meeting") { meetings.skip(meeting, series: true) }
+                        }
+                    }
                 }
             }
         }

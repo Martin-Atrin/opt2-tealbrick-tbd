@@ -49,7 +49,7 @@ extension TBDListeningPreferences {
         case "cohereLanguage": return optional(cohereLanguage)
         case "dictationLivePreview": return .bool(dictationLivePreview)
         case "meetingLivePreview": return .bool(meetingLivePreview)
-        case "keepAudio": return .bool(keepAudio)
+        case "keepAudio": return .bool(keepsAllFreshAudio)
         case "keepHistory": return .bool(keepHistory)
         case "removeFillers": return .bool(removeFillers)
         case "dictationCleanup": return .bool(dictationCleanup)
@@ -104,7 +104,7 @@ extension TBDListeningPreferences {
         case "cohereLanguage": try language(.cohere)
         case "dictationLivePreview": dictationLivePreview = try bool()
         case "meetingLivePreview": meetingLivePreview = try bool()
-        case "keepAudio": keepAudio = try bool()
+        case "keepAudio": setKeepsAllFreshAudio(try bool())
         case "keepHistory": keepHistory = try bool()
         case "removeFillers": removeFillers = try bool()
         case "dictationCleanup": dictationCleanup = try bool()
@@ -132,5 +132,25 @@ extension TBDListeningPreferences {
         var arguments = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
         arguments[key] = Self.normalizedLanguage(language) ?? ""
         defaults.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain)
+    }
+}
+
+/// `keepAudio` in `tbd-listen config` is a view of the per-kind retention policies: true when no
+/// kind removes audio after transcription. Setting it changes only "keep forever" and "remove audio
+/// after transcription" policies; day-based expiry stays as the person set it.
+extension TBDListeningPreferences {
+    var keepsAllFreshAudio: Bool { TBDRetentionKind.allCases.allSatisfy(keepsAudio) }
+
+    func setKeepsAllFreshAudio(_ keep: Bool) {
+        keepAudio = keep
+        var settings = retention
+        for kind in TBDRetentionKind.allCases where kind.modes.contains(.deleteAudioAfterTranscription) {
+            switch (keep, settings[kind].mode) {
+            case (true, .deleteAudioAfterTranscription): settings[kind] = TBDRetentionPolicy(mode: .keepForever, days: settings[kind].days)
+            case (false, .keepForever): settings[kind] = TBDRetentionPolicy(mode: .deleteAudioAfterTranscription, days: settings[kind].days)
+            default: break
+            }
+        }
+        retention = settings
     }
 }

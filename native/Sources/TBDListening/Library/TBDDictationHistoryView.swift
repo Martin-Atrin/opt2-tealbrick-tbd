@@ -3,47 +3,77 @@ import SwiftUI
 import TBDDesign
 import TBDSpeech
 
-/// Dictation history with simple stats.
+/// Dictation history (grouped by day, searchable) and stats.
 struct TBDDictationHistoryView: View {
+    enum SubTab: String, CaseIterable { case history = "History", stats = "Stats" }
     @EnvironmentObject private var env: TBDListeningEnvironment
-    @State private var query = ""
     @State private var items: [TBDDictation] = []
     @State private var stats = TBDListeningDatabase.DictationStats()
+    @State private var insights = TBDDictationInsights()
+    @State private var tab: SubTab = .history
 
     var body: some View {
         VStack(alignment: .leading, spacing: TBDTokens.Space.md) {
-            HStack(spacing: TBDTokens.Space.xl) {
-                stat("Dictations", "\(stats.count)")
-                stat("Today", "\(stats.today)")
-                stat("Words", stats.words.formatted())
-                stat("Speaking time", TBDExport.clock(stats.durationMs))
-                stat("Words per minute", "\(stats.wordsPerMinute)")
+            HStack(spacing: TBDTokens.Space.md) {
+                Picker("", selection: $tab) { ForEach(SubTab.allCases, id: \.self) { Text($0.rawValue).tag($0) } }
+                    .pickerStyle(.segmented).labelsHidden().fixedSize()
+                HStack(spacing: TBDTokens.Space.sm) {
+                    Image(systemName: "magnifyingglass").foregroundStyle(TBDTokens.muted)
+                    TextField("Search dictations", text: $env.dictationQuery).textFieldStyle(.plain)
+                }
+                .tbdField().frame(maxWidth: 320)
                 Spacer()
                 Button("Clear history", role: .destructive) { clear() }.buttonStyle(TBDButtonStyle(.destructive)).disabled(items.isEmpty)
             }
-            .tbdCard(padding: TBDTokens.Space.md)
-            HStack(spacing: TBDTokens.Space.sm) {
-                Image(systemName: "magnifyingglass").foregroundStyle(TBDTokens.muted)
-                TextField("Search dictations", text: $query).textFieldStyle(.plain)
-            }
-            .tbdField().frame(maxWidth: 360)
-            if !env.preferences.keepHistory {
-                Text("History is off. Turn it on in Settings → Listening → System.").foregroundStyle(TBDTokens.muted)
-            }
-            if items.isEmpty {
-                Text(query.isEmpty ? "Hold your dictation hotkey (\(env.preferences.dictationHotkey)) to dictate into any app." : "No matches.")
-                    .foregroundStyle(TBDTokens.muted).font(TBDTokens.Typography.body)
-                Spacer()
+            if tab == .stats {
+                TBDDictationStatsView(insights: insights)
             } else {
-                List(items) { item in row(item) }.listStyle(.inset).scrollContentBackground(.hidden)
+                HStack(spacing: TBDTokens.Space.xl) {
+                    stat("Dictations", "\(stats.count)")
+                    stat("Today", "\(stats.today)")
+                    stat("Words", stats.words.formatted())
+                    stat("Words per minute", "\(stats.wordsPerMinute)")
+                    stat("Streak", insights.currentStreak == 1 ? "1 day" : "\(insights.currentStreak) days")
+                }
+                if !env.preferences.keepHistory {
+                    Text("History is off. Turn it on in Settings → Listening → System.").foregroundStyle(TBDTokens.muted)
+                }
+                if items.isEmpty {
+                    Text(env.dictationQuery.isEmpty ? "Your voice, captured. Hold your dictation hotkey (\(env.preferences.dictationHotkey)) to dictate into any app."
+                         : "No matching records. Try different words or clear your search.")
+                        .foregroundStyle(TBDTokens.muted).font(TBDTokens.Typography.body)
+                    Spacer()
+                } else {
+                    List {
+                        ForEach(Self.days(items), id: \.0) { day, entries in
+                            Section(Self.dayTitle(day)) { ForEach(entries) { row($0) } }
+                        }
+                    }
+                    .listStyle(.inset).scrollContentBackground(.hidden)
+                }
             }
         }
-        .task(id: "\(query)|\(env.revision)") {
-            try? await Task.sleep(for: .milliseconds(120))
+        .onChange(of: env.dictationQuery) { _, query in if !query.isEmpty { tab = .history } }
+        .task(id: "\(env.dictationQuery)|\(env.revision)") {
+            try? await Task.sleep(for: .milliseconds(200))
             guard !Task.isCancelled else { return }
-            items = (try? env.database?.dictations(matching: query)) ?? []
+            items = (try? env.database?.dictations(matching: env.dictationQuery)) ?? []
             stats = (try? env.database?.dictationStats()) ?? stats
+            insights = (try? env.database?.dictationInsights()) ?? insights
         }
+    }
+
+    static func days(_ items: [TBDDictation]) -> [(Date, [TBDDictation])] {
+        let calendar = Calendar.current
+        return Dictionary(grouping: items) { calendar.startOfDay(for: $0.createdAt) }
+            .sorted { $0.key > $1.key }
+            .map { ($0.key, $0.value.sorted { $0.createdAt > $1.createdAt }) }
+    }
+
+    static func dayTitle(_ day: Date) -> String {
+        if Calendar.current.isDateInToday(day) { return "Today" }
+        if Calendar.current.isDateInYesterday(day) { return "Yesterday" }
+        return day.formatted(date: .abbreviated, time: .omitted)
     }
 
     private func stat(_ label: String, _ value: String) -> some View {
@@ -58,7 +88,7 @@ struct TBDDictationHistoryView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.text).font(TBDTokens.Typography.body).foregroundStyle(TBDTokens.ink).textSelection(.enabled).lineLimit(4)
                 HStack(spacing: TBDTokens.Space.sm) {
-                    Text(item.createdAt.formatted(date: .abbreviated, time: .shortened))
+                    Text(item.createdAt.formatted(date: .omitted, time: .shortened))
                     if let app = item.targetApp { Text(app) }
                     Text("\(item.wordCount) words")
                     if item.cleanText != nil { Text("Cleaned") }

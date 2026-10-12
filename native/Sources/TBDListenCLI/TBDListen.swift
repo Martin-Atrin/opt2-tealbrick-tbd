@@ -90,9 +90,13 @@ func printItems(_ items: [TBDTranscription], json: Bool) {
     }
 }
 
-func parseFormat(_ value: String) throws -> TBDExportFormat {
+/// Text formats print to stdout; DOCX and PDF are binary and only `export -o` writes them.
+func parseFormat(_ value: String, allowBinary: Bool = false) throws -> TBDExportFormat {
     guard let format = TBDExportFormat(rawValue: value.lowercased()) else {
-        throw ValidationError("Unknown format \(value). Use txt, md, srt, vtt or json.")
+        throw ValidationError("Unknown format \(value). Use txt, md, srt, vtt, json or dapt\(allowBinary ? ", docx or pdf" : "").")
+    }
+    if format.isBinary, !allowBinary {
+        throw ValidationError("\(format.rawValue) is binary. Use `tbd-listen export <id> --format \(format.rawValue) -o <file>`.")
     }
     return format
 }
@@ -100,7 +104,7 @@ func parseFormat(_ value: String) throws -> TBDExportFormat {
 struct Show: ParsableCommand {
     static let configuration = CommandConfiguration(abstract: "Print one transcript (id or unique id prefix).")
     @Argument(help: "Transcript id or unique prefix.") var id: String
-    @Option(help: "Format: txt, md, srt, vtt or json.") var format = "txt"
+    @Option(help: "Format: txt, md, srt, vtt, json or dapt.") var format = "txt"
 
     func run() throws {
         let format = try parseFormat(format)
@@ -113,25 +117,25 @@ struct Show: ParsableCommand {
 struct Export: ParsableCommand {
     static let configuration = CommandConfiguration(abstract: "Export a transcript to a file or stdout.")
     @Argument(help: "Transcript id or unique prefix.") var id: String
-    @Option(help: "Format: txt, md, srt, vtt or json.") var format = "txt"
+    @Option(help: "Format: txt, md, srt, vtt, json, dapt, or (with -o) docx or pdf.") var format = "txt"
     @Option(name: [.short, .long], help: "File to write (default: stdout). A directory gets <title>.<format>.") var output: String?
 
     func run() throws {
-        let format = try parseFormat(format)
+        let format = try parseFormat(format, allowBinary: output != nil)
         let library = try openLibrary()
         guard let item = try library.transcription(id: id) else { throw ValidationError("No transcript matches \(id).") }
         if format == .srt || format == .vtt, item.words.isEmpty {
             status("Note: this transcript has no word timestamps; subtitles use one cue per segment.")
         }
-        let text = TBDExport.render(item, as: format, summaries: (try? library.summaries(for: item.id)) ?? [])
-        guard let output else { TBDListenCLI.output(text); return }
+        let summaries = (try? library.summaries(for: item.id)) ?? []
+        guard let output else { TBDListenCLI.output(TBDExport.render(item, as: format, summaries: summaries)); return }
         var destination = URL(fileURLWithPath: (output as NSString).expandingTildeInPath)
         var isDirectory: ObjCBool = false
         if FileManager.default.fileExists(atPath: destination.path, isDirectory: &isDirectory), isDirectory.boolValue {
             let safe = item.title.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
             destination.appendPathComponent("\(safe).\(format.fileExtension)")
         }
-        try Data(text.utf8).write(to: destination, options: .atomic)
+        try TBDExport.data(item, as: format, summaries: summaries).write(to: destination, options: .atomic)
         status("Wrote \(destination.path)")
     }
 }

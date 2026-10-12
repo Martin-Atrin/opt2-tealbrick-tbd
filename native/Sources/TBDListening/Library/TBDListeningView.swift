@@ -8,6 +8,7 @@ struct TBDListeningView: View {
     let context: TBDListeningContext
     @EnvironmentObject private var env: TBDListeningEnvironment
     @State private var dropTargeted = false
+    @State private var showPractice = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: TBDTokens.Space.lg) {
@@ -24,6 +25,7 @@ struct TBDListeningView: View {
                 Text("The Listening library could not be opened: \(error)").foregroundStyle(TBDTokens.alert)
             }
             TBDModelBanner()
+            if showPractice { TBDPracticeDictation(context: context) }
             Picker("", selection: $env.selectedTab) {
                 ForEach(TBDListeningTab.allCases) { Text($0.title).tag($0) }
             }
@@ -40,6 +42,10 @@ struct TBDListeningView: View {
         }
         .padding(TBDTokens.Space.xxl)
         .background(TBDTokens.canvas)
+        .task(id: env.revision) {
+            showPractice = !env.preferences.practiceCompleted && ((try? env.database?.dictations(limit: 1))?.isEmpty ?? false)
+                || (showPractice && !env.preferences.practiceCompleted)
+        }
         .overlay {
             if dropTargeted {
                 RoundedRectangle(cornerRadius: TBDTokens.Radius.sm).strokeBorder(TBDTokens.accent, style: StrokeStyle(lineWidth: 2, dash: [6]))

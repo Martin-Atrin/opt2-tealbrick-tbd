@@ -9,8 +9,12 @@ public final class TBDCalendarMonitor: @unchecked Sendable {
         public let title: String
         public let start: Date
         public let end: Date
+        /// Identifies a repeating series (or the single event).
+        public var seriesID: String = ""
+        public var recurring = false
     }
 
+    /// `upcoming` a minute before; `started` from 5 s before the start until 30 s after (auto-start window).
     public enum Event: Sendable { case upcoming(Meeting), started(Meeting) }
 
     private let store = EKEventStore()
@@ -30,7 +34,7 @@ public final class TBDCalendarMonitor: @unchecked Sendable {
     public func start() {
         stop()
         let timer = DispatchSource.makeTimerSource(queue: queue)
-        timer.schedule(deadline: .now() + 1, repeating: 30)
+        timer.schedule(deadline: .now() + 1, repeating: 5)
         timer.setEventHandler { [weak self] in self?.poll() }
         timer.resume()
         self.timer = timer
@@ -50,15 +54,24 @@ public final class TBDCalendarMonitor: @unchecked Sendable {
             .sorted { $0.start < $1.start }
     }
 
+    private var lastFullPoll = Date.distantPast
+
+    /// Ticks every 5 s; reads the calendar every 60 s, or every tick when a meeting starts within 2 minutes.
     private func poll() {
         guard Self.authorized else { return }
         let now = Date()
-        for meeting in upcoming(hours: 0.25) {
+        if now.timeIntervalSince(lastFullPoll) < 55, !soon(now) { return }
+        lastFullPoll = now
+        cached = upcoming(hours: 0.25)
+        for meeting in cached {
             let untilStart = meeting.start.timeIntervalSince(now)
-            if untilStart <= 60, untilStart > 0 { fire(.upcoming(meeting), key: "upcoming", meeting: meeting) }
-            if untilStart <= 0, untilStart > -120 { fire(.started(meeting), key: "started", meeting: meeting) }
+            if untilStart <= 60, untilStart > 5 { fire(.upcoming(meeting), key: "upcoming", meeting: meeting) }
+            if untilStart <= 5, untilStart > -30 { fire(.started(meeting), key: "started", meeting: meeting) }
         }
     }
+
+    private var cached: [Meeting] = []
+    private func soon(_ now: Date) -> Bool { cached.contains { abs($0.start.timeIntervalSince(now)) <= 120 } }
 
     private func fire(_ event: Event, key: String, meeting: Meeting) {
         let id = meeting.id + "@" + String(Int(meeting.start.timeIntervalSince1970))
@@ -74,6 +87,7 @@ public final class TBDCalendarMonitor: @unchecked Sendable {
     }
 
     static func meeting(_ event: EKEvent) -> Meeting {
-        Meeting(id: event.calendarItemIdentifier, title: event.title ?? "Meeting", start: event.startDate, end: event.endDate)
+        Meeting(id: event.calendarItemIdentifier, title: event.title ?? "Meeting", start: event.startDate, end: event.endDate,
+                seriesID: event.calendarItemExternalIdentifier ?? event.calendarItemIdentifier, recurring: event.hasRecurrenceRules)
     }
 }

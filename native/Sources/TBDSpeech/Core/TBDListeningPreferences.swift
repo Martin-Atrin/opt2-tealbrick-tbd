@@ -46,6 +46,12 @@ public struct TBDListeningPreferences: @unchecked Sendable {
         static let summaryPrompt = "tbd.listening.summaryPrompt"
         static let cleanupPrompt = "tbd.listening.cleanupPrompt"
         static let diarize = "tbd.listening.diarize"
+        static let retention = "tbd.listening.retention"
+        static let autoSummarizeMeetings = "tbd.listening.autoSummarizeMeetings"
+        static let dictationUndoWindow = "tbd.listening.dictationUndoWindow"
+        static let calendarSkips = "tbd.listening.calendarSkips"
+        static let practiceCompleted = "tbd.listening.practiceCompleted"
+        static let lastRetentionSweep = "tbd.listening.lastRetentionSweep"
     }
 
     /// In-memory override of both routes for this process only (argument domain; nothing is written).
@@ -154,7 +160,7 @@ public struct TBDListeningPreferences: @unchecked Sendable {
         get { defaults.string(forKey: Key.microphoneUID).flatMap { $0.isEmpty ? nil : $0 } }
         nonmutating set { defaults.set(newValue, forKey: Key.microphoneUID) }
     }
-    /// Keep recorded audio after transcription.
+    /// Legacy single switch for keeping audio; seeds `retention` until that is saved.
     public var keepAudio: Bool {
         get { bool(Key.keepAudio, default: true) }
         nonmutating set { defaults.set(newValue, forKey: Key.keepAudio) }
@@ -209,6 +215,49 @@ public struct TBDListeningPreferences: @unchecked Sendable {
         get { bool(Key.diarize, default: true) }
         nonmutating set { defaults.set(newValue, forKey: Key.diarize) }
     }
+    /// Retention per kind. Until set, derived from the older "keep audio" switch.
+    public var retention: TBDRetentionSettings {
+        get {
+            guard let data = defaults.data(forKey: Key.retention),
+                  let settings = try? JSONDecoder().decode(TBDRetentionSettings.self, from: data) else {
+                return .migrated(keepAudio: keepAudio)
+            }
+            return settings
+        }
+        nonmutating set { defaults.set(try? JSONEncoder().encode(newValue), forKey: Key.retention) }
+    }
+    /// Whether new captures of `kind` keep their audio after transcription.
+    public func keepsAudio(_ kind: TBDRetentionKind) -> Bool { retention[kind].keepsFreshAudio(kind) }
+    /// Last successful retention sweep (throttles the daily run).
+    public var lastRetentionSweep: Date? {
+        get { defaults.object(forKey: Key.lastRetentionSweep) as? Date }
+        nonmutating set { defaults.set(newValue, forKey: Key.lastRetentionSweep) }
+    }
+
+    /// Summarise each meeting when its transcript is saved (needs a model on the "analysis" route).
+    public var autoSummarizeMeetings: Bool {
+        get { bool(Key.autoSummarizeMeetings, default: true) }
+        nonmutating set { defaults.set(newValue, forKey: Key.autoSummarizeMeetings) }
+    }
+
+    /// How long a cancelled dictation can be brought back with Undo.
+    public var dictationUndoWindow: TBDCancelUndo.Window {
+        get { defaults.object(forKey: Key.dictationUndoWindow) == nil ? .fiveSeconds
+            : TBDCancelUndo.Window(rawValue: defaults.integer(forKey: Key.dictationUndoWindow)) ?? .fiveSeconds }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Key.dictationUndoWindow) }
+    }
+    /// Calendar meetings not to auto-record.
+    public var calendarSkips: TBDCalendarSkips {
+        get { defaults.data(forKey: Key.calendarSkips).flatMap { try? JSONDecoder().decode(TBDCalendarSkips.self, from: $0) } ?? TBDCalendarSkips() }
+        nonmutating set { defaults.set(try? JSONEncoder().encode(newValue), forKey: Key.calendarSkips) }
+    }
+
+    /// The first-run practice dictation was finished or skipped.
+    public var practiceCompleted: Bool {
+        get { bool(Key.practiceCompleted, default: false) }
+        nonmutating set { defaults.set(newValue, forKey: Key.practiceCompleted) }
+    }
+
     public var summaryPrompt: String {
         get { defaults.string(forKey: Key.summaryPrompt) ?? Self.defaultSummaryPrompt }
         nonmutating set { defaults.set(newValue, forKey: Key.summaryPrompt) }
@@ -219,8 +268,17 @@ public struct TBDListeningPreferences: @unchecked Sendable {
     }
 
     public static let defaultSummaryPrompt = """
-    Summarise this transcript. Start with a two-sentence overview, then list key points, decisions and action items \
-    (with owners when stated). Use the transcript's language. Do not invent facts.
+    Analyze this transcript and produce a structured summary.
+
+    Open with a single sentence that captures what this is about and why it matters. Then organize the rest under clear headings:
+
+    **Key Points** — The 3–7 most important ideas, findings, or arguments. Each should be a complete thought, not a fragment. If speakers are identified, attribute claims to them.
+
+    **Decisions & Outcomes** — Anything that was agreed upon, concluded, or resolved. If nothing was decided, omit this section entirely — don't fabricate consensus.
+
+    **Open Questions** — Unresolved threads, disagreements, or topics raised but not settled. Only include these if they're genuinely unresolved in the transcript.
+
+    Be direct. Prefer specifics over generalizations — names, numbers, and concrete details beat vague summaries. If the transcript is short or straightforward, keep the output proportionally brief. Don't pad.
     """
     public static let defaultCleanupPrompt = """
     Correct punctuation and obvious recognition mistakes. Preserve language, meaning and all factual details. \

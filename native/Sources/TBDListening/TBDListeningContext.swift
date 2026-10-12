@@ -10,6 +10,7 @@ final class TBDListeningContext {
     let meetings: TBDMeetingController
     let files: TBDFileQueue
     let transforms: TBDTransformController
+    let retention: TBDRetentionController
     private let hotkeys = TBDHotkeyMonitor()
     private weak var runtime: TBDListeningRuntime?
     private(set) var hotkeysActive = false
@@ -21,10 +22,12 @@ final class TBDListeningContext {
         meetings = TBDMeetingController(env: env)
         files = TBDFileQueue(env: env)
         transforms = TBDTransformController(env: env)
+        retention = TBDRetentionController(env: env)
         let report: (String) -> Void = { [weak runtime] in runtime?.report($0) }
         meetings.onMessage = report
         files.onMessage = report
         transforms.onMessage = report
+        retention.onMessage = report
         hotkeys.onStatusChange = { [weak self] in self?.hotkeysActive = $0 }
     }
 
@@ -33,11 +36,13 @@ final class TBDListeningContext {
     func start() {
         reloadHotkeys()
         meetings.start()
+        retention.start()
         Task { await env.speech.warmUp() }
     }
 
     func stop() {
         hotkeys.stop()
+        retention.stop()
         dictation.cancel()
         meetings.shutdown()
         files.cancelAll()

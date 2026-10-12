@@ -5,7 +5,11 @@ import TBDDesign
 /// State shown by the floating recording pill.
 @MainActor
 final class TBDOverlayModel: ObservableObject {
-    enum Phase: Equatable { case hidden, recording(handsFree: Bool), processing(String), message(String), prompt(String, action: String) }
+    enum Phase: Equatable {
+        case hidden, recording(handsFree: Bool), processing(String), message(String), prompt(String, action: String)
+        /// A cancelled dictation that can still be brought back.
+        case undo(remaining: Int, total: Int)
+    }
     @Published var phase: Phase = .hidden
     @Published var levels: [Float] = Array(repeating: 0, count: 24)
     @Published var elapsedMs = 0
@@ -13,6 +17,7 @@ final class TBDOverlayModel: ObservableObject {
     @Published var partial = ""
     var onStop: (() -> Void)?
     var onCancel: (() -> Void)?
+    var onUndo: (() -> Void)?
     /// Prompt buttons (calendar reminder).
     var onAccept: (() -> Void)?
     var onDismissPrompt: (() -> Void)?
@@ -133,6 +138,23 @@ struct TBDRecordingPill: View {
                     .buttonStyle(.plain).font(TBDTokens.Typography.control).foregroundStyle(.white)
                     .padding(.horizontal, 10).padding(.vertical, 4).background(.white.opacity(0.18), in: Capsule())
                 pillButton("xmark", help: "Dismiss") { model.onDismissPrompt?() }
+            case .undo(let remaining, let total):
+                Button { model.onCancel?() } label: {
+                    ZStack {
+                        Circle().stroke(.white.opacity(0.2), lineWidth: 2)
+                        Circle().trim(from: 0, to: CGFloat(remaining) / CGFloat(max(1, total)))
+                            .stroke(.white, style: StrokeStyle(lineWidth: 2, lineCap: .round)).rotationEffect(.degrees(-90))
+                        Text("\(remaining)").font(.system(size: 10, weight: .semibold, design: .monospaced)).foregroundStyle(.white)
+                    }
+                    .frame(width: 24, height: 24)
+                    .animation(TBDMotion.standard, value: remaining)
+                }
+                .buttonStyle(.plain).help("Discard now").accessibilityLabel("Discard cancelled dictation")
+                Text("Dictation cancelled").font(TBDTokens.Typography.control).foregroundStyle(.white)
+                Button("Undo") { model.onUndo?() }
+                    .buttonStyle(.plain).font(TBDTokens.Typography.control).foregroundStyle(.white)
+                    .padding(.horizontal, 10).padding(.vertical, 4).background(.white.opacity(0.12), in: Capsule())
+                    .accessibilityLabel("Undo cancel and paste")
             case .hidden:
                 EmptyView()
             }

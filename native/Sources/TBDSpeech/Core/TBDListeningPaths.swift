@@ -45,7 +45,7 @@ public enum TBDListeningPaths {
         var isDirectory: ObjCBool = false
         guard fm.fileExists(atPath: url.path, isDirectory: &isDirectory) else { return 0 }
         guard isDirectory.boolValue else {
-            return (try? url.resourceValues(forKeys: [.totalFileAllocatedSizeKey]).totalFileAllocatedSize).map { Int64($0 ?? 0) } ?? 0
+            return (try? url.resourceValues(forKeys: [.totalFileAllocatedSizeKey]).totalFileAllocatedSize).map { Int64($0) } ?? 0
         }
         var total: Int64 = 0
         let keys: [URLResourceKey] = [.totalFileAllocatedSizeKey, .isRegularFileKey]

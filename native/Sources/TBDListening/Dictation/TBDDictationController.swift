@@ -21,12 +21,19 @@ final class TBDDictationController: ObservableObject {
     private var starting: Task<Void, Never>?
     private var hotkeyHeld = false
     private var preview: TBDLivePreview?
+    private var undo = TBDCancelUndo()
+    private var undoTimer: Timer?
+    private var undoTarget: NSRunningApplication?
 
     init(env: TBDListeningEnvironment) {
         self.env = env
         env.overlay.model.onStop = { [weak self] in self?.finish() }
         env.overlay.model.onCancel = { [weak self] in self?.cancel() }
+        env.overlay.model.onUndo = { [weak self] in self?.undoCancel() }
     }
+
+    /// A cancelled take that Undo can still bring back.
+    var undoPending: Bool { undo.pending != nil }
 
     var isBusy: Bool { isRecording || isProcessing }
 
@@ -77,6 +84,7 @@ final class TBDDictationController: ObservableObject {
 
     private func begin(handsFree: Bool) {
         guard recorder == nil, !isProcessing else { gesture.reset(keyHeld: hotkeyHeld); return }
+        discardUndo()
         targetApp = NSWorkspace.shared.frontmostApplication
         let recorder = TBDAudioRecorder(microphone: env.microphone)
         self.recorder = recorder
@@ -134,21 +142,83 @@ final class TBDDictationController: ObservableObject {
         return preview
     }
 
+    /// Cancels recording. With an undo window, the take is kept briefly and the pill offers Undo.
     func cancel() {
         levelTimer?.invalidate()
         gesture.reset(keyHeld: hotkeyHeld)
         processing?.cancel()
         let preview = takePreview()
         Task { await preview?.stop() }
-        guard let recorder else { if isProcessing { env.overlay.hide() }; return }
+        guard let recorder else {
+            if undoPending { discardUndo(); env.overlay.hide() } else if isProcessing { env.overlay.hide() }
+            return
+        }
         self.recorder = nil
         isRecording = false
-        env.overlay.hide()
         let startup = starting
+        let window = env.preferences.dictationUndoWindow
+        guard window != .off else {
+            env.overlay.hide()
+            Task {
+                await startup?.value
+                await recorder.cancel()
+            }
+            return
+        }
+        undoTarget = targetApp
         Task {
             await startup?.value
-            await recorder.cancel()
+            guard let recording = try? await recorder.stop() else { env.overlay.hide(); return }
+            // Too short to matter, or a new dictation already started: nothing to bring back.
+            guard recording.durationMs >= 250, self.recorder == nil, !isProcessing else {
+                try? FileManager.default.removeItem(at: recording.url)
+                if self.recorder == nil, !isProcessing { env.overlay.hide() }
+                return
+            }
+            let held = undo.hold(recording.url, durationMs: recording.durationMs, window: window)
+            if let old = held.discard { try? FileManager.default.removeItem(at: old) }
+            guard held.accepted, let pending = undo.pending else { try? FileManager.default.removeItem(at: recording.url); return }
+            env.overlay.show(.undo(remaining: pending.remaining, total: pending.total))
+            undoTimer?.invalidate()
+            let generation = pending.generation
+            undoTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] timer in
+                MainActor.assumeIsolated {
+                    guard let self else { timer.invalidate(); return }
+                    if let expired = self.undo.tick(generation: generation) {
+                        timer.invalidate()
+                        try? FileManager.default.removeItem(at: expired)
+                        if case .undo = self.env.overlay.model.phase { self.env.overlay.hide() }
+                    } else if let pending = self.undo.pending {
+                        self.env.overlay.show(.undo(remaining: pending.remaining, total: pending.total))
+                    }
+                }
+            }
         }
+    }
+
+    /// Brings back the cancelled take: transcribe and paste as if it had been stopped.
+    func undoCancel() {
+        undoTimer?.invalidate()
+        guard let pending = undo.undo(), !isProcessing, recorder == nil else { discardUndo(); return }
+        isProcessing = true
+        env.overlay.show(.processing("Transcribing…"))
+        let target = undoTarget
+        processing = Task {
+            defer { isProcessing = false; processing = nil }
+            do {
+                try await transcribeAndPaste(url: pending.url, durationMs: pending.durationMs, warning: nil, target: target)
+            } catch is CancellationError {
+                env.overlay.hide()
+            } catch {
+                show(error.localizedDescription)
+            }
+        }
+    }
+
+    /// Ends the undo window now and deletes the held take.
+    private func discardUndo() {
+        undoTimer?.invalidate()
+        if let url = undo.discard() { try? FileManager.default.removeItem(at: url) }
     }
 
     func finish() {
@@ -174,7 +244,7 @@ final class TBDDictationController: ObservableObject {
                     env.overlay.hide()
                     return
                 }
-                try await transcribeAndPaste(recording, target: target)
+                try await transcribeAndPaste(url: recording.url, durationMs: recording.durationMs, warning: recording.warning, target: target)
             } catch is CancellationError {
                 env.overlay.hide()
             } catch TBDSpeechError.audioUnreadable("not recording") {
@@ -185,20 +255,20 @@ final class TBDDictationController: ObservableObject {
         }
     }
 
-    private func transcribeAndPaste(_ recording: TBDAudioRecorder.Recording, target: NSRunningApplication?) async throws {
+    private func transcribeAndPaste(url: URL, durationMs: Int, warning: String?, target: NSRunningApplication?) async throws {
         let prefs = env.preferences
         let transcript: TBDTranscript
         do {
-            let samples = try TBDAudioDecoder.samples(from: recording.url)
+            let samples = try TBDAudioDecoder.samples(from: url)
             transcript = try await env.speech.transcribe(samples: samples, kind: .dictation)
         } catch {
             // Keep the audio so nothing said is lost.
-            _ = try? env.keep(recording.url, in: TBDListeningPaths.dictations, name: "failed-\(tbdNewID()).wav")
+            _ = try? env.keep(url, in: TBDListeningPaths.dictations, name: "failed-\(tbdNewID()).wav")
             throw error
         }
         let raw = transcript.trimmedText
         guard !raw.isEmpty else {
-            try? FileManager.default.removeItem(at: recording.url)
+            try? FileManager.default.removeItem(at: url)
             show("No speech detected")
             return
         }
@@ -217,15 +287,15 @@ final class TBDDictationController: ObservableObject {
         var pasteError: Error?
         do { try TBDPasteService.paste(text) } catch { pasteError = error }
         let id = tbdNewID()
-        let audio = prefs.keepAudio ? try? env.keep(recording.url, in: TBDListeningPaths.dictations, name: id + ".wav") : nil
-        if audio == nil { try? FileManager.default.removeItem(at: recording.url) }
+        let audio = prefs.keepsAudio(.dictations) ? try? env.keep(url, in: TBDListeningPaths.dictations, name: id + ".wav") : nil
+        if audio == nil { try? FileManager.default.removeItem(at: url) }
         if prefs.keepHistory {
-            try? env.database?.save(TBDDictation(id: id, durationMs: recording.durationMs, rawText: raw, cleanText: text == raw ? nil : text,
+            try? env.database?.save(TBDDictation(id: id, durationMs: durationMs, rawText: raw, cleanText: text == raw ? nil : text,
                                                  targetApp: target?.localizedName, audioPath: audio?.path, engine: transcript.engine))
             env.changed()
         }
         if let pasteError { show(pasteError.localizedDescription) }
-        else if let warning = recording.warning { show(warning) }
+        else if let warning { show(warning) }
         else { env.overlay.hide() }
     }
 

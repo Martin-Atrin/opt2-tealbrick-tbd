@@ -19,7 +19,7 @@ Environment: `TBD_LISTENING_ROOT` moves the whole Listening folder (tests, tooli
 | `show ID [--format …]` | Print one transcript (id or unique prefix). |
 | `history [--limit N] [--query WORDS] [--json]` | Recent dictations. |
 | `meetings [--limit N] [--json]` | Recorded meetings. |
-| `export ID [--format …] [-o FILE\|DIR]` | Write a transcript to a file (a directory gets `<title>.<format>`) or stdout. |
+| `export ID [--format …] [-o FILE\|DIR]` | Write a transcript to a file (a directory gets `<title>.<format>`) or stdout. Formats: txt, md, srt, vtt, json, dapt; with `-o` also docx and pdf. |
 | `delete ID --yes [--dictation] [--json]` | Delete a transcript (or dictation) and its audio inside the Listening folder. Your own source files are never deleted. |
 | `stats [--json]` | Dictation and library statistics, storage use. |
 | `engines list [--json]` | Engines with capabilities, download state and which one is live/final. |
@@ -40,6 +40,8 @@ Config keys: `liveEngine`, `finalEngine` (`default`/`live` = follow the live eng
 `whisperLanguage`, `nemotronLanguage`, `cohereLanguage` (`auto`/`default` clears), `dictationLivePreview`,
 `meetingLivePreview`, `keepAudio`, `keepHistory`, `removeFillers`, `dictationCleanup`, `diarize`,
 `calendarReminders`, `calendarAutoStart`, `dictationHotkey`, `transformHotkey`, `microphoneUID`.
+`keepAudio` reflects the per-kind retention policies in Settings (true: no kind removes audio after
+transcription); setting it switches those policies and leaves day-based expiry as it is.
 
 Exit status is non-zero on any error; messages go to stderr, results to stdout.
 

@@ -16,6 +16,8 @@ final class TBDListeningEnvironment: ObservableObject {
     /// Set to open a library item (for example after a file finishes).
     @Published var selectedTranscriptionID: String?
     @Published var selectedTab: TBDListeningTab = .library
+    /// Dictation search text (shared so library search can hand a query over).
+    @Published var dictationQuery = ""
 
     init() {
         do {
