@@ -261,7 +261,11 @@ extension TBDListeningDatabase {
 
     static func normalizedHotkey(_ value: String?) throws -> String? {
         guard let value = value?.trimmingCharacters(in: .whitespaces), !value.isEmpty else { return nil }
-        do { return try TBDHotkey.parse(value).serialized } catch { throw TBDPromptLibraryError.invalidHotkey(error.localizedDescription) }
+        let hotkey: TBDHotkey
+        do { hotkey = try TBDHotkey.parse(value) } catch { throw TBDPromptLibraryError.invalidHotkey(error.localizedDescription) }
+        // v1 rules: warned keys (a bare letter) are allowed, blocked ones are refused.
+        if case .blocked(let reason) = hotkey.validation { throw TBDPromptLibraryError.invalidHotkey(reason) }
+        return hotkey.serialized
     }
 
     static func insertPrompt(_ prompt: TBDPrompt, origin: TBDPromptVersion.Origin, changeNote: String?, db: Database) throws -> TBDPrompt {

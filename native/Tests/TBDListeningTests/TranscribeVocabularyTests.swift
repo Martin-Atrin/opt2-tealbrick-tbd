@@ -5,9 +5,8 @@ import TBDSpeech
 @MainActor
 final class TranscribeVocabularyTests: XCTestCase {
     func testPagesAreInV1RailOrderAndTranscribeIsFirst() {
-        // Other lanes add prompts and transforms between meetings and vocabulary.
-        XCTAssertEqual(TBDListeningTab.allCases.map(\.rawValue), ["transcribe", "library", "dictations", "meetings", "vocabulary"])
-        XCTAssertEqual(TBDListeningTab.allCases.map(\.title), ["Transcribe", "Library", "Dictations", "Meetings", "Vocabulary"])
+        XCTAssertEqual(TBDListeningTab.allCases.map(\.rawValue), ["transcribe", "library", "dictations", "meetings", "prompts", "transforms", "vocabulary"])
+        XCTAssertEqual(TBDListeningTab.allCases.map(\.title), ["Transcribe", "Library", "Dictations", "Meetings", "Prompts", "Transforms", "Vocabulary"])
         XCTAssertEqual(TBDListeningTab.allCases.first, .transcribe)
     }
 

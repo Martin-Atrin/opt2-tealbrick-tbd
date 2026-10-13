@@ -314,7 +314,8 @@ public struct TBDListeningPreferences: @unchecked Sendable {
     /// a fresh install gets Raw, v1's default.
     public var processingMode: TBDProcessingMode {
         get {
-            if let stored = defaults.string(forKey: Key.processingMode).flatMap(TBDProcessingMode.init(rawValue:)) { return stored }
+            // An unreadable stored value reads as Raw, as v1 did; only a missing value is decided once.
+            if let stored = defaults.string(forKey: Key.processingMode) { return TBDProcessingMode(rawValue: stored) ?? .raw }
             let initial = Self.initialProcessingMode(defaults)
             defaults.set(initial.rawValue, forKey: Key.processingMode)
             return initial

@@ -367,9 +367,12 @@ final class PromptLibraryTests: XCTestCase {
         let reread = try XCTUnwrap(db.prompt(id: created.id))
         XCTAssertEqual(reread.content, "UPPERCASE IT.")
         XCTAssertNil(reread.hotkey)
+        // v1: a bare letter is only warned about, so it is saved; Escape is reserved and refused.
         edited.hotkey = "q"
+        XCTAssertEqual(try db.savePrompt(edited).hotkey, "q")
+        edited.hotkey = "esc"
         XCTAssertThrowsError(try db.savePrompt(edited)) {
-            XCTAssertEqual($0 as? TBDPromptLibraryError, .invalidHotkey(TBDHotkey.ParseError.needsModifier("q").localizedDescription))
+            XCTAssertEqual($0 as? TBDPromptLibraryError, .invalidHotkey(TBDHotkey.ParseError.reserved("esc").localizedDescription))
         }
         XCTAssertTrue(try db.deletePrompt(id: created.id))
         XCTAssertEqual(try db.prompts(category: .transform).map(\.name), ["Polish", "Distill", "Decide"])
