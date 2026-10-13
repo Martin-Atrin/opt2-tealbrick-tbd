@@ -24,7 +24,7 @@ func collectFlagValues(_ name: String, in arguments: [String]) -> [String] {
 
 private func requireEditsEnabled() {
   guard AgentBridge.editsEnabled else {
-    let message = "Editing is off. Turn on \"Allow edits\" in Dayflow → Settings → AI Tools."
+    let message = "Editing is off. Turn on \"Allow edits\" in TBD Settings > Tools."
     wantsJSON ? failJSON("edits_disabled", message, exitCode: 4) : fail(message, code: 4)
   }
 }

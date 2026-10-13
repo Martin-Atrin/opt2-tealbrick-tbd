@@ -26,8 +26,6 @@ export interface Agent {
   description?: string;
   /** Base URL of the agent's eve deployment. Display only: IPC names agents by id. */
   url: string;
-  /** Set when TBD will not send this agent a credential (F4-1), with the reason to show. */
-  connectionNote?: string;
   /** Hex color for the generated avatar mark, used when there is no picture. */
   accent: string;
   /**

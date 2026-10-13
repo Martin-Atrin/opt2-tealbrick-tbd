@@ -453,7 +453,7 @@ let helpText = """
     categories                 Category names and colors
     search <text>              Find activities by title or summary
 
-  Editing (needs Dayflow running, with edits enabled in Settings → AI Tools)
+  Editing (needs Dayflow running, with edits enabled in Settings > Tools)
     timeline update <id> --title <text> | --category <name>
     timeline delete <id>       Asks first; also removes its observations
     categories add <name> [--color <hex>]

@@ -1,9 +1,10 @@
 import { createInterface } from "node:readline";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { query, type Options, type McpServerConfig, type PermissionResult, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import { query, type Options, type McpServerConfig, type PermissionResult, type SDKMessage, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { buildOptions, BRIDGE_SERVER_NAME, BRIDGE_TOOL_PATTERN } from "@opt2-tealbrick/harness-claude";
-import { AGENT_TOOLS, describeToolCall, needsPermission, type AgentConfig, type AgentToHelper, type HelperToAgent } from "./protocol";
+import { AGENT_TOOLS, ASK_TOOL, describeToolCall, needsPermission, type AgentConfig, type AgentQuestion, type AgentToHelper, type HelperToAgent } from "./protocol";
+import type { ContentBlock } from "../shared/message";
 import { listeningServer } from "./listeningTools";
 
 /**
@@ -23,6 +24,7 @@ console.log = console.info = console.debug = (...a: unknown[]) => console.error(
 let config: AgentConfig | null = null;
 const turns = new Map<string, AbortController>();
 const permissions = new Map<string, (r: { allow: boolean; message?: string }) => void>();
+const answers = new Map<string, (a: Record<string, string> | null) => void>();
 let nextReq = 0;
 
 /** Harness-local tool servers (C5); the bridge relay is added by harness-claude. */
@@ -75,6 +77,7 @@ function options(c: AgentConfig, id: string, abort: AbortController, sessionId?:
       ...(c.model.baseUrl ? { ANTHROPIC_BASE_URL: c.model.baseUrl } : {}),
     },
     canUseTool: async (tool, input, { signal }): Promise<PermissionResult> => {
+      if (tool === ASK_TOOL) return ask(id, input, signal);
       if (!needsPermission(tool)) return { behavior: "allow", updatedInput: input };
       const reqId = `p${++nextReq}`;
       out({ type: "permission_request", id, reqId, tool, detail: describeToolCall(tool, input), input });
@@ -86,6 +89,31 @@ function options(c: AgentConfig, id: string, abort: AbortController, sessionId?:
       return decision.allow ? { behavior: "allow", updatedInput: input } : { behavior: "deny", message: decision.message ?? "The person declined this action." };
     },
   };
+}
+
+/**
+ * AskUserQuestion (v1 question cards): the questions go to the person's Chat; their answers come back
+ * keyed by question text, the shape the SDK tool expects in `answers`. No answer is a refusal.
+ */
+async function ask(id: string, input: Record<string, unknown>, signal: AbortSignal): Promise<PermissionResult> {
+  const questions = (Array.isArray(input.questions) ? input.questions : []) as AgentQuestion[];
+  if (questions.length === 0) return { behavior: "deny", message: "No question to ask." };
+  const reqId = `q${++nextReq}`;
+  out({ type: "question", id, reqId, questions });
+  const answer = await new Promise<Record<string, string> | null>((resolve) => {
+    answers.set(reqId, resolve);
+    signal.addEventListener("abort", () => resolve(null), { once: true });
+  });
+  answers.delete(reqId);
+  return answer ? { behavior: "allow", updatedInput: { ...input, answers: answer } } : { behavior: "deny", message: "The person did not answer." };
+}
+
+/** The turn's prompt: plain text, or one user message with the attached files (text first). */
+function prompt(text: string, content?: ContentBlock[]): string | AsyncIterable<SDKUserMessage> {
+  if (!content?.length) return text;
+  return (async function* () {
+    yield { type: "user", message: { role: "user", content }, parent_tool_use_id: null } as SDKUserMessage;
+  })();
 }
 
 /** Map SDK messages to the Chat's event vocabulary. */
@@ -114,14 +142,14 @@ function activityLabel(tool: string): string {
   return { Read: "Reading a file", Glob: "Finding files", Grep: "Searching files", Edit: "Editing a file", Write: "Writing a file", Bash: "Running a command", WebFetch: "Fetching a page", WebSearch: "Searching the web" }[tool] ?? `Using ${tool}`;
 }
 
-async function runTurn(id: string, text: string, sessionId?: string): Promise<void> {
+async function runTurn(id: string, text: string, sessionId?: string, content?: ContentBlock[]): Promise<void> {
   if (!config) { out({ type: "error", id, message: "Agent is not initialised." }); return; }
   const abort = new AbortController();
   turns.set(id, abort);
   const state = { text: "" };
   let session = sessionId ?? "";
   try {
-    for await (const m of query({ prompt: text, options: options(config, id, abort, sessionId) })) {
+    for await (const m of query({ prompt: prompt(text, content), options: options(config, id, abort, sessionId) })) {
       if ("session_id" in m && typeof m.session_id === "string") session = m.session_id;
       relay(id, m, state);
       if (m.type === "result") {
@@ -149,9 +177,10 @@ lines.on("line", (line) => {
       mkdirSync(join(config.stateDir, "claude"), { recursive: true, mode: 0o700 });
       out({ type: "ready" });
       break;
-    case "turn": void runTurn(m.id, m.text, m.sessionId); break;
+    case "turn": void runTurn(m.id, m.text, m.sessionId, m.content); break;
     case "cancel": turns.get(m.id)?.abort(); break;
     case "permission": permissions.get(m.reqId)?.({ allow: m.allow, message: m.message }); break;
+    case "answer": answers.get(m.reqId)?.(m.answers); break;
     case "shutdown": for (const t of turns.values()) t.abort(); setTimeout(() => process.exit(0), 300); break;
   }
 });

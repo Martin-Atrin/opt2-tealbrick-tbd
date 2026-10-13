@@ -1301,7 +1301,6 @@ export const useStore = create<State>((set, get) => ({
             // name is the default, not the authority.
             name: (profile ? profile.displayName : chosen.name) ?? r.name,
             url: r.url ?? "",
-            connectionNote: r.connection?.mode === "withheld" && r.url ? r.connection.note : undefined,
             peers: r.peers ?? [],
             accent:
               (profile ? profile.accent : chosen.accent) ??

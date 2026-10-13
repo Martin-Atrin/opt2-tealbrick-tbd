@@ -70,9 +70,8 @@ final class DailyRecapScheduler: @unchecked Sendable {
       }
     }
 
-    guard UserDefaults.standard.bool(forKey: "isDailyUnlocked") else {
-      return
-    }
+    // Daily is always open in TBD (C56 D11 removed the Dayflow access gate), so the automatic
+    // recap runs once the person has picked a recap provider; no unlock key gates it.
 
     let now = Date()
     let hour = Calendar.current.component(.hour, from: now)

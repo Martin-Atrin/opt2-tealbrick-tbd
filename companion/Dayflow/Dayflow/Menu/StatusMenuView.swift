@@ -32,21 +32,21 @@ struct StatusMenuView: View {
       TimelineView(.periodic(from: .now, by: 1)) { _ in
         Text("Meeting: " + listening.meetingStatus).font(.custom("Switzer", size: 12)).foregroundStyle(.secondary)
       }
-      MenuRow(title: "Dictate", systemImage: "mic", action: { audioAction("dictation") })
+      MenuRow(title: "Dictate", systemImage: "mic", action: { audioAction(.dictation) })
       MenuRow(title: listening.voiceNoteRecording ? "Finish voice note" : "Record voice note", systemImage: "waveform", action: {
         Task { await listening.toggleVoiceNote() }
       }).disabled(listening.captureBusy)
-      MenuRow(title: "Start / stop meeting", systemImage: "record.circle", action: { audioAction("meeting") })
-      MenuRow(title: "Meeting controls", systemImage: "slider.horizontal.3", action: { audioAction("meetingPanel") })
-      MenuRow(title: "Transcribe file", systemImage: "doc", action: { audioAction("file") })
-      MenuRow(title: "Transcribe URL", systemImage: "link", action: { audioAction("url") })
+      MenuRow(title: "Start / stop meeting", systemImage: "record.circle", action: { audioAction(.meeting) })
+      MenuRow(title: "Meeting controls", systemImage: "slider.horizontal.3", action: { audioAction(.meetingPanel) })
+      MenuRow(title: "Transcribe file", systemImage: "doc", action: { audioAction(.transcribeFile) })
+      MenuRow(title: "Transcribe URL", systemImage: "link", action: { audioAction(.transcribeURL) })
       MenuRow(title: "Recover voice-note audio", systemImage: "folder", action: {
         performAfterMenuDismiss {
           let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("TBD/Listening/VoiceNotes")
           if FileManager.default.fileExists(atPath: root.path) { NSWorkspace.shared.open(root) }
         }
       })
-      MenuRow(title: "Recent dictations", systemImage: "clock", action: { audioAction("history") })
+      MenuRow(title: "Recent dictations", systemImage: "clock", action: { audioAction(.history) })
       if !listening.lastRawTranscript.isEmpty {
         MenuRow(title: "Copy last raw transcript", systemImage: "doc.on.doc", action: {
           NSPasteboard.general.clearContents()
@@ -108,7 +108,7 @@ struct StatusMenuView: View {
     }
   }
 
-  private func audioAction(_ action: String) {
+  private func audioAction(_ action: TBDListeningAction) {
     performAfterMenuDismiss { listening.menuAction(action) }
   }
   private func openSettings(_ section: String) {

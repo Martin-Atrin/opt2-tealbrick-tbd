@@ -8,6 +8,11 @@
  * socket), never as the person.
  */
 
+import type { ContentBlock } from "../shared/message";
+
+/** The SDK tool the agent uses to ask the person; answered through TBD's question cards. */
+export const ASK_TOOL = "AskUserQuestion";
+
 export interface AgentModel {
   /** Model id, e.g. from the "agent" route in Settings → Models. */
   model: string;
@@ -34,11 +39,22 @@ export interface AgentConfig {
   sandbox?: Record<string, unknown>;
 }
 
+/** One question of the SDK's AskUserQuestion tool (1–4 per call; "Other" free text is always allowed). */
+export interface AgentQuestion {
+  question: string;
+  header?: string;
+  options: { label: string; description?: string }[];
+  multiSelect?: boolean;
+}
+
 export type HelperToAgent =
   | { type: "init"; config: AgentConfig }
-  | { type: "turn"; id: string; text: string; sessionId?: string }
+  /** `content` carries attached files (Anthropic content blocks, text first); `text` alone otherwise. */
+  | { type: "turn"; id: string; text: string; content?: ContentBlock[]; sessionId?: string }
   | { type: "cancel"; id: string }
   | { type: "permission"; reqId: string; allow: boolean; message?: string }
+  /** The person's answers, keyed by question text; null = not answered (declined, stopped, timed out). */
+  | { type: "answer"; reqId: string; answers: Record<string, string> | null }
   | { type: "shutdown" };
 
 export type AgentEvent =
@@ -51,20 +67,24 @@ export type AgentToHelper =
   | { type: "ready" }
   | { type: "event"; id: string; event: AgentEvent }
   | { type: "permission_request"; id: string; reqId: string; tool: string; detail: string; input: Record<string, unknown> }
+  | { type: "question"; id: string; reqId: string; questions: AgentQuestion[] }
   | { type: "done"; id: string; sessionId: string; reply: string }
   | { type: "error"; id?: string; message: string };
 
-/** Built-in tools the default agent has at all; anything that changes this Mac asks the person first. */
-export const AGENT_TOOLS = ["Read", "Glob", "Grep", "Edit", "Write", "Bash", "WebFetch", "WebSearch"];
+/**
+ * Built-in tools the default agent has at all; anything that changes this Mac asks the person first.
+ * AskUserQuestion is the agent's way to ask the person a question (v1 question cards); it changes nothing.
+ */
+export const AGENT_TOOLS = ["Read", "Glob", "Grep", "Edit", "Write", "Bash", "WebFetch", "WebSearch", ASK_TOOL];
 
 /**
- * Whether TBD's helper must decide a tool call (SEC-04). Harness-local tools and the bridge
- * (which decides its own calls) pass; every built-in file, shell and web tool goes to the
+ * Whether TBD's helper must decide a tool call (SEC-04). Harness-local tools, the bridge
+ * (which decides its own calls) and AskUserQuestion (answered on a question card) pass; every built-in file, shell and web tool goes to the
  * helper's file policy: free inside the agent workspace and granted folders, secrets refused,
  * everything else asks the person.
  */
 export function needsPermission(tool: string): boolean {
-  return !(tool.startsWith("mcp__companion__") || tool.startsWith("mcp__listening__") || tool.startsWith("mcp__tealbrick__"));
+  return !(tool === ASK_TOOL || tool.startsWith("mcp__companion__") || tool.startsWith("mcp__listening__") || tool.startsWith("mcp__tealbrick__"));
 }
 
 /** One line for the consent card: the exact effect, never "the agent wants a tool". */

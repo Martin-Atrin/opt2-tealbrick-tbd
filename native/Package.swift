@@ -42,6 +42,8 @@ let package = Package(
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
         ], exclude: ["README.md"]),
         .testTarget(name: "TBDModelsTests", dependencies: ["TBDModels"]),
+        // Host wiring: every Settings section and menu action the host sends resolves (PARITY WP1).
+        .testTarget(name: "TBDListeningTests", dependencies: ["TBDListening"]),
         .testTarget(name: "TBDSpeechTests", dependencies: [
             "TBDSpeech",
             // CLI argument parsing and JSON shape tests (`@testable import TBDListenCLI`).

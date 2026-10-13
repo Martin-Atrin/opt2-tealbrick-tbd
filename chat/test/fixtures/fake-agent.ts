@@ -5,6 +5,17 @@ const env = { hasKey: process.env.ANTHROPIC_API_KEY === "sk-test", leaked: Objec
 createInterface({ input: process.stdin }).on("line", (line) => {
   const m = JSON.parse(line);
   if (m.type === "init") return out({ type: "ready" });
+  if (m.type === "turn" && m.text === "ask") {
+    (globalThis as any).asking = m;
+    return out({ type: "question", id: m.id, reqId: "q1", questions: [{ question: "Which day?", options: [{ label: "Today" }, { label: "Yesterday" }] }] });
+  }
+  if (m.type === "answer") {
+    const t = (globalThis as any).asking;
+    return out({ type: "done", id: t.id, sessionId: "sess-1", reply: JSON.stringify({ reqId: m.reqId, answers: m.answers }) });
+  }
+  if (m.type === "turn" && m.content) {
+    return out({ type: "done", id: m.id, sessionId: "sess-1", reply: JSON.stringify(m.content) });
+  }
   if (m.type === "turn") {
     out({ type: "event", id: m.id, event: { kind: "session", sessionId: "sess-1" } });
     out({ type: "event", id: m.id, event: { kind: "activity", label: "Thinking" } });

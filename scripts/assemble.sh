@@ -37,10 +37,10 @@ tbd_assemble() {
     [ -d "$dir" ] || continue
     name="$(basename "$dir")"
     for f in "$dir"/LICENSE* "$dir"/LICENCE* "$dir"/COPYING*; do
-      if [ -f "$f" ]; then cp "$f" "$TBD_APP/Contents/Resources/Licenses/$name.txt"; break; fi
+      if [ -f "$f" ]; then cp -f "$f" "$TBD_APP/Contents/Resources/Licenses/$name.txt"; break; fi
     done
   done
   local node_license; node_license="$(dirname "$(dirname "$node_bin")")/LICENSE"
-  [ -f "$node_license" ] && cp "$node_license" "$TBD_APP/Contents/Resources/Licenses/Node.txt"
+  [ -f "$node_license" ] && cp -f "$node_license" "$TBD_APP/Contents/Resources/Licenses/Node.txt"
   export TBD_APP
 }

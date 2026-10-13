@@ -139,6 +139,15 @@ public final class TBDListeningDatabase: @unchecked Sendable {
                 t.column("createdAt", .datetime).notNull()
             }
         }
+        // One row per completed import of an earlier library (see `TBDLegacyImport`).
+        migrator.registerMigration("v5-legacy-import") { db in
+            try db.create(table: "legacyImport") { t in
+                t.primaryKey("source", .text)
+                t.column("sourcePath", .text).notNull()
+                t.column("completedAt", .datetime).notNull()
+                t.column("summary", .text).notNull()
+            }
+        }
         return migrator
     }
 

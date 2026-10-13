@@ -47,3 +47,48 @@ test("a denied tool call is reported back to the agent", async () => {
     assert.equal(r.reply.split("|")[1], "false");
   } finally { agent.stop(); }
 });
+
+test("a question from the agent reaches onQuestion and the answer goes back to the agent", async () => {
+  const agent = createDefaultAgent({
+    node: process.execPath, entry,
+    model: async () => ({ model: "m", apiKey: "sk-test" }),
+    config: async () => ({ cwd: "/tmp", stateDir: "/tmp/tbd-agent-test" }),
+    permission: async () => ({ allow: false }),
+  });
+  try {
+    const asked: unknown[] = [];
+    const r = await agent.sendTurn({
+      text: "ask", onDelta: () => {}, onActivity: () => {},
+      onQuestion: (q) => { asked.push(q); agent.answer(q.reqId, { "Which day?": "Yesterday" }); },
+    });
+    assert.deepEqual(asked, [{ reqId: "q1", questions: [{ question: "Which day?", options: [{ label: "Today" }, { label: "Yesterday" }] }] }]);
+    assert.deepEqual(JSON.parse(r.reply), { reqId: "q1", answers: { "Which day?": "Yesterday" } });
+  } finally { agent.stop(); }
+});
+
+test("a turn without a question handler refuses the question instead of hanging", async () => {
+  const agent = createDefaultAgent({
+    node: process.execPath, entry,
+    model: async () => ({ model: "m", apiKey: "sk-test" }),
+    config: async () => ({ cwd: "/tmp", stateDir: "/tmp/tbd-agent-test" }),
+    permission: async () => ({ allow: false }),
+  });
+  try {
+    const r = await agent.sendTurn({ text: "ask", onDelta: () => {}, onActivity: () => {} });
+    assert.deepEqual(JSON.parse(r.reply), { reqId: "q1", answers: null });
+  } finally { agent.stop(); }
+});
+
+test("attached files cross to the agent process as content blocks", async () => {
+  const agent = createDefaultAgent({
+    node: process.execPath, entry,
+    model: async () => ({ model: "m", apiKey: "sk-test" }),
+    config: async () => ({ cwd: "/tmp", stateDir: "/tmp/tbd-agent-test" }),
+    permission: async () => ({ allow: false }),
+  });
+  try {
+    const content = [{ type: "text" as const, text: "look" }, { type: "document" as const, title: "a.pdf", source: { type: "base64" as const, media_type: "application/pdf" as const, data: "aGk=" } }];
+    const r = await agent.sendTurn({ text: "look", content, onDelta: () => {}, onActivity: () => {} });
+    assert.deepEqual(JSON.parse(r.reply), content);
+  } finally { agent.stop(); }
+});

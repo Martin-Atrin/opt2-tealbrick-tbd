@@ -11,6 +11,7 @@ import { useStore } from "@/lib/store";
 import * as composerDom from "@/lib/composerDom";
 import { Autocomplete, type Suggestion } from "./Autocomplete";
 import { LocalAskCard } from "./LocalAsk";
+import { FirstRunChecks } from "./FirstRun";
 import { Markdown } from "./Markdown";
 import { record, type Recorder } from "../lib/dictation";
 import { DeliveredFiles } from "./DeliveredFiles";
@@ -649,11 +650,7 @@ export function Conversation(): ReactNode {
         }}
       >
         <div className="thread__inner" ref={innerRef}>
-          {agent?.connectionNote ? (
-            <div className="muted" role="status" style={{ margin: "10px 0" }}>
-              {agent.connectionNote}
-            </div>
-          ) : null}
+          <FirstRunChecks conversationEmpty={blocks.length === 0} />
           {blocks.map((b, i) => {
             const when = whenLabel(b.at, i > 0 ? blocks[i - 1].at : undefined);
             const marker = when ? (

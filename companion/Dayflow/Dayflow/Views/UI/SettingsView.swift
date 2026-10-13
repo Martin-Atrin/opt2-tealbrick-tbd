@@ -20,6 +20,7 @@ struct SettingsView: View {
     case storage
     case privacy
     case providers
+    case aiTools
     case data
     case other
     case capture, engine, audioAI, audioSystem
@@ -34,6 +35,7 @@ struct SettingsView: View {
       case .storage: return "internaldrive"
       case .privacy: return "eye.slash"
       case .providers: return "network"
+      case .aiTools: return "wrench.and.screwdriver"
       case .data: return "square.and.arrow.up"
       case .other: return "slider.horizontal.3"
       case .capture: return "mic"
@@ -51,6 +53,7 @@ struct SettingsView: View {
       case .storage: return String(localized: "Storage")
       case .privacy: return String(localized: "Privacy")
       case .providers: return String(localized: "Providers")
+      case .aiTools: return String(localized: "Tools")
       case .data: return String(localized: "Export")
       case .other: return "General"
       case .capture: return "Capture"
@@ -67,10 +70,10 @@ struct SettingsView: View {
   }
   private var listeningSection: String? {
     switch selectedTab {
-    case .capture: return "capture"
+    case .capture: return TBDListeningSettingsSection.capture.rawValue
     case .engine: return nil
     case .audioAI: return nil
-    case .audioSystem: return "system"
+    case .audioSystem: return TBDListeningSettingsSection.system.rawValue
     default: return nil
     }
   }
@@ -81,6 +84,7 @@ struct SettingsView: View {
   @StateObject private var privacyViewModel = RecordingPrivacySettingsViewModel()
   @StateObject private var providersViewModel = ProvidersSettingsViewModel()
   @StateObject private var otherViewModel = OtherSettingsViewModel()
+  @StateObject private var agentAccessViewModel = AgentAccessViewModel()
 
   var body: some View {
     contentWithSheets
@@ -289,6 +293,8 @@ struct SettingsView: View {
         SettingsRecordingPrivacyTabView(viewModel: privacyViewModel)
       case .providers:
         SettingsProvidersTabView(viewModel: providersViewModel)
+      case .aiTools:
+        SettingsAgentAccessTabView(viewModel: agentAccessViewModel)
       case .data:
         SettingsDataTabView(viewModel: otherViewModel)
       case .capture, .engine, .audioAI, .audioSystem:

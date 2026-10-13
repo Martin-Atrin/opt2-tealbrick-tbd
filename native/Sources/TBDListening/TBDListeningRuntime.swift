@@ -34,7 +34,7 @@ public final class TBDListeningRuntime: ObservableObject {
         return AnyView(TBDListeningView(context: context).environmentObject(context.env))
     }
 
-    /// Sections: "engine", "ai", "dictation", "meetings", "system".
+    /// Sections: `TBDListeningSettingsSection` raw values ("capture", "engine", "ai", "dictation", "meetings", "system").
     public func settingsContent(section: String) -> AnyView {
         guard let context else { return AnyView(EmptyView()) }
         return AnyView(TBDListeningSettingsView(section: section, context: context).environmentObject(context.env))
@@ -57,7 +57,7 @@ public final class TBDListeningRuntime: ObservableObject {
     public var meetingStatus: String { context?.meetings.statusText ?? "Idle" }
 
     /// Actions: "dictation", "meeting", "transcribeFile", "transcribeURL", "transform", "openLibrary".
-    public func menuAction(_ action: String) {
+    public func menuAction(_ action: TBDListeningAction) {
         guard let context else { captureMessage = "Listening is still initializing"; return }
         context.perform(action)
     }

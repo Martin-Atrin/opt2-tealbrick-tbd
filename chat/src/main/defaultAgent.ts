@@ -1,7 +1,8 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
 import { randomUUID } from "node:crypto";
-import type { AgentConfig, AgentEvent, AgentToHelper, HelperToAgent } from "../agent/protocol";
+import type { AgentConfig, AgentEvent, AgentQuestion, AgentToHelper, HelperToAgent } from "../agent/protocol";
+import type { ContentBlock } from "../shared/message";
 
 /**
  * Supervisor for TBD's default agent process (C24: TBD Chat talks only to it).
@@ -19,6 +20,8 @@ export interface TurnCallbacks {
   onReset?(): void;
   onActivity(label: string | null): void;
   onTurn?(turn: { sessionId: string; turnId?: string }): void;
+  /** The agent asks the person (AskUserQuestion); answer with `answer(reqId, …)`. */
+  onQuestion?(question: { reqId: string; questions: AgentQuestion[] }): void;
 }
 
 export interface DefaultAgentDeps {
@@ -96,6 +99,10 @@ export function createDefaultAgent(deps: DefaultAgentDeps) {
       void deps.permission({ tool: m.tool, detail: m.detail, input: m.input ?? {} })
         .then((d) => send({ type: "permission", reqId: m.reqId, allow: d.allow, message: d.message }))
         .catch(() => send({ type: "permission", reqId: m.reqId, allow: false }));
+    } else if (m.type === "question") {
+      const t = turns.get(m.id);
+      if (t?.onQuestion) t.onQuestion({ reqId: m.reqId, questions: m.questions ?? [] });
+      else send({ type: "answer", reqId: m.reqId, answers: null });
     } else if (m.type === "done") {
       const t = turns.get(m.id);
       if (t) { turns.delete(m.id); t.resolve({ sessionId: m.sessionId, reply: m.reply }); }
@@ -113,14 +120,18 @@ export function createDefaultAgent(deps: DefaultAgentDeps) {
   }
 
   return {
-    async sendTurn(input: { text: string; sessionId?: string } & TurnCallbacks): Promise<{ sessionId: string; reply: string; turnId: string }> {
+    async sendTurn(input: { text: string; content?: ContentBlock[]; sessionId?: string } & TurnCallbacks): Promise<{ sessionId: string; reply: string; turnId: string }> {
       await ensure();
       const id = randomUUID();
       const result = await new Promise<{ sessionId: string; reply: string }>((resolve, reject) => {
         turns.set(id, { ...input, resolve, reject, sessionId: input.sessionId ?? "" });
-        send({ type: "turn", id, text: input.text, sessionId: input.sessionId });
+        send({ type: "turn", id, text: input.text, content: input.content, sessionId: input.sessionId });
       });
       return { ...result, turnId: id };
+    },
+    /** The person's answers to a question (null: not answered). */
+    answer(reqId: string, answers: Record<string, string> | null): void {
+      send({ type: "answer", reqId, answers });
     },
     cancel(turnId?: string): void {
       if (turnId) send({ type: "cancel", id: turnId });

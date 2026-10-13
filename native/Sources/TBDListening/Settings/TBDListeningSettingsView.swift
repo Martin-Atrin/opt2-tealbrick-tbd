@@ -4,24 +4,88 @@ import TBDDesign
 import TBDModels
 import TBDSpeech
 
-/// Settings for one section: "engine", "ai", "dictation", "meetings" or "system".
+/// The Listening settings sections the host can open. The host (Companion Settings) sends the raw value.
+/// "capture" is the v1 Capture tab: the microphone plus a Dictation | Meetings workflow switcher.
+public enum TBDListeningSettingsSection: String, CaseIterable, Sendable {
+    case capture, engine, ai, dictation, meetings, system
+
+    /// Resolves what the host sends. Unknown names fall back to Capture, never to an empty page.
+    public static func resolve(_ name: String) -> TBDListeningSettingsSection {
+        TBDListeningSettingsSection(rawValue: name) ?? .capture
+    }
+}
+
+/// The workflow shown inside Capture (v1 `SettingsCaptureWorkflow`, without the file workflow, which has no settings yet).
+public enum TBDCaptureWorkflow: String, CaseIterable, Identifiable, Sendable {
+    case dictation, meetings
+    public var id: String { rawValue }
+    public var title: String { self == .dictation ? "Dictation" : "Meetings" }
+    /// Remembered across launches, as in v1.
+    public static let defaultsKey = "tbd.listening.settingsCaptureWorkflow"
+    public static func stored(_ defaults: UserDefaults = .standard) -> TBDCaptureWorkflow {
+        defaults.string(forKey: defaultsKey).flatMap(TBDCaptureWorkflow.init(rawValue:)) ?? .dictation
+    }
+}
+
+/// Settings for one section (see `TBDListeningSettingsSection`).
 struct TBDListeningSettingsView: View {
     let section: String
     let context: TBDListeningContext
 
     var body: some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 0) {
+                switch TBDListeningSettingsSection.resolve(section) {
+                case .capture: TBDCaptureSettings(context: context)
+                case .engine: TBDEngineSettings(context: context)
+                case .ai: TBDAISettings()
+                case .dictation: TBDDictationSettings(context: context)
+                case .meetings: TBDMeetingSettings(context: context)
+                case .system: TBDSystemSettings(context: context)
+                }
+            }
+            .font(TBDTokens.Typography.body)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, TBDTokens.Space.lg)
+        }
+    }
+}
+
+/// v1 Capture tab: microphone first, then the workflow switcher and that workflow's settings.
+struct TBDCaptureSettings: View {
+    let context: TBDListeningContext
+    @EnvironmentObject private var env: TBDListeningEnvironment
+    @State private var workflow = TBDCaptureWorkflow.stored()
+    @State private var devices: [TBDAudioDevices.Input] = []
+    @State private var tick = 0
+
+    var body: some View {
+        let prefs = env.preferences
         VStack(alignment: .leading, spacing: 0) {
-            switch section {
-            case "engine": TBDEngineSettings(context: context)
-            case "ai": TBDAISettings()
-            case "dictation": TBDDictationSettings(context: context)
-            case "meetings": TBDMeetingSettings(context: context)
-            case "system": TBDSystemSettings(context: context)
-            default: Text("Unknown section").foregroundStyle(TBDTokens.muted)
+            TBDSettingsRow("Microphone", help: "System Default follows the input chosen in macOS Sound settings.") {
+                Picker("", selection: tbdBinding({ prefs.microphoneUID ?? "" }, { uid in
+                    prefs.microphoneUID = uid.isEmpty ? nil : uid
+                    env.microphone.setPreferredDevice(uid: prefs.microphoneUID)
+                }, refresh: { tick += 1 })) {
+                    Text("System Default").tag("")
+                    ForEach(devices) { Text($0.name).tag($0.uid) }
+                }
+                .labelsHidden().frame(width: 240)
+            }
+            .id(tick)
+            TBDLabel("Capture workflow").padding(.top, TBDTokens.Space.lg).padding(.bottom, TBDTokens.Space.xs)
+            Picker("", selection: $workflow) {
+                ForEach(TBDCaptureWorkflow.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented).labelsHidden().fixedSize()
+            .padding(.bottom, TBDTokens.Space.sm)
+            .onChange(of: workflow) { _, value in UserDefaults.standard.set(value.rawValue, forKey: TBDCaptureWorkflow.defaultsKey) }
+            switch workflow {
+            case .dictation: TBDDictationSettings(context: context)
+            case .meetings: TBDMeetingSettings(context: context)
             }
         }
-        .font(TBDTokens.Typography.body)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .onAppear { devices = TBDAudioDevices.inputs() }
     }
 }
 

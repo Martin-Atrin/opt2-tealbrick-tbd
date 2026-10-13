@@ -9,6 +9,8 @@
 //  Transport: a Unix domain socket at ~/Library/Application Support/Dayflow/
 //  agent.sock, mode 0600. One JSON request line per connection, one JSON
 //  response line back. The server only runs while "Allow edits" is on.
+//  Settings > Tools starts and stops it live, and process() re-checks the
+//  flag on every request.
 //
 
 import Foundation
@@ -89,9 +91,10 @@ final class AgentBridgeServer {
     listenFD = fd
     let source = DispatchSource.makeReadSource(fileDescriptor: fd, queue: queue)
     source.setEventHandler { [weak self] in self?.acceptConnection() }
+    // Only close here. stop() removes the socket file itself, so a quick
+    // off/on toggle cannot have this late handler unlink the new socket.
     source.setCancelHandler {
       close(fd)
-      unlink(path)
     }
     source.resume()
     acceptSource = source
@@ -100,6 +103,7 @@ final class AgentBridgeServer {
 
   func stop() {
     guard listenFD >= 0 else { return }
+    unlink(Self.socketPath)
     acceptSource?.cancel()
     acceptSource = nil
     listenFD = -1
@@ -147,7 +151,7 @@ final class AgentBridgeServer {
 
     // Authoritative permission check, independent of whether the CLI checked.
     guard AgentAccessPreferences.editsEnabled else {
-      return failure("edits_disabled", "Editing is off in TBD → Settings → MCP / CLI.")
+      return failure("edits_disabled", "Editing is off. Turn on \"Allow edits\" in TBD Settings > Tools.")
     }
 
     let arguments = message["arguments"] as? [String: Any] ?? [:]

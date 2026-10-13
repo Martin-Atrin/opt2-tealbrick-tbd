@@ -462,7 +462,7 @@ private func runStatusTool() throws -> [String: Any] {
 private func runWriteTool(name: String, arguments: [String: Any]) -> [String: Any] {
   guard AgentBridge.editsEnabled else {
     return toolError(
-      "Edits are turned off. The user can enable them in Dayflow → Settings → AI Tools.",
+      "Edits are turned off. The user can enable them in TBD Settings > Tools.",
       failureCategory: "edits_disabled"
     )
   }

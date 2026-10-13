@@ -2,15 +2,16 @@ import { portalWorkspaces, selectPortalWorkspace, scopedStateName, selectedPorta
 import { app, BrowserWindow, Notification, ipcMain, nativeCall, shell, type WebContents } from "../tbd/host";
 import { activateControlPlane, addControlPlane, controlPlanes, removeControlPlane } from "./controlPlanes";
 import { assertPlaneSwitchAllowed } from "./controlPlaneProfiles";
-import type { Attachment, RemoteAgent } from "../shared/ipc";
+import type { RemoteAgent } from "../shared/ipc";
 import { loadState, pickFolder, saveState } from "./store";
 import { localFileExists, openLocalFile, openRemoteFile, revealLocalFile, saveRemoteFile } from "./deliveredFile";
 import { answerAsk } from "./asks";
-import { addAgentFolder, agentFolders, agentWorkspace, ensurePerson, getServices, removeAgentFolder, resetServices } from "./services";
+import { addAgentFolder, agentFolders, agentWorkspace, ensurePerson, getServices, removeAgentFolder, resetServices, saveAttachment } from "./services";
 import { dialog } from "../tbd/host";
 import { publicPersonSession } from "./portal";
 import { DEFAULT_AGENT_ID } from "./defaultAgent";
-import { buildMessage } from "../shared/message";
+import { buildMessage, fromWire } from "../shared/message";
+import { createTurnRouter, type InputResponse } from "./turns";
 import type { DeviceStart } from "@opt2-tealbrick/spec/routes";
 import { checkForUpdate } from "./updates";
 
@@ -122,6 +123,15 @@ export function registerIpc(): void {
       ],
     };
   });
+  // First-run checks (PARITY WP5): what Chat still needs before TBD's agent can answer.
+  ipcMain.handle("studio:firstRun", async () => {
+    let model: { ready: boolean; note?: string };
+    try { await nativeCall("agentModelStatus"); model = { ready: true }; }
+    catch (error) { model = { ready: false, note: error instanceof Error ? error.message : "Choose a model for TBD's agent in Settings → Models." }; }
+    return { model, agentConnected: Boolean(getServices().agentIdentity.connection()) };
+  });
+  // Deep links into native Settings; only these two sections.
+  ipcMain.handle("studio:openSettings", (_e, section: string) => nativeCall("openSettings", section === "account" ? "account" : "engine"));
   ipcMain.handle("studio:agentHealth", async (_e, agentId: string) => { requireDefaultAgent(agentId); return (await agentReadiness()).ready; });
   ipcMain.handle("studio:replaySession", () => null);
 
@@ -181,8 +191,6 @@ export function registerIpc(): void {
   ipcMain.handle("studio:saveRemoteFile", (_e, input: { url: string; suggestedName: string }) => saveRemoteFile(input));
   ipcMain.handle("studio:openRemoteFile", (_e, input: { url: string; suggestedName: string }) => openRemoteFile(input));
 
-  /** Live turn ids per stream, so Stop reaches the right turn. */
-  const liveTurns = new Map<string, string>();
   ipcMain.handle("studio:cancelTurn", (_e, input: { agentId: string; turnId?: string }) => {
     requireDefaultAgent(input?.agentId);
     getServices().agent.cancel(input?.turnId);
@@ -205,26 +213,28 @@ export function registerIpc(): void {
     n.show();
   });
 
+  // Turns and question cards (turns.ts). The router's agent is looked up per turn: services reset on sign-out.
+  let sendTo: WebContents | null = null;
+  const turns = createTurnRouter({
+    agent: () => getServices().agent,
+    emit: (streamId, channel, payload) => { if (sendTo && !sendTo.isDestroyed()) sendTo.send(channel, { streamId, ...payload }); },
+  });
+
   ipcMain.handle(
     "studio:send",
-    async (e, input: { agentId: string; text: string; attachments?: Attachment[]; sessionId?: string; clientContext?: Record<string, unknown>; streamId: string }) => {
+    async (e, input: { agentId: string; text: string; attachments?: unknown[]; inputResponses?: InputResponse[]; sessionId?: string; clientContext?: Record<string, unknown>; streamId: string }) => {
       requireDefaultAgent(input.agentId);
-      const sender: WebContents = e.sender;
-      const emit = (channel: string, payload: Record<string, unknown>) => {
-        if (!sender.isDestroyed()) sender.send(channel, { streamId: input.streamId, ...payload });
-      };
+      sendTo = e.sender;
+      if (input.inputResponses?.length) return turns.answer({ streamId: input.streamId, responses: input.inputResponses });
       const folder = typeof input.clientContext?.workingFolder === "string" ? `\n\n(Working folder: ${input.clientContext.workingFolder})` : "";
-      const text = buildMessage(input.text, input.attachments ?? []) + folder;
-      const result = await getServices().agent.sendTurn({
-        text,
+      const files = (input.attachments ?? []).map(fromWire);
+      const message = buildMessage(`${input.text}${folder}`, files, saveAttachment);
+      return turns.start({
+        text: typeof message === "string" ? message : input.text,
+        content: typeof message === "string" ? undefined : message,
         sessionId: input.sessionId,
-        onDelta: (t) => emit("studio:delta", { text: t }),
-        onReset: () => emit("studio:reset", {}),
-        onActivity: (label) => emit("studio:activity", { label }),
-        onTurn: (turn) => { if (turn.turnId) liveTurns.set(input.streamId, turn.turnId); emit("studio:turn", turn); },
+        streamId: input.streamId,
       });
-      liveTurns.delete(input.streamId);
-      return { reply: result.reply, sessionId: result.sessionId, streamIndex: 0, askedQuestion: false };
     },
   );
 }

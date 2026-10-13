@@ -37,6 +37,14 @@ final class TBDListeningContext {
         reloadHotkeys()
         meetings.start()
         retention.start()
+        if let database = env.database {
+            // One-time import of the earlier version's library, off the main thread.
+            Task { [weak self] in
+                let outcome = await Task.detached(priority: .utility) { TBDLegacyImport.runAtStart(into: database) }.value
+                if outcome.changed { self?.env.changed() }
+                if let message = outcome.message { self?.runtime?.report(message) }
+            }
+        }
         Task { await env.speech.warmUp() }
     }
 
@@ -63,18 +71,20 @@ final class TBDListeningContext {
 
     var hotkeyPermissionMissing: Bool { !hotkeys.isActive }
 
-    func perform(_ action: String) {
-        switch action {
-        case "dictation": dictation.toggle()
-        case "meeting": meetings.toggle()
-        case "transcribeFile": files.pickFiles()
-        case "transcribeURL": files.promptForURL()
-        case "transform": transforms.chooseAndRun()
-        case "openLibrary":
-            env.selectedTab = .library
-            runtime?.bringToFront()
-        default: runtime?.report("Unknown Listening action")
+    func perform(_ action: TBDListeningAction) {
+        switch action.effect {
+        case .toggleDictation: dictation.toggle()
+        case .toggleMeeting: meetings.toggle()
+        case .pickFiles: show(.library); files.pickFiles()
+        case .promptForURL: show(.library); files.promptForURL()
+        case .chooseTransform: transforms.chooseAndRun()
+        case .show(let page): show(TBDListeningTab(rawValue: page) ?? .library)
         }
+    }
+
+    private func show(_ tab: TBDListeningTab) {
+        env.selectedTab = tab
+        runtime?.bringToFront()
     }
 
     func bringToFront() { runtime?.bringToFront() }

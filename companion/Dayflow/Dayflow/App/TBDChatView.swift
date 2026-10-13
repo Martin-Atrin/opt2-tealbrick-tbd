@@ -302,6 +302,12 @@ final class TBDChatRuntime: NSObject, ObservableObject, WKScriptMessageHandler, 
     case "reveal": NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: text)]); return NSNull()
     case "activate": NSApp.activate(ignoringOtherApps: true); return NSNull()
     case "listening": TBDListeningRuntime.shared.activate?(); return NSNull()
+    // Chat first-run checks: deep links to Settings → Models or Account only.
+    case "openSettings":
+      guard ["engine", "account"].contains(text) else { throw failure("Unsupported settings section") }
+      NSApp.activate(ignoringOtherApps: true)
+      NotificationCenter.default.post(name: Notification.Name("tbdOpenSettings"), object: text)
+      return NSNull()
     case "openDialog":
       let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false
       let response = await panel.begin()

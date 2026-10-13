@@ -1,5 +1,6 @@
 import { ipcRenderer } from "../tbd/webview";
 import type { StudioApi } from "../shared/ipc";
+import { toWire } from "../shared/message";
 
 /**
  * The only bridge. Tokens live in the main process and never reach the
@@ -19,7 +20,8 @@ const studio: StudioApi = {
   signOut: () => ipcRenderer.invoke("studio:signOut"),
   listAgents: (opts?: { refreshSession?: boolean }) => ipcRenderer.invoke("studio:listAgents", opts),
   saveAgentProfile: (input) => ipcRenderer.invoke("studio:saveAgentProfile", input),
-  send: (input) => ipcRenderer.invoke("studio:send", input),
+  // Attachments cross the bridge as base64 (shared/message.ts toWire).
+  send: (input) => ipcRenderer.invoke("studio:send", { ...input, attachments: input.attachments?.map(toWire) }),
   fileExists: (path) => ipcRenderer.invoke("studio:fileExists", path),
   openLocalFile: (path) => ipcRenderer.invoke("studio:openLocalFile", path),
   revealLocalFile: (path) => ipcRenderer.invoke("studio:revealLocalFile", path),
@@ -54,6 +56,8 @@ const studio: StudioApi = {
     ipcRenderer.on("studio:turn", listener);
     return () => ipcRenderer.off("studio:turn", listener);
   },
+  firstRun: () => ipcRenderer.invoke("studio:firstRun"),
+  openSettings: (section) => ipcRenderer.invoke("studio:openSettings", section),
   agentConnection: () => ipcRenderer.invoke("studio:agentConnection"),
   agentConnect: () => ipcRenderer.invoke("studio:agentConnect"),
   awaitAgentConnect: () => ipcRenderer.invoke("studio:awaitAgentConnect"),

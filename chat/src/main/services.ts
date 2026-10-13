@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, hostname } from "node:os";
 import { join, resolve } from "node:path";
+import { saveAttachmentIn } from "./attachmentFile";
 import { app, nativeCall } from "../tbd/host";
 import { decide, realPath, sandboxSettings, type PolicyContext } from "./filePolicy";
 import { currentControlPlane } from "./controlPlanes";
@@ -81,6 +82,11 @@ export function agentWorkspace(): string {
   const dir = join(homedir(), "Library", "Application Support", "TBD Agent", "Workspace");
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   return realPath(dir);
+}
+
+/** Attached files the model cannot read inline go to the agent's own working folder (attachmentFile.ts). */
+export function saveAttachment(file: { name: string; bytes: Uint8Array }): string {
+  return saveAttachmentIn(join(agentWorkspace(), "Attachments"), file);
 }
 
 /** Folders the person allowed the agent to read (managed in TBD's agent settings). */

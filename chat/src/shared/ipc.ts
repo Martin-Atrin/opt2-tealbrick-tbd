@@ -102,6 +102,20 @@ export interface Attachment {
   bytes: Uint8Array;
 }
 
+/** An attachment on the renderer → helper wire: bytes as base64 (typed arrays do not cross the WebKit bridge). */
+export interface WireAttachment {
+  name: string;
+  mediaType: string;
+  size: number;
+  data: string;
+}
+
+/** What Chat still needs on first run (studio:firstRun). */
+export interface FirstRunState {
+  model: { ready: boolean; note?: string };
+  agentConnected: boolean;
+}
+
 /** What came of taking delivery of a file. */
 export interface DeliveryResult {
   ok: boolean;
@@ -155,6 +169,10 @@ export interface StudioApi {
   openRemoteFile(input: { url: string; suggestedName: string }): Promise<DeliveryResult>;
   /** Subscribe to streaming deltas. Returns an unsubscribe function. */
   onDelta(handler: (payload: { streamId: string; text: string }) => void): () => void;
+  /** First-run checks: is a model chosen for TBD's agent, and is the agent connected to the workspace. */
+  firstRun(): Promise<FirstRunState>;
+  /** Open native Settings at Models ("engine") or Account. */
+  openSettings(section: "engine" | "account"): Promise<void>;
   /** TBD's agent identity: a key connection to the selected workspace (K4 stays in the Keychain). */
   agentConnection(): Promise<{ connected: boolean; workspaceId?: string; agentId?: string }>;
   agentConnect(): Promise<{ userCode: string; verificationUri: string }>;
