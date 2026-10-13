@@ -10,7 +10,7 @@ struct TBDListen: AsyncParsableCommand {
         abstract: "Transcribe audio and query the TBD Listening library.",
         version: TBDSpeechVersion.string,
         subcommands: [Transcribe.self, History.self, Search.self, Show.self, Meetings.self, Export.self, Delete.self, Stats.self,
-                      Engines.self, Models.self, Vocabulary.self, Snippets.self, Podcasts.self, Config.self]
+                      Engines.self, Models.self, Vocabulary.self, Snippets.self, Podcasts.self, Config.self, YtDlp.self]
     )
 }
 

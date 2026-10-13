@@ -14,7 +14,7 @@ Environment: `TBD_LISTENING_ROOT` moves the whole Listening folder (tests, tooli
 
 | Command | What it does |
 | --- | --- |
-| `transcribe INPUT [--podcast] [--engine ID] [--language XX] [--format txt\|md\|srt\|vtt\|json] [--json] [--no-save] [--keep-audio]` | Transcribe a file, an http(s) link (Apple Podcasts links and direct audio files download directly; other pages need `yt-dlp` on PATH) or, with `--podcast`, a podcast search such as `"hard fork 120"`. Uses the app's **final** engine unless `--engine` is given. |
+| `transcribe INPUT [--podcast] [--engine ID] [--language XX] [--format txt\|md\|srt\|vtt\|json] [--json] [--no-save] [--keep-audio] [--media-audio-quality app-default\|m4a\|best-available]` | Transcribe a file, an http(s) link (Apple Podcasts links and direct audio files download directly; other pages use `yt-dlp`, which TBD downloads from the official GitHub release, verifies against its SHA2-256SUMS and keeps in Listening/bin, refreshed weekly) or, with `--podcast`, a podcast search such as `"hard fork 120"`. Uses the app's **final** engine unless `--engine` is given. |
 | `search WORDS [--kind file\|url\|meeting\|voiceNote] [--limit N] [--json]` | Full-text search of transcripts. |
 | `show ID [--format …]` | Print one transcript (id or unique prefix). |
 | `history [--limit N] [--query WORDS] [--json]` | Recent dictations. |
@@ -39,7 +39,8 @@ Engine ids: `parakeet-v3` (default), `parakeet-v2`, `parakeet-unified`, `nemotro
 Config keys: `liveEngine`, `finalEngine` (`default`/`live` = follow the live engine),
 `whisperLanguage`, `nemotronLanguage`, `cohereLanguage` (`auto`/`default` clears), `dictationLivePreview`,
 `meetingLivePreview`, `keepAudio`, `keepHistory`, `removeFillers`, `dictationCleanup`, `diarize`,
-`calendarReminders`, `calendarAutoStart`, `dictationHotkey`, `transformHotkey`, `microphoneUID`.
+`calendarReminders`, `calendarAutoStart`, `dictationHotkey`, `transformHotkey`, `microphoneUID`,
+`youtubeAudioQuality` (`m4a` default, or `best-available`, which needs FFmpeg).
 `keepAudio` reflects the per-kind retention policies in Settings (true: no kind removes audio after
 transcription); setting it switches those policies and leaves day-based expiry as it is.
 

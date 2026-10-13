@@ -214,13 +214,14 @@ struct TBDEngineSettings: View {
                 Toggle("", isOn: tbdBinding({ prefs.meetingLivePreview }, { prefs.meetingLivePreview = $0 }, refresh: changed))
                     .labelsHidden().toggleStyle(.switch).disabled(!prefs.liveEngine.capabilities.meetingLivePreview)
             }
+            TBDLinkDownloadSettings(preferences: prefs)
             TBDSettingsRow("Speaker detection", help: "Label speakers in meetings and files (needs the speaker model and an engine with timestamps).") {
                 Toggle("", isOn: tbdBinding({ prefs.diarize }, { prefs.diarize = $0 }, refresh: { tick += 1 })).labelsHidden().toggleStyle(.switch)
             }
             TBDLabel("Models").padding(.top, TBDTokens.Space.xl).padding(.bottom, TBDTokens.Space.xs)
             ForEach(models.statuses) { status in modelRow(status, prefs: prefs) }
             if let error = models.error { Text(error).foregroundStyle(TBDTokens.alert).padding(.top, TBDTokens.Space.sm) }
-            Text("Models download only when you click Download (from Hugging Face). Podcast links and searches use the Apple Podcasts directory (itunes.apple.com) and the show's RSS feed to find the episode audio; nothing else leaves this Mac. Models are stored in \(TBDListeningPaths.models.path) · \(models.manager.totalBytes.tbdByteString) used.")
+            Text("Models download only when you click Download (from Hugging Face). Podcast links and searches use the Apple Podcasts directory (itunes.apple.com) and the show's RSS feed to find the episode audio. Video links use yt-dlp (downloaded once from github.com/yt-dlp and checked weekly), which contacts the linked site. Nothing else leaves this Mac. Models are stored in \(TBDListeningPaths.models.path) · \(models.manager.totalBytes.tbdByteString) used.")
                 .font(.system(size: 11)).foregroundStyle(TBDTokens.muted).fixedSize(horizontal: false, vertical: true)
                 .padding(.top, TBDTokens.Space.md).textSelection(.enabled)
         }

@@ -27,6 +27,9 @@ public final class TBDListeningRuntime: ObservableObject {
         context.voice.onMessage = { [weak self] in self?.captureMessage = $0 }
         context.voice.onRawTranscript = { [weak self] in self?.lastRawTranscript = $0 }
         context.start()
+        // Weekly yt-dlp refresh at launch, as v1 did; never blocks and ignores failures.
+        let preferences = context.env.preferences
+        Task.detached(priority: .utility) { await TBDBinaryBootstrap(defaults: preferences.defaults).autoUpdateYtDlpIfNeeded() }
     }
 
     public func content() -> AnyView {

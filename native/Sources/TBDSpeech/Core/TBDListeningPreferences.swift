@@ -67,6 +67,7 @@ public struct TBDListeningPreferences: @unchecked Sendable {
         "liveEngine", "finalEngine", "whisperLanguage", "nemotronLanguage", "cohereLanguage", "dictationLivePreview",
         "meetingLivePreview", "keepAudio", "keepHistory", "removeFillers", "dictationCleanup", "diarize",
         "calendarReminders", "calendarAutoStart", "dictationHotkey", "transformHotkey", "microphoneUID",
+        "youtubeAudioQuality",
     ]
 
     private func bool(_ key: String, default value: Bool) -> Bool {
@@ -284,4 +285,17 @@ public struct TBDListeningPreferences: @unchecked Sendable {
     Correct punctuation and obvious recognition mistakes. Preserve language, meaning and all factual details. \
     Return only the corrected transcript.
     """
+
+    // MARK: links
+    enum LinkKey {
+        /// Same name as v1 (`youtubeAudioQuality`), under the Listening prefix.
+        static let youtubeAudioQuality = "tbd.listening.youtubeAudioQuality"
+        /// Last successful yt-dlp install or weekly refresh (v1 `ytDlp.lastUpdateCheckAt`).
+        static let ytDlpLastUpdateCheck = "tbd.listening.ytDlpLastUpdateCheck"
+    }
+    /// Audio format yt-dlp downloads for video and web links. M4A by default, as in v1.
+    public var youtubeAudioQuality: TBDYtDlpAudioQuality {
+        get { TBDYtDlpAudioQuality(rawValue: defaults.string(forKey: LinkKey.youtubeAudioQuality) ?? "") ?? .m4a }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: LinkKey.youtubeAudioQuality) }
+    }
 }

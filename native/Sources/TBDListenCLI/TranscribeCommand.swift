@@ -28,7 +28,8 @@ struct Transcribe: AsyncParsableCommand {
         abstract: "Transcribe a file, link or podcast episode and save it to the library.",
         discussion: """
         INPUT is an audio or video file, an http(s) link (Apple Podcasts links and direct audio files are \
-        downloaded directly; other pages need yt-dlp on PATH) or, with --podcast, a podcast name and episode \
+        downloaded directly; other pages use yt-dlp, which TBD downloads from its GitHub release and verifies on \
+        first use) or, with --podcast, a podcast name and episode \
         such as "hard fork 120" (looked up in the Apple Podcasts directory and the show's RSS feed).
         """)
 
@@ -40,9 +41,14 @@ struct Transcribe: AsyncParsableCommand {
     @Flag(help: "Print the stable transcribe result JSON (see README).") var json = false
     @Flag(name: .customLong("no-save"), help: "Do not save the result to the library.") var noSave = false
     @Flag(help: "Keep the downloaded audio of links and podcasts.") var keepAudio = false
+    @Option(name: .customLong("media-audio-quality"), help: "Audio for video links: app-default, m4a or best-available (needs FFmpeg).")
+    var mediaAudioQuality = "app-default"
 
     func validate() throws {
         _ = try parseFormat(format)
+        if mediaAudioQuality != "app-default", TBDYtDlpAudioQuality(configValue: mediaAudioQuality) == nil {
+            throw ValidationError("Invalid value for --media-audio-quality: '\(mediaAudioQuality)'. Use app-default, m4a or best-available.")
+        }
         if let engine, TBDSpeechEngineKind(identifier: engine) == nil {
             throw ValidationError("Unknown engine \(engine). Use one of: \(TBDSpeechEngineKind.allCases.map(\.cliID).joined(separator: ", ")).")
         }
@@ -76,7 +82,8 @@ struct Transcribe: AsyncParsableCommand {
             if case .link(let url) = source { link = url } else { link = TBDLinkDownloader.podcastSearchLink(input)! }
             if !json { status(TBDPodcastURL.isApplePodcasts(link.absoluteString) || link.scheme == TBDLinkDownloader.podcastSearchScheme
                               ? "Looking up the podcast…" : "Downloading…") }
-            let download = try await TBDLinkDownloader().download(link, into: TBDListeningPaths.downloads)
+            let download = try await TBDLinkDownloader(preferences: preferences, quality: TBDYtDlpAudioQuality(configValue: mediaAudioQuality))
+                .download(link, into: TBDListeningPaths.downloads, progress: progress)
             defer { try? FileManager.default.removeItem(at: download.file) }
             if !json { status(download.title) }
             reported = download.sourceURL ?? link.absoluteString

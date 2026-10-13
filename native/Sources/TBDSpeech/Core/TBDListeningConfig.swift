@@ -59,6 +59,7 @@ extension TBDListeningPreferences {
         case "dictationHotkey": return .string(dictationHotkey)
         case "transformHotkey": return optional(transformHotkey.isEmpty ? nil : transformHotkey)
         case "microphoneUID": return optional(microphoneUID)
+        case "youtubeAudioQuality": return .string(youtubeAudioQuality.configValue)
         default: throw TBDConfigError.unknownKey(key)
         }
     }
@@ -116,6 +117,11 @@ extension TBDListeningPreferences {
             dictationHotkey = value
         case "transformHotkey": transformHotkey = clears ? "" : value
         case "microphoneUID": microphoneUID = clears ? nil : value
+        case "youtubeAudioQuality":
+            guard let quality = clears ? .m4a : TBDYtDlpAudioQuality(configValue: value) else {
+                throw TBDConfigError.invalidValue(key: key, value: text, expected: "m4a or best-available")
+            }
+            youtubeAudioQuality = quality
         default: throw TBDConfigError.unknownKey(key)
         }
     }

@@ -129,7 +129,7 @@ final class TBDFileQueue: ObservableObject {
                 result = try await transcriber.transcribe(file: url, progress: progress)
             case .link(let url):
                 update(id) { $0.state = .running("Downloading", 0) }
-                let download = try await TBDLinkDownloader().download(url, into: TBDListeningPaths.downloads)
+                let download = try await TBDLinkDownloader(preferences: env.preferences).download(url, into: TBDListeningPaths.downloads, progress: progress)
                 defer { try? FileManager.default.removeItem(at: download.file) }
                 update(id) { $0.title = download.title }
                 result = try await transcriber.transcribe(file: download.file, kind: .url, title: download.title,
