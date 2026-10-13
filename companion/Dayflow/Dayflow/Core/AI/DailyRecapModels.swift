@@ -1,4 +1,5 @@
 import Foundation
+import TBDModels
 
 enum DailyRecapProvider: String, Codable, CaseIterable, Sendable {
   case local
@@ -6,9 +7,17 @@ enum DailyRecapProvider: String, Codable, CaseIterable, Sendable {
   case chatgpt
   case claude
   case none
+  /// TBD's "agent" model route (Settings → Models → TBD agent model).
+  case agent
+  /// Derived, never stored: the person has not chosen a model and none is set up (C137).
+  case unchosen
 
   private static let storageKey = "dailyRecapProvider_v1"
+  /// Set only when the person picks a provider in the Daily picker (`save`).
+  private static let chosenKey = "dailyRecapProviderChosen_v1"
+  /// The providers the picker lists. `unchosen` is a state, not a provider.
   static let allCases: [DailyRecapProvider] = [
+    .agent,
     .claude,
     .chatgpt,
     .gemini,
@@ -16,25 +25,35 @@ enum DailyRecapProvider: String, Codable, CaseIterable, Sendable {
     .none,
   ]
 
+  /// The effective provider. Explicit choices stay; otherwise TBD's agent model when it is set up,
+  /// else `.unchosen`. Reading never writes (the derived value is not stored).
   static func load(from defaults: UserDefaults = .standard) -> DailyRecapProvider {
-    if let rawValue = defaults.string(forKey: storageKey),
-      let provider = DailyRecapProvider(rawValue: rawValue)
-    {
-      return provider
+    let stored = defaults.string(forKey: storageKey).flatMap(DailyRecapProvider.init(rawValue:))
+    let storedRaw = (stored ?? derivedFromRouting(defaults))?.rawValue
+    let result = TBDDailyRecapChoice.resolve(
+      storedRaw: storedRaw,
+      chosen: defaults.bool(forKey: chosenKey),
+      agentRouteReady: agentRouteIsReady())
+    switch result {
+    case .provider(let raw):
+      return DailyRecapProvider(rawValue: raw) ?? .unchosen
+    case .needsChoice:
+      return .unchosen
     }
-
-    let provider = migrateInitialSelection(from: defaults)
-    provider.save(to: defaults)
-    return provider
   }
 
+  /// Called only from the picker: records the person's choice.
   func save(to defaults: UserDefaults = .standard) {
+    guard self != .unchosen else { return }
     defaults.set(rawValue, forKey: Self.storageKey)
+    defaults.set(true, forKey: Self.chosenKey)
   }
 
-  private static func migrateInitialSelection(from defaults: UserDefaults) -> DailyRecapProvider {
+  /// A recap provider implied by the Companion routing store. Only a real provider counts;
+  /// the first-run default (`openAICompatible`) implies nothing.
+  private static func derivedFromRouting(_ defaults: UserDefaults) -> DailyRecapProvider? {
     guard let providerID = (try? LLMProviderRoutingStore.load(from: defaults))?.primary else {
-      return .none
+      return nil
     }
 
     switch providerID {
@@ -47,8 +66,17 @@ enum DailyRecapProvider: String, Codable, CaseIterable, Sendable {
     case .local:
       return .local
     case .openAICompatible:
-      return .none
+      return nil
     }
+  }
+
+  static func agentRouteIsReady() -> Bool {
+    (try? TBDAgentModelSetup.resolve(TBDModelRegistry())) != nil
+  }
+
+  /// The model ID of TBD's agent route, nil when it is not set up.
+  static func agentModelID() -> String? {
+    (try? TBDAgentModelSetup.resolve(TBDModelRegistry()))?.model
   }
 
   var analyticsName: String {
@@ -67,6 +95,10 @@ enum DailyRecapProvider: String, Codable, CaseIterable, Sendable {
       return String(localized: "Claude")
     case .none:
       return String(localized: "No provider")
+    case .agent:
+      return String(localized: "TBD agent model")
+    case .unchosen:
+      return String(localized: "No model chosen")
     }
   }
 
@@ -82,6 +114,10 @@ enum DailyRecapProvider: String, Codable, CaseIterable, Sendable {
       return String(localized: "Claude Opus")
     case .none:
       return String(localized: "No provider selected (Daily off)")
+    case .agent:
+      return Self.agentModelID() ?? String(localized: "TBD agent model")
+    case .unchosen:
+      return String(localized: "Choose a model for Daily")
     }
   }
 
@@ -98,6 +134,10 @@ enum DailyRecapProvider: String, Codable, CaseIterable, Sendable {
       return String(localized: "Claude Opus")
     case .none:
       return String(localized: "Turns off Daily recap generation until you pick another provider.")
+    case .agent:
+      return String(localized: "Set up in Settings → Models")
+    case .unchosen:
+      return String(localized: "Choose a model for Daily")
     }
   }
 
@@ -109,8 +149,10 @@ enum DailyRecapProvider: String, Codable, CaseIterable, Sendable {
       return "gemini_direct"
     case .chatgpt, .claude:
       return "chat_cli"
-    case .none:
+    case .none, .unchosen:
       return "disabled"
+    case .agent:
+      return "tbd_agent_model"
     }
   }
 
@@ -124,13 +166,15 @@ enum DailyRecapProvider: String, Codable, CaseIterable, Sendable {
       return "gpt-6-astra"
     case .claude:
       return "opus"
-    case .none:
+    case .none, .unchosen:
       return nil
+    case .agent:
+      return Self.agentModelID()
     }
   }
 
   var canGenerate: Bool {
-    self != .none
+    self != .none && self != .unchosen
   }
 
   private static func currentLocalModelID(from defaults: UserDefaults = .standard) -> String? {
@@ -153,7 +197,7 @@ enum DailyStandupPlaceholder {
   static let insufficientHistoryMessage =
     "Not enough captured activity in the previous 3 days to generate a standup."
   static let noProviderSelectedMessage =
-    "No Daily provider is selected. Click the gear button above, then choose a provider to turn recap generation back on."
+    "Choose a model for Daily. Click the gear button above, then choose a provider to turn recap generation on."
 }
 
 struct DailyStandupGenerationMetadata: Codable, Equatable, Sendable {
@@ -189,8 +233,10 @@ struct DailyStandupGenerationMetadata: Codable, Equatable, Sendable {
         ? String(localized: "GPT-5.6 Sol") : String(localized: "GPT-6 Astra")
     case .claude:
       return String(localized: "Claude Opus")
-    case .none:
+    case .none, .unchosen:
       return String(localized: "No provider")
+    case .agent:
+      return modelOrTool ?? String(localized: "TBD agent model")
     }
   }
 }
