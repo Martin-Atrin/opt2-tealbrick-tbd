@@ -204,6 +204,19 @@ struct TBDTranscriptDetailView: View {
     @State private var splitting = false
     @State private var editing: TBDWordRange?
     @State private var draft = ""
+    // Reader: audio player, Text/Timed view, font size, find (PARITY WP4 reader).
+    @StateObject private var player = TBDTranscriptPlayer()
+    @AppStorage(TBDTranscriptFontScale.defaultsKey) private var fontScale = TBDTranscriptFontScale.defaultValue
+    @State private var viewMode = TBDTranscriptViewMode.initial
+    @State private var find = TBDTranscriptFind()
+    @State private var findVisible = false
+    @State private var findToken = 0
+    @FocusState private var findFocused: Bool
+    /// Playback-follow is paused after a manual scroll (5 s) and while find navigates.
+    @State private var followPaused = false
+    @State private var findPausedFollow = false
+    @State private var pauseTask: Task<Void, Never>?
+    @State private var scrollMonitor: Any?
 
     init(context: TBDListeningContext, id: String) {
         self.context = context
@@ -211,6 +224,15 @@ struct TBDTranscriptDetailView: View {
     }
 
     var body: some View {
+        ScrollViewReader { proxy in
+            content
+                .onChange(of: player.activeIndex) { _, index in followPlayback(index, proxy) }
+                .onChange(of: player.jumpCount) { _, _ in resumeFollow() }
+                .onChange(of: findToken) { _, _ in scrollToFindMatch(proxy) }
+        }
+    }
+
+    private var content: some View {
         Group {
             if let item = model.item {
                 ScrollView {
@@ -244,18 +266,28 @@ struct TBDTranscriptDetailView: View {
                     }
                     .padding(.trailing, TBDTokens.Space.md)
                 }
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    if item.status == .completed, player.isAvailable {
+                        TBDPlayerBar(player: player, title: item.title, showsAudioMenu: item.sourceKind == .meeting) { model.error = $0 }
+                    }
+                }
             } else {
                 Text("This item no longer exists.").foregroundStyle(TBDTokens.muted)
             }
         }
-        .onAppear { model.load(); title = model.item?.title ?? "" }
-        .onDisappear { model.flushNotes(); model.ask.stop() }
+        .onAppear { model.load(); title = model.item?.title ?? ""; syncPlayer(); installScrollMonitor() }
+        .onDisappear {
+            model.flushNotes(); model.ask.stop()
+            player.cleanup(); removeScrollMonitor()
+        }
         .sheet(isPresented: $splitting) {
             if let item = model.item {
                 TBDSplitSheet(item: item) { cuts, titles in try context.meetings.split(item.id, cutsMs: cuts, titles: titles) }
             }
         }
-        .onChange(of: env.revision) { _, _ in model.load() }
+        .onChange(of: env.revision) { _, _ in model.load(); syncPlayer() }
+        .onChange(of: model.item) { _, _ in if findVisible { rebuildFind() } }
+        .onChange(of: viewMode) { _, _ in syncPlayer(); if findVisible { rebuildFind() } }
     }
 
     private func header(_ item: TBDTranscription) -> some View {
@@ -353,37 +385,243 @@ struct TBDTranscriptDetailView: View {
         }
     }
 
+    // MARK: Reader (Text / Timed, find, font size, playback follow)
+
+    private struct Passage: Identifiable {
+        let index: Int
+        let segment: TBDSegment
+        let range: TBDWordRange?
+        let edited: Bool
+        var id: Int { index }
+    }
+
+    private func passages(for item: TBDTranscription) -> [Passage] {
+        if let editable = model.projection?.segments, !editable.isEmpty {
+            return editable.enumerated().map { Passage(index: $0, segment: $1.segment, range: $1.range, edited: $1.edited) }
+        }
+        return item.segments.enumerated().map { Passage(index: $0, segment: $1, range: nil, edited: false) }
+    }
+
+    /// Text unless the transcript has timing and the person chose Timed (v1 opens in Text and does not remember).
+    private func effectiveMode(_ item: TBDTranscription) -> TBDTranscriptViewMode {
+        TBDTranscriptReader.hasTimedView(item) ? viewMode : .text
+    }
+
+    private var bodyFont: Font { .custom("Switzer", size: TBDTranscriptFontScale.pointSize(fontScale)) }
+
     private func transcript(_ item: TBDTranscription) -> some View {
-        let editable = model.projection?.segments ?? []
-        let fallback = item.segments.isEmpty && !item.text.isEmpty
-            ? [TBDSegment(start: 0, end: item.durationMs, text: item.text)] : item.segments
+        let mode = effectiveMode(item)
+        let list = passages(for: item)
         return VStack(alignment: .leading, spacing: TBDTokens.Space.md) {
-            HStack {
+            HStack(spacing: TBDTokens.Space.sm) {
                 TBDLabel("Transcript")
-                if !editable.isEmpty, item.status == .completed {
-                    Text("Right-click a passage to edit it or change its speaker.").font(.system(size: 11)).foregroundStyle(TBDTokens.muted)
+                if item.status == .completed, !list.isEmpty {
+                    Text(mode == .timed ? "Right-click a passage to edit it or change its speaker." : "Switch to Timed to edit passages or speakers.")
+                        .font(.system(size: 11)).foregroundStyle(TBDTokens.muted)
+                }
+                Spacer()
+                if TBDTranscriptReader.hasTimedView(item) {
+                    Picker("Transcript view", selection: $viewMode) {
+                        ForEach(TBDTranscriptViewMode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                    }
+                    .pickerStyle(.segmented).labelsHidden().frame(width: 150)
+                }
+                fontControls
+                Button { openFind() } label: { Image(systemName: "magnifyingglass") }
+                    .buttonStyle(TBDButtonStyle(.icon)).help("Find in transcript (⌘F)").accessibilityLabel("Find in transcript")
+            }
+            if findVisible {
+                HStack {
+                    Spacer()
+                    TBDTranscriptFindBar(
+                        query: Binding(get: { find.query }, set: { setFindQuery($0) }),
+                        isFocused: $findFocused,
+                        position: find.displayPosition,
+                        hasQueryButNoMatches: find.hasQueryButNoMatches,
+                        onNext: { find.next(); findToken &+= 1 },
+                        onPrev: { find.prev(); findToken &+= 1 },
+                        onClose: closeFind)
                 }
             }
-            if editable.isEmpty {
-                ForEach(Array(fallback.enumerated()), id: \.offset) { _, segment in row(segment, in: item, range: nil, edited: false) }
+            switch mode {
+            case .text: textBody(item)
+            case .timed: ForEach(list) { passage in row(passage, in: item) }
+            }
+        }
+        .background { findShortcuts }
+    }
+
+    private func textBody(_ item: TBDTranscription) -> some View {
+        let text = TBDTranscriptReader.bodyText(item)
+        return Group {
+            if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                if item.status == .completed { Text("No transcript available").foregroundStyle(TBDTokens.muted) }
             } else {
-                ForEach(editable) { passage in row(passage.segment, in: item, range: passage.range, edited: passage.edited) }
+                Group {
+                    if findVisible, find.hasMatches {
+                        Text(TBDTranscriptFindHighlight.attributed(text, ranges: find.ranges(inBlock: 0), current: find.currentRange(inBlock: 0), baseFont: bodyFont))
+                    } else {
+                        Text(text).font(bodyFont)
+                    }
+                }
+                .foregroundStyle(TBDTokens.ink).lineSpacing(6).textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(alignment: .topLeading) { textFindAnchor(text) }
+                .tbdCard(padding: TBDTokens.Space.lg)
             }
         }
     }
 
+    /// Invisible copy of the text before the current match; its bottom edge is where Text mode scrolls to.
     @ViewBuilder
-    private func row(_ segment: TBDSegment, in item: TBDTranscription, range: TBDWordRange?, edited: Bool) -> some View {
+    private func textFindAnchor(_ text: String) -> some View {
+        if findVisible, let current = find.current,
+           let prefix = TBDTranscriptReader.prefix(of: text, utf16Offset: current.range.location) {
+            Text(prefix).font(bodyFont).lineSpacing(6).foregroundStyle(.clear)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .overlay(alignment: .bottomLeading) { Color.clear.frame(width: 1, height: 1).id(Self.textAnchorID) }
+                .allowsHitTesting(false).accessibilityHidden(true)
+        }
+    }
+
+    private static let textAnchorID = -1
+
+    private var fontControls: some View {
+        HStack(spacing: 2) {
+            Button { fontScale = TBDTranscriptFontScale.adjusted(fontScale, by: -TBDTranscriptFontScale.step) } label: {
+                Image(systemName: "textformat.size.smaller").font(.system(size: 13, weight: .semibold))
+            }
+            .buttonStyle(.plain).disabled(!TBDTranscriptFontScale.canDecrease(fontScale))
+            .help("Smaller transcript text").accessibilityLabel("Smaller transcript text")
+            Button { fontScale = TBDTranscriptFontScale.adjusted(fontScale, by: TBDTranscriptFontScale.step) } label: {
+                Image(systemName: "textformat.size.larger").font(.system(size: 13, weight: .semibold))
+            }
+            .buttonStyle(.plain).disabled(!TBDTranscriptFontScale.canIncrease(fontScale))
+            .help("Larger transcript text").accessibilityLabel("Larger transcript text")
+        }
+        .foregroundStyle(TBDTokens.muted)
+    }
+
+    // MARK: Find
+
+    /// Registers ⌘F, ⌘G and ⇧⌘G while the transcript is on screen; stepping needs an open bar with matches.
+    private var findShortcuts: some View {
+        ZStack {
+            Button("") { openFind() }.keyboardShortcut("f", modifiers: .command)
+            if findVisible, find.hasMatches {
+                Button("") { find.next(); findToken &+= 1 }.keyboardShortcut("g", modifiers: .command)
+                Button("") { find.prev(); findToken &+= 1 }.keyboardShortcut("g", modifiers: [.command, .shift])
+            }
+        }
+        .opacity(0).frame(width: 0, height: 0).accessibilityHidden(true)
+    }
+
+    private func openFind() {
+        findVisible = true
+        rebuildFind()
+        DispatchQueue.main.async { findFocused = true }
+    }
+
+    private func closeFind() {
+        findVisible = false
+        findFocused = false
+        find.clear()
+        releaseFindPause()
+    }
+
+    private func setFindQuery(_ text: String) {
+        find.setQuery(text)
+        if !find.hasMatches { releaseFindPause() }
+        findToken &+= 1
+    }
+
+    /// Searches the text of the mode on screen: segments in Timed, the whole text in Text.
+    private func rebuildFind() {
+        guard let item = model.item else { return }
+        find.setBlocks(TBDTranscriptReader.findBlocks(mode: effectiveMode(item), segments: passages(for: item).map(\.segment),
+                                                      body: TBDTranscriptReader.bodyText(item)))
+        if find.hasMatches { findToken &+= 1 } else { releaseFindPause() }
+    }
+
+    /// Scrolls the current match into view; playback-follow stays paused so it cannot pull the view back.
+    private func scrollToFindMatch(_ proxy: ScrollViewProxy) {
+        guard findVisible, let current = find.current, let item = model.item else { return }
+        followPaused = true
+        findPausedFollow = true
+        pauseTask?.cancel()
+        let target = effectiveMode(item) == .timed ? current.blockIndex : Self.textAnchorID
+        withAnimation(.easeInOut(duration: 0.25)) { proxy.scrollTo(target, anchor: .center) }
+    }
+
+    /// Follow playback again, but only if find (not a manual scroll) paused it.
+    private func releaseFindPause() {
+        guard findPausedFollow else { return }
+        followPaused = false
+        findPausedFollow = false
+        pauseTask?.cancel()
+    }
+
+    // MARK: Playback
+
+    private func syncPlayer() {
+        guard let item = model.item, item.status == .completed else { player.cleanup(); return }
+        player.prepare(paths: item.audioPaths, fallbackDurationMs: item.durationMs)
+        player.segmentStarts = effectiveMode(item) == .timed ? passages(for: item).map { $0.segment.start } : []
+    }
+
+    private func followPlayback(_ index: Int?, _ proxy: ScrollViewProxy) {
+        guard player.isPlaying, !followPaused, editing == nil, let index, let item = model.item, effectiveMode(item) == .timed else { return }
+        withAnimation(.easeInOut(duration: 0.3)) { proxy.scrollTo(index, anchor: .center) }
+    }
+
+    /// A seek or jump in playback time re-syncs the transcript at once.
+    private func resumeFollow() {
+        followPaused = false
+        pauseTask?.cancel()
+    }
+
+    /// A manual scroll during playback pauses following for a few seconds (v1).
+    private func installScrollMonitor() {
+        removeScrollMonitor()
+        scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
+            guard player.isPlaying else { return event }
+            if findPausedFollow {
+                findPausedFollow = false
+                followPaused = false
+                pauseTask?.cancel()
+            }
+            followPaused = true
+            pauseTask?.cancel()
+            pauseTask = Task { @MainActor in
+                try? await Task.sleep(for: .seconds(TBDTranscriptReader.followPauseSeconds))
+                if !Task.isCancelled { followPaused = false }
+            }
+            return event
+        }
+    }
+
+    private func removeScrollMonitor() {
+        if let scrollMonitor { NSEvent.removeMonitor(scrollMonitor) }
+        scrollMonitor = nil
+        pauseTask?.cancel()
+    }
+
+    // MARK: Rows
+
+    @ViewBuilder
+    private func row(_ passage: Passage, in item: TBDTranscription) -> some View {
+        let segment = passage.segment
+        let range = passage.range
+        let isActive = player.activeIndex == passage.index
         HStack(alignment: .firstTextBaseline, spacing: TBDTokens.Space.md) {
-            Text(TBDExport.clock(segment.start)).font(.system(size: 11, design: .monospaced)).foregroundStyle(TBDTokens.muted)
-                .frame(width: 52, alignment: .trailing)
+            timestamp(segment)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: TBDTokens.Space.xs) {
                     if let speaker = item.speakerLabel(segment.speaker) {
                         Text(speaker).font(TBDTokens.Typography.label).tracking(TBDTokens.Typography.labelTracking)
                             .foregroundStyle(speakerColor(segment.speaker, in: item))
                     }
-                    if edited { Text("Edited").font(.system(size: 10)).foregroundStyle(TBDTokens.muted) }
+                    if passage.edited { Text("Edited").font(.system(size: 10)).foregroundStyle(TBDTokens.muted) }
                 }
                 if let range, editing == range {
                     TextEditor(text: $draft).font(TBDTokens.Typography.body).frame(minHeight: 60)
@@ -396,12 +634,17 @@ struct TBDTranscriptDetailView: View {
                         Button("Cancel") { editing = nil }.buttonStyle(TBDButtonStyle(.quiet))
                     }
                 } else {
-                    Text(segment.text).font(TBDTokens.Typography.body).foregroundStyle(TBDTokens.ink).textSelection(.enabled)
+                    segmentText(segment.text, block: passage.index)
+                        .foregroundStyle(TBDTokens.ink).textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
+        .padding(isActive ? TBDTokens.Space.sm : 0)
+        .background(isActive ? TBDTokens.accent.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: TBDTokens.Radius.base))
+        .id(passage.index)
         .contextMenu {
+            if player.isAvailable { Button("Play from here") { player.play(fromMs: segment.start) } }
             if let range, item.status == .completed {
                 Button("Edit text") { draft = segment.text; editing = range }
                 Menu("Speaker") {
@@ -417,7 +660,29 @@ struct TBDTranscriptDetailView: View {
                 }
             }
             Button("Copy passage") { TBDPasteService.copy(segment.text) }
+            Button("Copy with timestamp") {
+                TBDPasteService.copy(TBDTranscriptReader.clipboardText(timestamp: TBDExport.clock(segment.start), body: segment.text))
+            }
         }
+    }
+
+    /// Clicking the time plays from there when the audio is kept (v1 timestamp chip).
+    @ViewBuilder
+    private func timestamp(_ segment: TBDSegment) -> some View {
+        let label = Text(TBDExport.clock(segment.start)).font(.system(size: 11, design: .monospaced))
+        if player.isAvailable {
+            Button { player.play(fromMs: segment.start) } label: { label.foregroundStyle(TBDTokens.accent) }
+                .buttonStyle(.plain).frame(width: 52, alignment: .trailing).help("Play from here")
+                .accessibilityLabel("Play from \(TBDExport.clock(segment.start))")
+        } else {
+            label.foregroundStyle(TBDTokens.muted).frame(width: 52, alignment: .trailing)
+        }
+    }
+
+    private func segmentText(_ text: String, block: Int) -> Text {
+        let ranges = findVisible ? find.ranges(inBlock: block) : []
+        guard !ranges.isEmpty else { return Text(text).font(bodyFont) }
+        return Text(TBDTranscriptFindHighlight.attributed(text, ranges: ranges, current: find.currentRange(inBlock: block), baseFont: bodyFont))
     }
 
     private func speakerColor(_ id: String?, in item: TBDTranscription) -> Color {

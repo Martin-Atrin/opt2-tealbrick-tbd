@@ -33,8 +33,8 @@ public enum TBDTranscriptFontScale {
     public static let defaultValue: Double = 1.0
     public static let range: ClosedRange<Double> = 0.85...1.4
     public static let step: Double = 0.1
-    /// Point size at scale 1 (v1 `transcriptBody`).
-    public static let basePointSize: Double = 15
+    /// Point size at scale 1. v1 reads at 15 pt in its own type scale; 13 pt is the opt2 body size, so 1.0 looks as before.
+    public static let basePointSize: Double = 13
     /// UserDefaults key (v1 `transcriptFontScale`).
     public static let defaultsKey = "tbd.listening.transcriptFontScale"
 

@@ -135,9 +135,9 @@ final class TranscriptReaderTests: XCTestCase {
         XCTAssertEqual(TBDTranscriptFontScale.adjusted(0.9, by: -0.1), 0.85, accuracy: 1e-9)
         XCTAssertEqual(TBDTranscriptFontScale.adjusted(1.35, by: 0.1), 1.4, accuracy: 1e-9)
         XCTAssertEqual(TBDTranscriptFontScale.adjusted(7, by: -0.1), 1.3, accuracy: 1e-9)
-        XCTAssertEqual(TBDTranscriptFontScale.pointSize(1.0), 15, accuracy: 1e-9)
-        XCTAssertEqual(TBDTranscriptFontScale.pointSize(1.4), 21, accuracy: 1e-9)
-        XCTAssertEqual(TBDTranscriptFontScale.pointSize(0), 12.75, accuracy: 1e-9)
+        XCTAssertEqual(TBDTranscriptFontScale.pointSize(1.0), 13, accuracy: 1e-9)
+        XCTAssertEqual(TBDTranscriptFontScale.pointSize(1.4), 18.2, accuracy: 1e-9)
+        XCTAssertEqual(TBDTranscriptFontScale.pointSize(0), 11.05, accuracy: 1e-9)
     }
 
     func testFontScaleButtonsDisableAtTheEnds() {
