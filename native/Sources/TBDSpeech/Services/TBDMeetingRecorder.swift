@@ -14,6 +14,8 @@ public struct TBDMeetingManifest: Codable, Sendable, Equatable {
     public var finalEngine: TBDEngineSelection?
     /// The person's notes, rewritten on every save so a crash keeps them.
     public var notes: String?
+    /// "Microphone + system audio" was chosen but system audio could not start: only the microphone was recorded (C124).
+    public var systemAudioMissing: Bool?
 
     static let fileName = "meeting.json"
 
@@ -27,6 +29,24 @@ public struct TBDMeetingManifest: Codable, Sendable, Equatable {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return (try? Data(contentsOf: folder.appendingPathComponent(fileName))).flatMap { try? decoder.decode(Self.self, from: $0) }
+    }
+
+    /// The system-audio notice kept with a saved meeting, found by transcript id (nil when the meeting had system audio
+    /// or its folder is gone). The transcript detail shows it.
+    public static func systemAudioNotice(transcriptionID: String, root: URL = TBDListeningPaths.meetings) -> String? {
+        let folders = (try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? []
+        for folder in folders {
+            guard let manifest = read(from: folder), manifest.transcriptionID == transcriptionID else { continue }
+            return manifest.systemAudioMissing == true ? TBDMeetingWarnings.systemAudioMissing : nil
+        }
+        return nil
+    }
+}
+
+public enum TBDMeetingStartError: Error, LocalizedError, Equatable {
+    case systemAudioUnavailable
+    public var errorDescription: String? {
+        "System audio could not start. Allow Screen & System Audio Recording for TBD in System Settings → Privacy & Security, or record the microphone too."
     }
 }
 
@@ -63,6 +83,9 @@ public final class TBDMeetingRecorder: @unchecked Sendable {
     private var feedTasks: [Task<Void, Never>] = []
     private var micLevel: Float = 0
     private var systemLevel: Float = 0
+    private var source: TBDMeetingAudioSource = .microphoneAndSystem
+    private var micMuted = false
+    private var systemStartFailed = false
 
     public var onPreview: (@Sendable (TBDPreviewLine) -> Void)?
     public var onWarning: (@Sendable (String) -> Void)?
@@ -77,6 +100,27 @@ public final class TBDMeetingRecorder: @unchecked Sendable {
     public var elapsedMs: Int { lock.withLock { Int(recordedSeconds * 1000) } }
     public var levels: (mic: Float, system: Float) { lock.withLock { (micLevel, systemLevel) } }
     public var hasSystemAudio: Bool { lock.withLock { systemWriter != nil } }
+    /// The sources this recording captures (fixed at start).
+    public var audioSource: TBDMeetingAudioSource { lock.withLock { source } }
+    public var isMicMuted: Bool { lock.withLock { micMuted } }
+    /// The visible warning while system audio is missing from a "microphone + system audio" recording.
+    public var captureNotice: String? {
+        lock.withLock { TBDMeetingWarnings.systemAudioNotice(source: source, systemStarted: !systemStartFailed) }
+    }
+    /// The mute control works while a recording runs and the microphone is part of it.
+    public var canMuteMic: Bool { lock.withLock { TBDMicMute.canMute(source: source, recording: state != .idle) } }
+
+    /// Mutes or unmutes the microphone for this recording. The microphone stays open and the track keeps running,
+    /// carrying silence while muted, so the two tracks stay aligned. Returns the state now in effect.
+    @discardableResult
+    public func setMicMuted(_ muted: Bool) -> Bool {
+        lock.withLock {
+            guard TBDMicMute.canMute(source: source, recording: state != .idle) else { return micMuted }
+            micMuted = muted
+            if muted { micLevel = 0 }
+            return micMuted
+        }
+    }
 
     // Recording clock (excludes pauses); both tracks are padded against it so they stay aligned
     // across late starts, route changes and capture gaps.
@@ -86,8 +130,12 @@ public final class TBDMeetingRecorder: @unchecked Sendable {
     private var recordedSeconds: TimeInterval { clockAccumulated + (clockStarted.map { Date().timeIntervalSince($0) } ?? 0) }
     private func isCurrent(_ id: UUID) -> Bool { lock.withLock { session == id } }
 
-    public func start(title: String) async throws -> TBDMeetingManifest {
-        guard await TBDSharedMicrophone.requestPermission() else { throw TBDSpeechError.microphoneDenied }
+    /// `source` picks the tracks: the microphone, system audio, or both. `startMuted` begins with the microphone
+    /// muted (ignored when the microphone is not recorded).
+    public func start(title: String, source: TBDMeetingAudioSource = .default, startMuted: Bool = false) async throws -> TBDMeetingManifest {
+        if source.capturesMicrophone {
+            guard await TBDSharedMicrophone.requestPermission() else { throw TBDSpeechError.microphoneDenied }
+        }
         let id = tbdNewID()
         let folder = try TBDListeningPaths.ensure(TBDListeningPaths.meetings.appendingPathComponent(id, isDirectory: true))
         let plan = TBDMeetingSpeechPlan.resolve(live: speech.selection(for: .live), final: speech.selection(for: .final),
@@ -95,7 +143,7 @@ public final class TBDMeetingRecorder: @unchecked Sendable {
         var manifest = TBDMeetingManifest(id: id, title: title, startedAt: Date(), state: .recording, durationMs: 0, transcriptionID: tbdNewID())
         manifest.finalEngine = plan.final
         try manifest.write(to: folder)
-        let micWriter = try TBDWAVWriter(url: folder.appendingPathComponent("microphone.wav"))
+        let micWriter = source.capturesMicrophone ? try TBDWAVWriter(url: folder.appendingPathComponent("microphone.wav")) : nil
         let feeds = await makePreviewFeeds(plan)
         let current = UUID()
         do {
@@ -106,45 +154,70 @@ public final class TBDMeetingRecorder: @unchecked Sendable {
                 clockAccumulated = 0; clockStarted = Date()
                 self.manifest = manifest; self.folder = folder; self.micWriter = micWriter; systemWriter = nil
                 self.plan = plan
+                self.source = source
+                micMuted = TBDMicMute.startsMuted(setting: startMuted, source: source)
+                systemStartFailed = false
                 micFeed = feeds?.mic; systemFeed = feeds?.system; feedTasks = feeds?.tasks ?? []
             }
         } catch {
             feeds?.mic.finish(); feeds?.system.finish()
             throw error
         }
-        do {
-            let token = try await microphone.subscribe(onInterruption: { [weak self] error in
-                self?.onWarning?("Microphone stopped: \(error.localizedDescription)")
-            }) { [weak self] buffer in
-                guard let self else { return }
-                self.consumeMic(self.micResampler.convert(buffer))
+        if source.capturesMicrophone {
+            do {
+                let token = try await microphone.subscribe(onInterruption: { [weak self] error in
+                    self?.onWarning?("Microphone stopped: \(error.localizedDescription)")
+                }) { [weak self] buffer in
+                    guard let self else { return }
+                    self.consumeMic(self.micResampler.convert(buffer))
+                }
+                // stop() may have run while subscribing: never leave the microphone on.
+                guard lock.withLock({ () -> Bool in
+                    guard session == current else { return false }
+                    micToken = token
+                    return true
+                }) else {
+                    await microphone.unsubscribe(token)
+                    throw CancellationError()
+                }
+            } catch {
+                let feeds = lock.withLock { () -> [AsyncStream<[Float]>.Continuation] in
+                    guard session == current else { return [] }
+                    state = .idle; session = nil; self.micWriter = nil; self.manifest = nil; self.folder = nil; self.plan = nil
+                    micMuted = false; self.source = .default
+                    defer { micFeed = nil; systemFeed = nil; feedTasks = [] }
+                    return [micFeed, systemFeed].compactMap { $0 }
+                }
+                for feed in feeds { feed.finish() }
+                try? micWriter?.close()
+                try? FileManager.default.removeItem(at: folder)
+                throw error
             }
-            // stop() may have run while subscribing: never leave the microphone on.
-            guard lock.withLock({ () -> Bool in
-                guard session == current else { return false }
-                micToken = token
-                return true
-            }) else {
-                await microphone.unsubscribe(token)
-                throw CancellationError()
-            }
-        } catch {
-            let feeds = lock.withLock { () -> [AsyncStream<[Float]>.Continuation] in
-                guard session == current else { return [] }
-                state = .idle; session = nil; self.micWriter = nil; self.manifest = nil; self.folder = nil; self.plan = nil
-                defer { micFeed = nil; systemFeed = nil; feedTasks = [] }
-                return [micFeed, systemFeed].compactMap { $0 }
-            }
-            for feed in feeds { feed.finish() }
-            try? micWriter.close()
-            try? FileManager.default.removeItem(at: folder)
-            throw error
         }
-        await startSystemAudio(folder: folder, session: current)
+        if source.capturesSystemAudio {
+            let started = await startSystemAudio(folder: folder, session: current)
+            // System audio is the only track of this recording: without it there is nothing to record.
+            if !started, source == .systemOnly {
+                _ = try? await stop()
+                try? FileManager.default.removeItem(at: folder)
+                throw TBDMeetingStartError.systemAudioUnavailable
+            }
+            // Mic + system falls back to the microphone, never silently: the notice shows live and stays in the manifest.
+            if !started, TBDMeetingWarnings.systemAudioNotice(source: source, systemStarted: false) != nil {
+                manifest.systemAudioMissing = true
+                lock.withLock {
+                    guard session == current else { return }
+                    systemStartFailed = true
+                    self.manifest?.systemAudioMissing = true
+                    if let stored = self.manifest { try? stored.write(to: folder) }
+                }
+            }
+        }
         return manifest
     }
 
-    private func startSystemAudio(folder: URL, session current: UUID) async {
+    /// Starts the system track. Returns false when it could not start (the track is removed).
+    private func startSystemAudio(folder: URL, session current: UUID) async -> Bool {
         let capture = TBDSystemAudioCapture()
         do {
             let writer = try TBDWAVWriter(url: folder.appendingPathComponent("system.wav"))
@@ -153,6 +226,7 @@ public final class TBDMeetingRecorder: @unchecked Sendable {
                 self?.onWarning?("System audio stopped: \(error.localizedDescription)")
             })
             if !isCurrent(current) { await capture.stop() }
+            return true
         } catch {
             let writer = lock.withLock { () -> TBDWAVWriter? in
                 guard session == current else { return nil }
@@ -160,9 +234,7 @@ public final class TBDMeetingRecorder: @unchecked Sendable {
                 return systemWriter
             }
             if let writer { try? writer.close(); try? FileManager.default.removeItem(at: writer.url) }
-            if isCurrent(current) {
-                onWarning?("Recording the microphone only. Allow Screen & System Audio Recording for TBD to include other participants.")
-            }
+            return false
         }
     }
 
@@ -208,8 +280,9 @@ public final class TBDMeetingRecorder: @unchecked Sendable {
         guard !samples.isEmpty else { return }
         lock.withLock {
             guard state == .recording, let micWriter else { return }
-            micLevel = TBDAudioLevel.normalized(samples)
-            let written = appendLocked(samples, to: micWriter)
+            let (recorded, level) = TBDMicMute.apply(samples, muted: micMuted)
+            micLevel = level
+            let written = appendLocked(recorded, to: micWriter)
             micFeed?.yield(written)
         }
     }
@@ -278,6 +351,7 @@ public final class TBDMeetingRecorder: @unchecked Sendable {
             defer {
                 state = .idle; session = nil; micToken = nil; self.system = nil; micWriter = nil; systemWriter = nil
                 self.manifest = nil; self.folder = nil; micLevel = 0; systemLevel = 0; clockStarted = nil
+                micMuted = false; source = .default; systemStartFailed = false
             }
             return [micWriter, systemWriter].compactMap { $0 }
         }

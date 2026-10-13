@@ -2,8 +2,8 @@ import AppKit
 import TBDSpeech
 import UniformTypeIdentifiers
 
-/// Meeting recording for the UI: start, pause, stop, live preview, final transcript,
-/// crash recovery and calendar reminders.
+/// Meeting recording for the UI: start, pause, mute, stop, live preview, final transcript, the floating pill and
+/// panel, activity auto-stop, crash recovery and calendar reminders.
 @MainActor
 final class TBDMeetingController: ObservableObject {
     enum Phase: Equatable { case idle, starting, recording, paused, processing(String) }
@@ -20,9 +20,19 @@ final class TBDMeetingController: ObservableObject {
     /// The person's notes for the meeting being recorded.
     @Published private(set) var notes = ""
     @Published var liveTab: LiveTab = .notes
+    /// The sources of the recording in progress (the setting is read when a meeting starts).
+    @Published private(set) var captureSource: TBDMeetingAudioSource = .default
+    /// The microphone is muted for this recording: the track carries silence, system audio keeps recording.
+    @Published private(set) var isMicMuted = false
+    /// Standing warning while system audio is missing from a mic + system recording (C124).
+    @Published private(set) var captureNotice: String?
+    /// What the floating pill shows.
+    @Published private(set) var pillFace: TBDMeetingPillFace = .hidden { didSet { if oldValue != pillFace { syncPill() } } }
     /// Ask during the meeting; saved with the transcript afterwards.
     let liveAsk: TBDAskModel
     var onMessage: ((String) -> Void)?
+    /// Brings the app window forward (set by the Listening context).
+    var onBringToFront: (() -> Void)?
 
     enum LiveTab: String, CaseIterable, Identifiable {
         case notes, transcript, ask
@@ -38,6 +48,14 @@ final class TBDMeetingController: ObservableObject {
     private var finalizing: Set<String> = []
     private var currentTitle = "Meeting"
     private var notesSave: Task<Void, Never>?
+    private lazy var pill = TBDMeetingPill(meetings: self)
+    private lazy var panel = TBDMeetingPanel(meetings: self, database: { [weak self] in self?.env.database })
+    private var savedHide: Task<Void, Never>?
+    private lazy var autoStop = TBDMeetingAutoStopCoordinator(
+        isEnabled: { [weak self] in self?.env.preferences.meetingAutoStopEnabled ?? false },
+        isPaused: { [weak self] in self?.phase == .paused },
+        levels: { [weak self] in (self?.micLevel ?? 0, self?.systemLevel ?? 0) },
+        stopRecording: { [weak self] in if self?.phase == .recording { self?.stop() } })
 
     init(env: TBDListeningEnvironment) {
         self.env = env
@@ -74,6 +92,12 @@ final class TBDMeetingController: ObservableObject {
 
     var isRecording: Bool { phase == .recording || phase == .paused || phase == .starting }
 
+    /// The mute control is offered while a recording runs and the microphone is part of it.
+    var canMuteMic: Bool { TBDMicMute.canMute(source: captureSource, recording: phase == .recording || phase == .paused) }
+
+    /// A finished meeting may take focus or notify only when no newer recording is running (v1 `canPresent`).
+    var canPresentMeetingEnd: Bool { phase == .idle }
+
     var statusText: String {
         switch phase {
         case .idle: finalizingStage == nil ? "Idle" : "Processing"
@@ -91,6 +115,9 @@ final class TBDMeetingController: ObservableObject {
 
     func shutdown() {
         calendar.stop()
+        autoStop.recordingDidEnd()
+        pill.hide()
+        panel.close()
         if isRecording {
             // The tracks are crash-safe; the next launch finishes the transcript.
             Task { _ = try? await recorder.stop() }
@@ -103,7 +130,14 @@ final class TBDMeetingController: ObservableObject {
 
     func begin(title: String?) {
         guard phase == .idle else { return }
+        let prefs = env.preferences
+        let source = prefs.meetingAudioSourceMode
+        savedHide?.cancel()
         phase = .starting
+        captureSource = source
+        isMicMuted = TBDMicMute.startsMuted(setting: prefs.startMeetingsMuted, source: source)
+        captureNotice = nil
+        pillFace = .starting
         warning = nil
         preview = []
         notes = ""
@@ -112,37 +146,115 @@ final class TBDMeetingController: ObservableObject {
         currentTitle = title ?? "Meeting " + Date().formatted(date: .abbreviated, time: .shortened)
         Task {
             do {
-                _ = try await recorder.start(title: currentTitle)
+                _ = try await recorder.start(title: currentTitle, source: source, startMuted: prefs.startMeetingsMuted)
                 phase = .recording
+                isMicMuted = recorder.isMicMuted
+                captureNotice = recorder.captureNotice
+                pillFace = .recording
                 startTicker()
+                autoStop.recordingDidStart()
             } catch {
                 phase = .idle
+                isMicMuted = false
+                captureNotice = nil
+                pillFace = .hidden
                 onMessage?(error.localizedDescription)
             }
         }
     }
 
-    func pause() { recorder.pause(); phase = .paused }
-    func resume() { recorder.resume(); phase = .recording }
+    func pause() { recorder.pause(); phase = .paused; pillFace = .paused }
+    func resume() { recorder.resume(); phase = .recording; pillFace = .recording }
+
+    /// Mutes or unmutes the microphone. The recording continues; only the microphone track goes silent.
+    func toggleMute() {
+        guard canMuteMic else { return }
+        isMicMuted = recorder.setMicMuted(!isMicMuted)
+        if isMicMuted { micLevel = 0 }
+    }
+
+    func showPanel() {
+        guard isRecording else { return }
+        panel.show()
+    }
+
+    func openApp() {
+        NSApp.activate(ignoringOtherApps: true)
+        onBringToFront?()
+    }
+
+    /// Re-applies the "floating meeting controls" setting to a running meeting.
+    func refreshPill() { syncPill() }
+
+    private func syncPill() { pill.sync(face: pillFace, showSetting: env.preferences.showMeetingRecordingPill, hasNotice: captureNotice != nil) }
+
+    /// Stops the recording and throws the audio away, after the person confirms (v1 "Discard Recording").
+    func confirmDiscard() {
+        guard phase == .recording || phase == .paused else { return }
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Discard Recording?"
+        alert.informativeText = "This will stop the meeting recording and delete all captured audio. This cannot be undone."
+        alert.addButton(withTitle: "Discard")
+        alert.addButton(withTitle: "Keep Recording")
+        alert.buttons.first?.hasDestructiveAction = true
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn, phase == .recording || phase == .paused else { return }
+        ticker?.invalidate()
+        phase = .processing("Discarding…")
+        pillFace = .saving
+        notesSave?.cancel()
+        liveAsk.stop()
+        autoStop.recordingDidEnd()
+        panel.close()
+        Task {
+            if let (_, folder) = try? await recorder.stop() { try? FileManager.default.removeItem(at: folder) }
+            phase = .idle
+            isMicMuted = false
+            micLevel = 0; systemLevel = 0
+            pillFace = .hidden
+            onMessage?("Recording discarded")
+        }
+    }
 
     func stop() {
         guard phase == .recording || phase == .paused else { return }
         ticker?.invalidate()
         phase = .processing("Saving…")
+        pillFace = .saving
         notesSave?.cancel()
         recorder.updateNotes(notes)
         liveAsk.stop()
+        autoStop.recordingDidEnd()
+        panel.close()
         let askHistory = liveAsk.history
         Task {
             do {
                 let (manifest, folder) = try await recorder.stop()
                 phase = .idle
+                isMicMuted = false
                 micLevel = 0; systemLevel = 0
-                await finalize(folder, askHistory: askHistory, transcriptionID: manifest.transcriptionID)
+                captureNotice = nil
+                showSavedThenHidePill()
+                await finalize(folder, askHistory: askHistory, transcriptionID: manifest.transcriptionID, liveEnd: true)
             } catch {
                 phase = .idle
+                isMicMuted = false
+                captureNotice = nil
+                pillFace = .hidden
                 onMessage?(error.localizedDescription)
             }
+        }
+    }
+
+    /// The audio is stored: the pill shows a check for a moment, then goes (v1 saved confirmation).
+    private func showSavedThenHidePill() {
+        pillFace = .saved
+        savedHide?.cancel()
+        savedHide = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(TBDMeetingPillRules.savedHoldSeconds))
+            guard !Task.isCancelled, let self, self.pillFace == .saved else { return }
+            self.pillFace = .hidden
         }
     }
 
@@ -158,8 +270,9 @@ final class TBDMeetingController: ObservableObject {
         }
     }
 
+    /// `liveEnd` marks the transcript of a meeting just recorded: it follows "Open app when meeting ends".
     private func finalize(_ folder: URL, askHistory: [TBDAskMessage] = [], transcriptionID: String? = nil, select: Bool = true,
-                          currentFinalEngine: Bool = false) async {
+                          currentFinalEngine: Bool = false, liveEnd: Bool = false) async {
         guard let database = env.database, finalizing.insert(folder.path).inserted else { return }
         defer {
             finalizing.remove(folder.path)
@@ -176,7 +289,18 @@ final class TBDMeetingController: ObservableObject {
                 Task { @MainActor [weak self] in if self?.finalizingStage != nil { self?.finalizingStage = stage } }
             }
             let named = await titled(item, database: database)
-            if select { env.selectedTranscriptionID = named.id }
+            if select {
+                let prefs = env.preferences
+                let end = TBDMeetingEndPresentation.decide(openAppAfterMeetingEnd: prefs.openAppAfterMeetingEnd,
+                                                           notifyOnMeetingEnd: prefs.notifyOnMeetingEnd, canPresent: canPresentMeetingEnd)
+                if !liveEnd {
+                    env.selectedTranscriptionID = named.id
+                } else if end.openApp {
+                    env.selectedTab = .meetings
+                    env.selectedTranscriptionID = named.id
+                    openApp()
+                }
+            }
             onMessage?("Meeting transcript saved")
             env.transcriptSaved.publish(named)
             summarizeAutomatically(named)

@@ -30,10 +30,13 @@ final class TBDTranscriptSavedEffects {
     private let env: TBDListeningEnvironment
     private let notifier: TBDNotifier
     private let report: (String) -> Void
+    /// False while a newer meeting records: the finished one then does not notify (v1 `canPresent`).
+    private let canPresentMeetingEnd: () -> Bool
     private var token: TBDTranscriptSavedHub.Token?
 
-    init(env: TBDListeningEnvironment, notifier: TBDNotifier, report: @escaping (String) -> Void) {
-        self.env = env; self.notifier = notifier; self.report = report
+    init(env: TBDListeningEnvironment, notifier: TBDNotifier, report: @escaping (String) -> Void,
+         canPresentMeetingEnd: @escaping () -> Bool = { true }) {
+        self.env = env; self.notifier = notifier; self.report = report; self.canPresentMeetingEnd = canPresentMeetingEnd
         token = env.transcriptSaved.add { [weak self] item in self?.handle(item) }
     }
 
@@ -44,8 +47,11 @@ final class TBDTranscriptSavedEffects {
         if case .failed(let message) = TBDAutoSaver(preferences: env.preferences).saveIfEnabled(item, summaries: summaries, scope: isMeeting ? .meeting : .transcription) {
             report(message)
         }
-        if isMeeting,
-           let notice = TBDCompletionNotice.meetingReady(enabled: env.preferences.notifyOnMeetingEnd, title: item.title, wordCount: item.text.split(whereSeparator: \.isWhitespace).count) {
+        // The notice is the quiet path: v1 posts it only when the app does not open itself on the finished meeting.
+        let end = TBDMeetingEndPresentation.decide(openAppAfterMeetingEnd: env.preferences.openAppAfterMeetingEnd,
+                                                   notifyOnMeetingEnd: env.preferences.notifyOnMeetingEnd, canPresent: canPresentMeetingEnd())
+        if isMeeting, end.notify,
+           let notice = TBDCompletionNotice.meetingReady(enabled: true, title: item.title, wordCount: item.text.split(whereSeparator: \.isWhitespace).count) {
             notifier.present(notice)
         }
     }
