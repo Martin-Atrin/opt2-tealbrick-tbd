@@ -52,7 +52,7 @@ test("a send to a workspace agent goes nowhere it cannot (no transport yet): not
   await f.store.getState().bootstrap();
   await f.store.getState().refreshAgents();
   f.store.getState().send("agt_a", "hi");
-  assert.equal((f.store.getState().conversations["agt_a"] ?? []).length, 0);
+  assert.equal((f.store.getState().conversations.agt_a ?? []).length, 0);
 });
 
 test("Portal error notice: shown, TBD still usable, cleared by the next good refresh", async () => {
