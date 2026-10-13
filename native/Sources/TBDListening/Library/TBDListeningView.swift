@@ -36,6 +36,8 @@ struct TBDListeningView: View {
                 case .library: TBDLibraryView(context: context, kind: nil)
                 case .dictations: TBDDictationHistoryView()
                 case .meetings: TBDMeetingsView(context: context)
+                case .prompts: TBDPromptsView(context: context)
+                case .transforms: TBDTransformsView(context: context)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

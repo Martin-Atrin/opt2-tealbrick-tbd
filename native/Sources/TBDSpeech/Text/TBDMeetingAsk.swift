@@ -6,7 +6,13 @@ public struct TBDQuickPrompt: Sendable, Equatable, Identifiable, Hashable {
     public let label: String
     public let group: String?
     public let prompt: String
-    public var id: String { label }
+    /// Library row id when the prompt comes from the quick prompt library (labels may repeat).
+    public var key: String?
+    public var id: String { key ?? label }
+
+    public init(label: String, group: String?, prompt: String, key: String? = nil) {
+        self.label = label; self.group = group; self.prompt = prompt; self.key = key
+    }
 
     /// Starters for an empty conversation.
     public static let starters: [TBDQuickPrompt] = [

@@ -185,20 +185,23 @@ final class TBDMeetingController: ObservableObject {
         env.changed()
     }
 
-    /// Summarises a finished meeting with the saved summary prompt when a model is assigned.
+    /// Runs every transcript prompt set to auto-run for meetings (Prompts page) when a model is assigned.
     private func summarizeAutomatically(_ item: TBDTranscription) {
         let prefs = env.preferences
         guard prefs.autoSummarizeMeetings, TBDMeetingAsk.available, !item.text.isEmpty, let database = env.database,
               ((try? database.summaries(for: item.id)) ?? []).isEmpty else { return }
-        let prompt = prefs.summaryPrompt
+        let prompts = (try? database.autoRunPrompts(for: .meeting)) ?? []
+        guard !prompts.isEmpty else { return }
         Task {
-            do {
-                let content = try await TBDListeningAI.summarize(item, prompt: prompt)
-                try database.save(TBDSummary(transcriptionId: item.id, kind: .summary, prompt: prompt, content: content))
-                env.changed()
-            } catch is CancellationError {
-            } catch {
-                onMessage?("Meeting summary failed: \(error.localizedDescription)")
+            for prompt in prompts {
+                do {
+                    try await TBDPromptRunner.summarize(item, with: prompt, into: database)
+                    env.changed()
+                } catch is CancellationError {
+                    return
+                } catch {
+                    onMessage?("Meeting summary (\(prompt.name)) failed: \(error.localizedDescription)")
+                }
             }
         }
     }

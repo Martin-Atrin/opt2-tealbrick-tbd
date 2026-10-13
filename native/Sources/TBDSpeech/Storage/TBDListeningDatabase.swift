@@ -148,6 +148,8 @@ public final class TBDListeningDatabase: @unchecked Sendable {
                 t.column("summary", .text).notNull()
             }
         }
+        // Prompt library, Transforms, quick prompts and Transform history (see `TBDPromptLibrary`).
+        migrator.registerMigration("v6-prompts-transforms") { db in try TBDPromptLibrary.migrate(db) }
         return migrator
     }
 
@@ -180,10 +182,11 @@ public final class TBDListeningDatabase: @unchecked Sendable {
 
     // MARK: - Retention
 
-    /// Removes every Listening record (history, library, summaries). Vocabulary and snippets stay.
+    /// Removes every Listening record (history, library, summaries, Transform history). Vocabulary and snippets stay.
     public func deleteAllListeningData() throws {
         try writer.write { db in
             try TBDSummary.deleteAll(db)
+            try TBDTransformRun.deleteAll(db)
             try TBDAskConversation.deleteAll(db)
             try TBDTranscription.deleteAll(db)
             try TBDDictation.deleteAll(db)

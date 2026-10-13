@@ -85,7 +85,8 @@ struct TBDMeetingsView: View {
                     TBDNotesEditor(text: Binding(get: { meetings.notes }, set: { meetings.editNotes($0) }),
                                    elapsedMs: { meetings.elapsedMs }, footnote: "Auto-saved with the recording. Stays on this Mac.")
                 case .transcript: livePreview
-                case .ask: TBDAskView(model: meetings.liveAsk, showsHistory: false)
+                case .ask: TBDAskView(model: meetings.liveAsk, starters: TBDAskPrompts.starters(context.env.database),
+                                      followUps: TBDAskPrompts.followUps(context.env.database), showsHistory: false)
                 }
             }
             .frame(height: 260)

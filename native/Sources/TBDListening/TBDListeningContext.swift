@@ -66,6 +66,12 @@ final class TBDListeningContext {
         if !env.preferences.transformHotkey.isEmpty, let hotkey = try? TBDHotkey.parse(env.preferences.transformHotkey) {
             bindings.append(.init(hotkey: hotkey) { [weak self] event, _ in if event == .down { self?.transforms.run() } })
         }
+        // One hotkey per Transform (Transforms page); keys already bound above are skipped.
+        let transforms = (try? env.database?.prompts(category: .transform)) ?? []
+        for binding in TBDTransformHotkeys.bindings(for: transforms, reserved: bindings.map(\.hotkey)) {
+            let id = binding.transformID
+            bindings.append(.init(hotkey: binding.hotkey) { [weak self] event, _ in if event == .down { self?.transforms.run(id: id) } })
+        }
         hotkeys.set(bindings)
     }
 

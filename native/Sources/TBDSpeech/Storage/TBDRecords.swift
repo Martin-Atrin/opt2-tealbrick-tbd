@@ -139,8 +139,16 @@ public struct TBDSummary: Codable, Sendable, Equatable, Identifiable, FetchableR
     public var prompt: String
     public var content: String
     public var createdAt: Date
-    public init(id: String = tbdNewID(), transcriptionId: String, kind: Kind, prompt: String, content: String) {
+    /// Library prompt (and its version) that produced this summary; nil for older summaries.
+    public var promptId: String?
+    public var promptVersionId: String?
+    public var promptName: String?
+    /// One-off instructions added for this run.
+    public var extraInstructions: String?
+    public init(id: String = tbdNewID(), transcriptionId: String, kind: Kind, prompt: String, content: String,
+                promptId: String? = nil, promptVersionId: String? = nil, promptName: String? = nil, extraInstructions: String? = nil) {
         self.id = id; self.transcriptionId = transcriptionId; self.kind = kind; self.prompt = prompt; self.content = content; createdAt = Date()
+        self.promptId = promptId; self.promptVersionId = promptVersionId; self.promptName = promptName; self.extraInstructions = extraInstructions
     }
 }
 

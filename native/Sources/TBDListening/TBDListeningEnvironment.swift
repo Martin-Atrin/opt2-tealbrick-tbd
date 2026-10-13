@@ -24,6 +24,8 @@ final class TBDListeningEnvironment: ObservableObject {
             database = try TBDListeningDatabase()
             databaseError = nil
             try? database?.markInterruptedTranscriptions()
+            // Built-in prompts and the one-time import of the old prompt settings.
+            try? database?.preparePromptLibrary(preferences: preferences)
         } catch {
             database = nil
             databaseError = error.localizedDescription
@@ -45,13 +47,15 @@ final class TBDListeningEnvironment: ObservableObject {
 }
 
 enum TBDListeningTab: String, CaseIterable, Identifiable {
-    case library, dictations, meetings
+    case library, dictations, meetings, prompts, transforms
     var id: String { rawValue }
     var title: String {
         switch self {
         case .library: "Library"
         case .dictations: "Dictations"
         case .meetings: "Meetings"
+        case .prompts: "Prompts"
+        case .transforms: "Transforms"
         }
     }
 }
