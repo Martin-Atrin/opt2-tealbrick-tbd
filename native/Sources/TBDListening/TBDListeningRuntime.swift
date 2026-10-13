@@ -102,6 +102,12 @@ public final class TBDListeningRuntime: ObservableObject {
     /// Hotkey dictation is recording or transcribing.
     public var dictationActive: Bool { context?.dictation.isBusy ?? false }
 
+    // MARK: knowledge
+
+    /// Set by the host: sends a "Save to Knowledge" request to the Chat helper, which calls
+    /// Knowledge as TBD's own agent. Nil (no host, not signed in) makes saves fail with a plain message.
+    public var saveToKnowledge: TBDKnowledgeSaver?
+
     func report(_ message: String) { captureMessage = message }
     func bringToFront() { activate?() }
 }

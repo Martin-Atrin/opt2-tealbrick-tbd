@@ -160,6 +160,15 @@ public final class TBDListeningDatabase: @unchecked Sendable {
         }
         // Prompt library, Transforms, quick prompts and Transform history (see `TBDPromptLibrary`).
         migrator.registerMigration("v6-prompts-transforms") { db in try TBDPromptLibrary.migrate(db) }
+        // Knowledge documents created from transcripts ("Save to Knowledge", see `TBDKnowledgeLink`).
+        migrator.registerMigration("v6-knowledge") { db in
+            try db.create(table: "knowledgeDocument") { t in
+                t.primaryKey("transcriptionId", .text).references("transcription", onDelete: .cascade)
+                t.column("documentId", .text).notNull()
+                t.column("area", .text)
+                t.column("savedAt", .datetime).notNull()
+            }
+        }
         return migrator
     }
 

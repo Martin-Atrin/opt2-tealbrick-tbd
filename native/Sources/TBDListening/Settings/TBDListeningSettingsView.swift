@@ -44,7 +44,7 @@ struct TBDListeningSettingsView: View {
                 switch TBDListeningSettingsSection.resolve(section) {
                 case .capture: TBDCaptureSettings(context: context)
                 case .engine: TBDEngineSettings(context: context)
-                case .ai: TBDAISettings()
+                case .ai: TBDAISettings(); TBDKnowledgeSettings()
                 case .dictation: TBDDictationSettings(context: context)
                 case .meetings: TBDMeetingSettings(context: context)
                 case .system: TBDSystemSettings(context: context)

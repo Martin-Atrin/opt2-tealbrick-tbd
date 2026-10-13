@@ -10,6 +10,7 @@ import { createAgentIdentity, type AgentConnection, type AgentIdentity, type Age
 import { createDefaultAgent, type DefaultAgent } from "./defaultAgent";
 import { askPerson } from "./asks";
 import { startSignerSocket } from "./signerSocket";
+import { relayLaunch, type RelayLaunch } from "./relayLaunch";
 import type { Server } from "node:net";
 
 /**
@@ -136,6 +137,19 @@ export function machineLabel(): string {
   return `TBD on ${host || "this Mac"}`;
 }
 
+/**
+ * The relay launch for TBD's agent (K4 via the signer socket, started once). Used by the default
+ * agent and by Listening's "Save to Knowledge" (knowledgeSave.ts): the same identity, the same path.
+ */
+export async function agentRelay(c: AgentConnection): Promise<RelayLaunch> {
+  // K4 handle for the relay: signs agent assertions only (signerSocket.ts).
+  const socketPath = join(dataDir(), "agent-signer.sock");
+  if (!signerServer) signerServer = await startSignerSocket(socketPath, () => getServices().agentIdentity.connection(), keychainSigner);
+  return relayLaunch(c, { node: process.execPath, entry: join(resourcesDir(), "relay.mjs"), socketPath, home: process.env.HOME ?? "" });
+}
+
+function resourcesDir(): string { return process.env.TBD_RESOURCES ?? join(process.execPath, ".."); }
+
 export interface Services {
   portal: Portal;
   agentIdentity: AgentIdentity;
@@ -162,32 +176,14 @@ export function getServices(): Services {
       return id;
     },
   });
-  const resources = process.env.TBD_RESOURCES ?? join(process.execPath, "..");
+  const resources = resourcesDir();
   const agent = createDefaultAgent({
     node: process.execPath,
     entry: join(resources, "agent.mjs"),
     model: async () => (await nativeCall("agentModel")) as { model: string; baseUrl?: string; apiKey: string },
     config: async () => {
       const c = agentIdentity.connection();
-      let relay: { command: string; args: string[]; env: Record<string, string> } | undefined;
-      if (c) {
-        // K4 handle for the relay: signs agent assertions only (signerSocket.ts).
-        const socketPath = join(dataDir(), "agent-signer.sock");
-        if (!signerServer) signerServer = await startSignerSocket(socketPath, () => agentIdentity.connection(), keychainSigner);
-        relay = {
-          command: process.execPath,
-          args: [join(resources, "relay.mjs")],
-          env: {
-            PATH: "/usr/bin:/bin",
-            HOME: process.env.HOME ?? "",
-            TB_SIGNER_SOCKET: socketPath,
-            TB_BRIDGE_URL: new URL(c.mcpUrl).origin,
-            TB_CONNECTION_ID: c.connectionId,
-            TB_AGENT_ID: c.agentId,
-            TB_BRIDGE_ID: c.bridgeId,
-          },
-        };
-      }
+      const relay = c ? await agentRelay(c) : undefined;
       return {
         cwd: agentWorkspace(),
         stateDir: join(dataDir(), "agent"),

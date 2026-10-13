@@ -6,7 +6,9 @@ import type { RemoteAgent } from "../shared/ipc";
 import { loadState, pickFolder, saveState } from "./store";
 import { localFileExists, openLocalFile, openRemoteFile, revealLocalFile, saveRemoteFile } from "./deliveredFile";
 import { answerAsk } from "./asks";
-import { addAgentFolder, agentFolders, agentWorkspace, ensurePerson, getServices, removeAgentFolder, resetServices, saveAttachment } from "./services";
+import { addAgentFolder, agentFolders, agentRelay, agentWorkspace, ensurePerson, getServices, removeAgentFolder, resetServices, saveAttachment } from "./services";
+import { connectMcp } from "@opt2-tealbrick/bridge";
+import { knowledgeSave, type KnowledgeSaveInput } from "./knowledgeSave";
 import { dialog } from "../tbd/host";
 import { publicPersonSession } from "./portal";
 import { DEFAULT_AGENT_ID } from "./defaultAgent";
@@ -63,6 +65,14 @@ function requireDefaultAgent(agentId: unknown): void {
 /** Handlers that use the person session load it first (lazily, once; may ask for user presence). */
 function withPerson<A extends unknown[], R>(fn: (...args: A) => R | Promise<R>): (...args: A) => Promise<R> {
   return async (...args: A) => { await ensurePerson(); return fn(...args); };
+}
+
+/** Native's request, checked field by field (strings only; tags a string list). */
+function knowledgeInput(raw: unknown): KnowledgeSaveInput {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const text = (k: string) => { if (typeof r[k] !== "string") throw new Error(`Save to Knowledge: ${k} is missing.`); return r[k] as string; };
+  const tags = Array.isArray(r.tags) ? r.tags.filter((t): t is string => typeof t === "string") : [];
+  return { transcriptId: text("transcriptId"), title: text("title"), body: text("body"), summary: text("summary"), tags };
 }
 
 export function registerIpc(): void {
@@ -163,6 +173,18 @@ export function registerIpc(): void {
   });
   ipcMain.handle("studio:removeAgentFolder", (_e, path: string) => ({ workspace: agentWorkspace(), folders: removeAgentFolder(String(path)) }));
   ipcMain.handle("studio:openAgentWorkspace", () => shell.openPath(agentWorkspace()));
+
+  // Listening "Save to Knowledge" (WP10): native asks; the call runs as TBD's AGENT through the relay
+  // (knowledgeSave.ts). The person session is only checked for presence here and never passed on.
+  ipcMain.handle("studio:knowledgeSave", withPerson(async (e: { sender: WebContents }, raw: unknown) => {
+    if (!signedIn()) throw new Error("Sign in to Teal Brick in TBD first.");
+    const input = knowledgeInput(raw);
+    return knowledgeSave(input, {
+      connection: () => getServices().agentIdentity.connection(),
+      openRelay: async (c) => connectMcp(await agentRelay(c)),
+      onStatus: (message) => e.sender.send("tbd:knowledgeSaveStatus", { transcriptId: input.transcriptId, message }),
+    });
+  }));
 
   // Approvals: counts only (S2/C24); the hold pages open in the system browser.
   ipcMain.handle("studio:pendingHolds", withPerson(async () => {

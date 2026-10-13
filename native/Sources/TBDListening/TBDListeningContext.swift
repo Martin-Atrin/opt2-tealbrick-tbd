@@ -12,6 +12,7 @@ final class TBDListeningContext {
     let transforms: TBDTransformController
     let retention: TBDRetentionController
     private var savedEffects: TBDTranscriptSavedEffects?
+    let knowledge: TBDKnowledgeController
     private let hotkeys = TBDHotkeyMonitor()
     let hotkeyCoordinator: TBDHotkeyCoordinator
     private weak var runtime: TBDListeningRuntime?
@@ -27,6 +28,8 @@ final class TBDListeningContext {
         retention = TBDRetentionController(env: env)
         hotkeyCoordinator = TBDHotkeyCoordinator(preferences: env.preferences, currentFlags: { TBDHotkeyMonitor.currentFlags },
                                                  physicalKeyState: TBDHotkeyMonitor.keyIsDown)
+        knowledge = TBDKnowledgeController(database: env.database, preferences: env.preferences,
+                                           saver: { [weak runtime] in runtime?.saveToKnowledge })
         let report: (String) -> Void = { [weak runtime] in runtime?.report($0) }
         meetings.onMessage = report
         files.onMessage = report
@@ -34,6 +37,9 @@ final class TBDListeningContext {
         retention.onMessage = report
         savedEffects = TBDTranscriptSavedEffects(env: env, notifier: env.notifier, report: report)
         dictation.isMeetingRecording = { [weak self] in self?.meetings.isRecording ?? false }
+        knowledge.onMessage = report
+        // Save to Knowledge auto rule: one more handler on the transcript-saved hub.
+        env.transcriptSaved.add { [weak knowledge] item in knowledge?.autoSave(item) }
         hotkeys.onStatusChange = { [weak self] in self?.hotkeysActive = $0 }
         wireHotkeys()
     }

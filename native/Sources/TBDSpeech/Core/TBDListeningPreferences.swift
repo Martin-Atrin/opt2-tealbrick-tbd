@@ -525,4 +525,28 @@ public struct TBDListeningPreferences: @unchecked Sendable {
         if resolved.persistHandsFree { setHotkey(resolved.handsFree, for: .handsFree) }
         if resolved.persistPushToTalk { setHotkey(resolved.pushToTalk, for: .pushToTalk) }
     }
+
+    // MARK: knowledge
+    // WP10 "Save to Knowledge": automatic saves per transcript kind. Both off by default (C119).
+    static let autoKnowledgeMeetingsKey = "tbd.listening.knowledge.autoMeetings"
+    static let autoKnowledgeLinksKey = "tbd.listening.knowledge.autoLinks"
+
+    /// Save finished meeting transcripts to Knowledge without asking.
+    public var autoSaveMeetingsToKnowledge: Bool {
+        get { bool(Self.autoKnowledgeMeetingsKey, default: false) }
+        nonmutating set { defaults.set(newValue, forKey: Self.autoKnowledgeMeetingsKey) }
+    }
+    /// Save finished link (URL, YouTube, podcast) transcripts to Knowledge without asking.
+    public var autoSaveLinksToKnowledge: Bool {
+        get { bool(Self.autoKnowledgeLinksKey, default: false) }
+        nonmutating set { defaults.set(newValue, forKey: Self.autoKnowledgeLinksKey) }
+    }
+    /// Whether a finished transcript of this kind is saved to Knowledge automatically.
+    public func autoSavesToKnowledge(_ kind: TBDSourceKind) -> Bool {
+        switch kind {
+        case .meeting: autoSaveMeetingsToKnowledge
+        case .url: autoSaveLinksToKnowledge
+        case .file, .voiceNote: false
+        }
+    }
 }
