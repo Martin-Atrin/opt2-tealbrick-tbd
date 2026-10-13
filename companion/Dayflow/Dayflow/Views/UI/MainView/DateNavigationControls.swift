@@ -28,8 +28,8 @@ struct DateNavigationControls: View {
         lastDateNavMethod = "prev"
       } content: {
         Image(systemName: "chevron.left")
-          .font(.system(size: 14, weight: .medium))
-          .foregroundColor(Color(red: 0.3, green: 0.3, blue: 0.3))
+          .font(TBDFonts.symbol(14, TBDKit.weightNav))
+          .foregroundStyle(TBDColor.inkSoft)
       }
 
       Button(action: {
@@ -57,11 +57,9 @@ struct DateNavigationControls: View {
         lastDateNavMethod = "next"
       } content: {
         Image(systemName: "chevron.right")
-          .font(.system(size: 14, weight: .medium))
-          .foregroundColor(
-            canNavigateForward(from: selectedDate)
-              ? Color(red: 0.3, green: 0.3, blue: 0.3)
-              : Color.gray.opacity(0.3)
+          .font(TBDFonts.symbol(14, TBDKit.weightNav))
+          .foregroundStyle(
+            canNavigateForward(from: selectedDate) ? TBDColor.inkSoft : TBDColor.muted.opacity(0.5)
           )
       }
     }
@@ -87,7 +85,10 @@ struct DateNavigationControls: View {
 
   private func calculateOptimalPillWidth() -> CGFloat {
     let sampleText = "Today, Sep 30"
-    let nsFont = NSFont(name: "Switzer-Medium", size: 18) ?? NSFont.systemFont(ofSize: 18)
+    TBDFonts.register()
+    let nsFont =
+      NSFontManager.shared.font(withFamily: TBDFonts.family, traits: [], weight: 9, size: TBDKit.textLede)
+      ?? NSFont.labelFont(ofSize: TBDKit.textLede)
     let textSize = sampleText.size(withAttributes: [.font: nsFont])
     let horizontalPadding: CGFloat = 11.77829 * 2
     return textSize.width + horizontalPadding + 8

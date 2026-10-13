@@ -35,7 +35,7 @@ struct TBDDictationHistoryView: View {
                     stat("Streak", insights.currentStreak == 1 ? "1 day" : "\(insights.currentStreak) days")
                 }
                 if !env.preferences.keepHistory {
-                    TBDNotice("History is off. Turn it on in Settings → Listening → System.")
+                    TBDNotice("History is off. Turn it on in Settings → Listen → System.")
                 }
                 if items.isEmpty {
                     VStack(alignment: .leading, spacing: TBDKit.s1) {

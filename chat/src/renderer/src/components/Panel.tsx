@@ -209,7 +209,7 @@ function Overview(): ReactNode {
               return (
                 <Row
                   key={p.id}
-                  icon={<Avatar name={p.name} accent={known?.accent ?? "#7c6cf0"} size={16} />}
+                  icon={<Avatar name={p.name} accent={known?.accent ?? "var(--tb-tone-moss)"} size={16} />}
                   title={p.name}
                   detail={p.purpose ?? "granted"}
                 />

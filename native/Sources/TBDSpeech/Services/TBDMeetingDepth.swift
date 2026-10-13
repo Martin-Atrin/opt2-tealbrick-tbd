@@ -9,7 +9,7 @@ public enum TBDMeetingEditError: Error, LocalizedError, Equatable {
 
     public var errorDescription: String? {
         switch self {
-        case .unsupportedFormat(let name): "\(name) is not an audio or video file Listening can read."
+        case .unsupportedFormat(let name): "\(name) is not an audio or video file Listen can read."
         case .notEligible(let reason): reason
         case .cutOutOfRange(let ms, let duration):
             "Split points must be between 0:00 and \(TBDExport.clock(duration)); \(TBDExport.clock(ms)) is outside."

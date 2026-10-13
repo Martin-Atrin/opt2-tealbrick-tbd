@@ -45,7 +45,7 @@ struct TBDModelsView: View {
               Toggle("Clean up voice notes", isOn: $noteCleanup).toggleStyle(TBDSwitchStyle()).frame(maxWidth: 420)
               Text("Both are off by default. Raw text is retained; a cleanup failure returns raw text. Voice notes are saved to history. Chat follows your dictation-history preference. Cleanup may send text to the selected network provider.").font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
               route("Summaries", task: "analysis", detail: "Meeting and transcript analysis.")
-              route("Transforms", task: "general", detail: "Text transformations and the default Listening AI route.")
+              route("Transforms", task: "general", detail: "Text transformations and the default Listen AI route.")
               route("Screen analysis", task: "screen", detail: "Companion activity analysis. Choose a vision-capable model; screenshots may leave this Mac.")
             }
             if !error.isEmpty { TBDNotice(error, tone: .needsYou) }

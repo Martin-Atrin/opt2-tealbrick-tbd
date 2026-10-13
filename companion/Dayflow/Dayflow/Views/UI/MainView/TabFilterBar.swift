@@ -6,7 +6,6 @@ struct TabFilterBar: View {
   let idleCategory: TimelineCategory?
   let onManageCategories: () -> Void
 
-  @Environment(\.dayflowTheme) private var theme
   @State private var chipRowWidth: CGFloat = 0
 
   private let editButtonSize: CGFloat = 24
@@ -49,32 +48,26 @@ struct TabFilterBar: View {
   }
 
   struct CategoryChip: View {
-    @Environment(\.dayflowTheme) private var theme
-
     let category: TimelineCategory
     let isIdle: Bool
 
     var body: some View {
       HStack(spacing: 10) {
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-          .fill(Color(hex: category.colorHex))
+        Circle()
+          .fill(Color(hex: category.colorHex))  // design-guard: allow (user category colour)
           .frame(width: 6, height: 6)
 
         Text(category.name)
-          .font(Font.custom("Switzer", size: 13).weight(.medium))
-          .foregroundColor(theme.chipText)
+          .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightNav))
+          .foregroundStyle(TBDColor.inkSoft)
           .lineLimit(1)
           .fixedSize()
       }
       .padding(.horizontal, 8)
       .padding(.vertical, 5)
       .frame(height: 26)
-      .background(theme.chipFill)
-      .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
-      .overlay(
-        RoundedRectangle(cornerRadius: 2, style: .continuous)
-          .strokeBorder(theme.chipBorder, lineWidth: 0.5)
-      )
+      .background(TBDColor.tile, in: Capsule())
+      .tbdPillEdge(TBDColor.line)
     }
   }
 
@@ -120,7 +113,7 @@ struct TabFilterBar: View {
 
   private var overflowGradient: some View {
     LinearGradient(
-      gradient: Gradient(colors: [Color.clear, theme.panelSolid]),
+      gradient: Gradient(colors: [TBDColor.tile.opacity(0), TBDColor.tile]),
       startPoint: .leading,
       endPoint: .trailing
     )

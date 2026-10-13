@@ -9,6 +9,7 @@
 import AVKit
 import AppKit
 import SwiftUI
+import TBDDesign
 
 // AVPlayerLayer-backed view to avoid AVPlayerView overlays (e.g., Live Text button)
 final class PlayerLayerView: NSView {
@@ -32,14 +33,14 @@ final class PlayerLayerView: NSView {
     super.init(frame: frameRect)
     wantsLayer = true
     playerLayer.videoGravity = .resizeAspect
-    playerLayer.backgroundColor = NSColor.white.cgColor
+    playerLayer.backgroundColor = NSColor(TBDColor.tile).cgColor
   }
 
   required init?(coder: NSCoder) {
     super.init(coder: coder)
     wantsLayer = true
     playerLayer.videoGravity = .resizeAspect
-    playerLayer.backgroundColor = NSColor.white.cgColor
+    playerLayer.backgroundColor = NSColor(TBDColor.tile).cgColor
   }
 
   override func makeBackingLayer() -> CALayer {
@@ -60,7 +61,7 @@ final class PlayerLayerView: NSView {
 struct WhiteBGVideoPlayer: NSViewRepresentable {
   var player: AVPlayer?
   var videoGravity: AVLayerVideoGravity = .resizeAspect
-  var backgroundColor: NSColor = .white
+  var backgroundColor: NSColor = NSColor(TBDColor.tile)
   var onReadyForDisplay: ((Bool) -> Void)?
 
   func makeNSView(context: Context) -> PlayerLayerView {
@@ -73,7 +74,10 @@ struct WhiteBGVideoPlayer: NSViewRepresentable {
   func updateNSView(_ nsView: PlayerLayerView, context: Context) {
     nsView.onReadyForDisplayChanged = onReadyForDisplay
     nsView.player = player
-    nsView.playerLayer.backgroundColor = backgroundColor.cgColor
+    // Resolve the dynamic kit colour in the view's own appearance.
+    nsView.effectiveAppearance.performAsCurrentDrawingAppearance {
+      nsView.playerLayer.backgroundColor = backgroundColor.cgColor
+    }
     nsView.playerLayer.videoGravity = videoGravity
   }
 }

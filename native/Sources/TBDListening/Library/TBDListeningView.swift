@@ -12,7 +12,7 @@ struct TBDListeningView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: TBDTokens.Space.lg) {
-            TBDPageHeader("Listening", label: "Speech") {
+            TBDPageHeader("Listen", label: "Speech") {
                 // The Transcribe page carries its own file, link and meeting controls.
                 if env.selectedTab != .transcribe {
                     HStack(spacing: TBDTokens.Space.sm) {
@@ -25,7 +25,7 @@ struct TBDListeningView: View {
                 }
             }
             if let error = env.databaseError {
-                TBDNotice("The Listening library could not be opened: \(error)", tone: .needsYou)
+                TBDNotice("The Listen library could not be opened: \(error)", tone: .needsYou)
             }
             TBDModelBanner()
             if showPractice { TBDPracticeDictation(context: context) }
@@ -131,7 +131,7 @@ struct TBDModelBanner: View {
                 if let value = models.progress[model] {
                     ProgressView(value: value).frame(width: 160)
                 } else {
-                    Button("Download") { models.download(model) }.buttonStyle(TBDButtonStyle(.primary))
+                    Button("Download") { models.download(model) }.buttonStyle(TBDButtonStyle(.secondary))
                 }
             }
             .tbdCard(padding: TBDTokens.Space.md)

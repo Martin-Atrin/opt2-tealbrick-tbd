@@ -6,10 +6,9 @@
 //
 
 import SwiftUI
+import TBDDesign
 
 struct DayDistractionSummarySection: View {
-  @Environment(\.dayflowTheme) private var theme
-
   let totalCapturedText: String
   let totalDistractedText: String
   let distractedRatio: Double
@@ -37,8 +36,8 @@ struct DayDistractionSummarySection: View {
 
       if isSelectionEmpty {
         Text("Edit categories to calculate distractions.")
-          .font(.custom("Switzer", size: 11))
-          .foregroundColor(theme.textSecondary)
+          .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+          .foregroundColor(TBDColor.muted)
       }
 
       DistractionSummaryCard(
@@ -70,8 +69,8 @@ struct DayDistractionSummarySection: View {
   private var header: some View {
     HStack(alignment: .center, spacing: 6) {
       Text("Distractions so far")
-        .font(.custom("Switzer-Medium", size: 22))
-        .foregroundColor(theme.textPrimary)
+        .font(TBDTokens.Typography.title)
+        .foregroundColor(TBDColor.ink)
 
       Spacer()
 

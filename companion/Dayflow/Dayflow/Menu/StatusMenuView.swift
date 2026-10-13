@@ -30,7 +30,7 @@ struct StatusMenuView: View {
         title: String(localized: "Open Tealbrick"), assetImage: "TealbrickLogo", action: openDayflow)
       MenuRow(title: String(localized: "Open Recordings"), action: openRecordingsFolder)
       TimelineView(.periodic(from: .now, by: 1)) { _ in
-        Text("Meeting: " + listening.meetingStatus).font(.custom("Switzer", size: 12)).foregroundStyle(.secondary)
+        Text("Meeting: " + listening.meetingStatus).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
       }
       MenuRow(title: "Dictate", systemImage: "mic", action: { audioAction(.dictation) })
       MenuRow(title: listening.voiceNoteRecording ? "Finish voice note" : "Record voice note", systemImage: "waveform", action: {
@@ -53,7 +53,7 @@ struct StatusMenuView: View {
           NSPasteboard.general.setString(listening.lastRawTranscript, forType: .string)
         })
       }
-      if !listening.captureMessage.isEmpty { Text(listening.captureMessage).font(.caption).foregroundStyle(.secondary) }
+      if !listening.captureMessage.isEmpty { Text(listening.captureMessage).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted) }
       MenuRow(title: "Models", systemImage: "cpu", action: { openSettings("engine") })
       MenuRow(title: "Settings", systemImage: "gearshape", action: { openSettings("other") })
       MenuRow(title: "About / Support", systemImage: "questionmark.circle", action: { openSettings("about") })
@@ -61,18 +61,18 @@ struct StatusMenuView: View {
       MenuDivider()
 
       MenuRow(
-        title: String(localized: "Quit TBD"), systemImage: "power", accent: .red,
+        title: String(localized: "Quit TBD"), systemImage: "power", accent: TBDColor.brickInk,
         action: quitDayflow)
     }
     }
     .scrollIndicators(.hidden)
     .frame(maxHeight: 620)
-    .font(.custom("Switzer", size: 13))
-    .foregroundStyle(TBDDesign.ink)
+    .font(TBDFonts.nunito(TBDKit.textControl, TBDKit.weightBody))
+    .foregroundStyle(TBDColor.ink)
     .padding(.vertical, 9)
     .padding(.horizontal, 9)
     .frame(minWidth: 280, maxWidth: 300)
-    // Brick floating menu: square, hard offset shadow, no rounded corners.
+    // Brick floating menu: tile, hair ring and the one float shadow.
     .tbdFloating()
   }
 
@@ -145,8 +145,8 @@ private struct PauseSection: View {
     VStack(alignment: .leading, spacing: 6) {
       // Header
       Text("Screen capture")
-        .font(.system(size: 12, weight: .medium))
-        .foregroundStyle(.secondary)
+        .font(TBDTokens.Typography.label)
+        .foregroundStyle(TBDColor.muted)
         .padding(.horizontal, 5)
 
       // Duration picker
@@ -178,17 +178,14 @@ private struct DurationPicker: View {
         )
 
         if index < options.count - 1 {
-          Divider()
-            .frame(height: 16)
-            .opacity(0.3)
+          Rectangle()
+            .fill(TBDColor.line)
+            .frame(width: TBDKit.hair, height: 16)
         }
       }
     }
-    .background(Color.primary.opacity(0.06))
-    .overlay(
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-        .strokeBorder(Color.primary.opacity(0.08), lineWidth: TBDTokens.Stroke.hairline)
-    )
+    .background(TBDColor.plate, in: TBDBrickShape())
+    .overlay(TBDBrickShape().strokeBorder(TBDColor.line, lineWidth: TBDKit.hair))
   }
 }
 
@@ -199,27 +196,28 @@ private struct DurationOption: View {
   let onTap: () -> Void
 
   @State private var isHovering = false
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
     Button(action: onTap) {
       Text(label)
-        .font(.system(size: 11, weight: .medium))
-        .foregroundStyle(isHovering ? TBDTokens.onPrimary : Color.primary)
+        .font(TBDTokens.Typography.label)
+        .foregroundStyle(isHovering ? TBDColor.primaryOn : TBDColor.ink)
         .padding(.horizontal, 8)
-        .padding(.vertical, 5)
+        .frame(maxWidth: .infinity, minHeight: 32)
         .background(
           Group {
             if isHovering {
-              RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-                .fill(TBDTokens.fill)
+              TBDBrickShape().fill(TBDColor.primaryFill)
             }
           }
         )
+        .contentShape(TBDBrickShape())
     }
     .buttonStyle(.plain)
     .pointingHandCursor()
     .onHover { hovering in
-      withAnimation(TBDMotion.instant) {
+      withAnimation(TBDMotion.animation(TBDMotion.instant, reduce: reduceMotion)) {
         isHovering = hovering
       }
     }
@@ -243,7 +241,7 @@ private struct PausedSection: View {
       MenuRow(
         title: String(localized: "Resume Tealbrick"),
         systemImage: "play.circle",
-        accent: TBDTokens.accent,
+        accent: TBDColor.tealInk,
         action: onResume
       )
     }
@@ -256,13 +254,7 @@ private struct CountdownBadge: View {
   let remainingTime: String
 
   var body: some View {
-    Text("Tealbrick paused for \(remainingTime)")
-      .font(.system(size: 11, weight: .medium).monospacedDigit())
-      .foregroundStyle(TBDTokens.onPrimary)
-      .padding(.horizontal, 12)
-      .padding(.vertical, 6)
-      .frame(maxWidth: .infinity)
-      .background(TBDTokens.fill)
+    TBDNotice("Tealbrick paused for \(remainingTime)", tone: .needsYou)
   }
 }
 
@@ -272,7 +264,7 @@ private struct MenuRow: View {
   let title: String
   var systemImage: String? = nil
   var assetImage: String? = nil
-  var accent: Color = .primary
+  var accent: Color = TBDColor.ink
   var keepsMenuOpen: Bool = false
   var action: () -> Void
 
@@ -283,7 +275,7 @@ private struct MenuRow: View {
       HStack(spacing: 7) {
         if let systemImage {
           Image(systemName: systemImage)
-            .font(.system(size: 13, weight: .semibold))
+            .font(TBDFonts.symbol(TBDKit.textHint))
             .foregroundStyle(accent)
             .frame(width: 17)
         } else if let assetImage {
@@ -298,23 +290,17 @@ private struct MenuRow: View {
         }
 
         Text(title)
-          .font(.system(size: 12, weight: .semibold))
-          .foregroundStyle(.primary)
+          .font(TBDTokens.Typography.control)
+          .foregroundStyle(TBDColor.ink)
           .lineLimit(1)
 
         Spacer(minLength: 0)
       }
-      .padding(.vertical, 3.5)
       .padding(.horizontal, 5)
-      .contentShape(Rectangle())
-      // Brick selection: hover is a left bar plus tint, not a rounded pill.
-      .background(
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-          .fill(hovering ? Color.primary.opacity(0.08) : Color.clear)
-      )
-      .overlay(alignment: .leading) {
-        if hovering { RoundedRectangle(cornerRadius: TBDTokens.Radius.base).fill(TBDTokens.ink).frame(width: TBDTokens.Stroke.bar) }
-      }
+      .frame(minHeight: 32)
+      .contentShape(TBDBrickShape())
+      // Brick hover: plate fill, never a pill.
+      .background(TBDBrickShape().fill(hovering ? TBDColor.plate : Color.clear))
     }
     .buttonStyle(.plain)
     .pointingHandCursor()
@@ -331,8 +317,8 @@ private struct MenuRow: View {
 private struct MenuDivider: View {
   var body: some View {
     Rectangle()
-      .fill(Color.primary.opacity(0.07))
-      .frame(height: 0.75)
+      .fill(TBDColor.line)
+      .frame(height: TBDKit.hair)
       .padding(.horizontal, 4)
       .padding(.vertical, 2)
   }

@@ -93,9 +93,9 @@ extension DailyView {
         }
 
         Text(dailyDateTitle(for: selectedDate))
-          .font(.custom("Georgia", size: 28 * scale))
-          .tracking(-0.7)
-          .foregroundStyle(theme.textPrimary)
+          .font(TBDTokens.Typography.display)
+          .tracking(TBDTokens.Typography.displayTracking)
+          .foregroundStyle(TBDColor.ink)
           .lineLimit(1)
           .minimumScaleFactor(0.75)
           .allowsTightening(true)
@@ -141,8 +141,8 @@ extension DailyView {
     return VStack(alignment: .leading, spacing: 8 * scale) {
       HStack {
         Text(headingText)
-          .font(.custom("Switzer-Medium", size: (stylePreviewAfter ? 22 : 24) * scale))
-          .foregroundStyle(theme.textSecondary)
+          .font(TBDTokens.Typography.title)
+          .foregroundStyle(TBDColor.muted)
 
         Spacer()
       }
@@ -158,29 +158,20 @@ extension DailyView {
           hoveredCellKey: $workflowHoveredCellKey
         )
 
-        Divider()
-          .overlay(theme.dailyGridBorder)
+        Rectangle()
+          .fill(TBDColor.line)
+          .frame(height: TBDKit.hair)
 
         workflowTotalsView(scale: scale, isViewingToday: isViewingToday)
           .padding(.horizontal, 16 * scale)
           .padding(.top, 14 * scale)
           .padding(.bottom, 12 * scale)
           .frame(maxWidth: .infinity, alignment: .leading)
-          .background(theme.dailyTotalsFill)
       }
-      .background(theme.dailyGridFill)
+      .background(TBDColor.tile, in: TBDBrickShape())
       .overlay(
-        InnerGlow(
-          shape: RoundedRectangle(cornerRadius: TBDTokens.Radius.base),
-          color: theme.summaryCardInnerGlow,
-          radius: 4,
-          spread: stylePreviewAfter ? 3 : 4,
-          blur: stylePreviewAfter ? 2.5 : 4
-        )
-      )
-      .overlay(
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-          .stroke(theme.dailyGridBorder, lineWidth: 0.75)
+        TBDBrickShape()
+          .strokeBorder(TBDColor.line, lineWidth: TBDKit.hair)
           .allowsHitTesting(false)
       )
       .overlayPreferenceValue(DailyWorkflowHoverBoundsPreferenceKey.self) { anchors in
@@ -208,7 +199,7 @@ extension DailyView {
               workflowTooltip(
                 durationMinutes: cardInfo.durationMinutes,
                 title: cardInfo.title,
-                accentColor: theme.accentText,
+                accentColor: TBDColor.tealInk,
                 layoutScale: layoutScale
               )
             }
@@ -227,7 +218,7 @@ extension DailyView {
               workflowTooltip(
                 durationMinutes: marker.endMinute - marker.startMinute,
                 title: marker.title,
-                accentColor: Color(hex: "FF5950"),
+                accentColor: TBDColor.brickInk,
                 layoutScale: layoutScale
               )
             }
@@ -269,22 +260,22 @@ extension DailyView {
           ? String(localized: "\(totalTitle)  No captured activity yet.")
           : String(localized: "\(totalTitle)  No captured activity during 9am-9pm")
         Text(emptyDescription)
-          .font(.custom("Switzer-Regular", size: 12 * scale))
-          .foregroundStyle(theme.textSecondary)
+          .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+          .foregroundStyle(TBDColor.muted)
       } else {
         HStack(spacing: 8 * scale) {
           Text(totalTitle)
-            .font(.custom("Switzer-Medium", size: 14 * scale))
-            .foregroundStyle(theme.textSecondary)
+            .font(TBDTokens.Typography.tag)
+            .foregroundStyle(TBDColor.muted)
 
           ForEach(workflowTotals) { total in
             HStack(spacing: 2 * scale) {
               Text(total.name)
-                .font(.custom("Switzer-Regular", size: 12 * scale))
-                .foregroundStyle(theme.textPrimary)
+                .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+                .foregroundStyle(TBDColor.ink)
               Text(formatDuration(minutes: total.minutes))
-                .font(.custom("Switzer-Semibold", size: 12 * scale))
-                .foregroundStyle(Color(hex: total.colorHex))
+                .font(TBDTokens.Typography.label)
+                .foregroundStyle(Color(hex: total.colorHex))  // design-guard: allow (user category colour)
             }
           }
         }
@@ -434,8 +425,6 @@ extension DailyView {
 }
 
 private struct DailyNavigationButton: View {
-  @Environment(\.dayflowTheme) private var theme
-
   let assetName: String
   var isEnabled = true
   let scale: CGFloat
@@ -453,13 +442,12 @@ private struct DailyNavigationButton: View {
         .renderingMode(.template)
         .scaledToFit()
         .frame(width: arrowSize, height: arrowSize)
-        .foregroundColor(theme.textPrimary)
+        .foregroundColor(TBDColor.ink)
         .opacity(isEnabled ? 1 : 0.35)
         .contentShape(Rectangle())
     }
-    // Brick: quiet icon button, no fill/circle — hover/press feedback comes
-    // from TBDButtonStyle's lift.
-    .buttonStyle(TBDButtonStyle(.quiet))
+    // Brick: square icon button (36pt), feedback from TBDButtonStyle.
+    .buttonStyle(TBDButtonStyle(.icon))
     .disabled(!isEnabled)
     .pointingHandCursorOnHover(enabled: isEnabled, reassertOnPressEnd: true)
   }

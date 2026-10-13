@@ -15,7 +15,7 @@ public final class TBDListeningDatabase: @unchecked Sendable {
         configuration.busyMode = .timeout(5)
         if readOnly {
             guard FileManager.default.fileExists(atPath: url.path) else {
-                throw TBDSpeechError.audioUnreadable("No Listening library exists yet.")
+                throw TBDSpeechError.audioUnreadable("No Listen library exists yet.")
             }
             writer = try DatabasePool(path: url.path, configuration: configuration)
         } else {

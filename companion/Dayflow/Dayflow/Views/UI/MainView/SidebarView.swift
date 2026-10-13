@@ -6,7 +6,6 @@ private enum SidebarMetrics {
   static let scale: CGFloat = 1.1
   static let itemSize: CGFloat = TBDRailMetrics.row
   static let selectedBackgroundSize: CGFloat = TBDRailMetrics.iconBox
-  static let selectedBackgroundRadius: CGFloat = 10
   static let iconSize: CGFloat = TBDRailMetrics.icon
   static let fallbackSymbolSize: CGFloat = TBDRailMetrics.icon
   static let badgeSize: CGFloat = 8 * scale
@@ -111,19 +110,17 @@ struct SidebarView: View {
 }
 
 struct SidebarIconButton: View {
-  @Environment(\.dayflowTheme) private var theme
-
   let icon: SidebarIcon
   let isSelected: Bool
   var showBadge: Bool = false
   let action: () -> Void
 
   private var iconColor: Color {
-    isSelected ? theme.sidebarIconActive : theme.sidebarIcon
+    isSelected ? TBDColor.tealInk : TBDColor.muted
   }
 
   private var labelColor: Color {
-    isSelected ? theme.sidebarLabelActive : theme.sidebarLabel
+    isSelected ? TBDColor.tealInk : TBDColor.muted
   }
 
   var body: some View {
@@ -132,10 +129,10 @@ struct SidebarIconButton: View {
         iconBox
 
         Text(icon.displayName)
-          .font(.custom("Switzer", size: SidebarMetrics.labelFontSize))
+          .font(TBDFonts.nunito(SidebarMetrics.labelFontSize, isSelected ? TBDKit.weightLabel : TBDKit.weightNav))
           .lineLimit(1)
           .minimumScaleFactor(0.75)
-          .foregroundColor(labelColor)
+          .foregroundStyle(labelColor)
       }
       .frame(width: SidebarMetrics.itemSize, height: SidebarMetrics.itemSize)
       .contentShape(Rectangle())
@@ -160,10 +157,11 @@ struct SidebarIconButton: View {
         .frame(width: SidebarMetrics.iconSize, height: SidebarMetrics.iconSize)
 
       if showBadge {
-        // Status dots are square in the brick language.
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-          .fill(theme.accent)
+        // Badge dot: a count-red mark with a paper ring (as the kit rail).
+        Capsule()
+          .fill(TBDColor.countFill)
           .frame(width: SidebarMetrics.badgeSize, height: SidebarMetrics.badgeSize)
+          .tbdPillEdge(TBDColor.paper)
           .offset(x: SidebarMetrics.badgeOffsetX, y: SidebarMetrics.badgeOffsetY)
       }
     }
@@ -178,11 +176,11 @@ struct SidebarIconButton: View {
         .interpolation(.high)
         .renderingMode(.template)
         .aspectRatio(contentMode: .fit)
-        .foregroundColor(iconColor)
+        .foregroundStyle(iconColor)
     } else if let sys = icon.systemNameFallback {
       Image(systemName: sys)
-        .font(.system(size: SidebarMetrics.fallbackSymbolSize))
-        .foregroundColor(iconColor)
+        .font(TBDFonts.symbol(SidebarMetrics.fallbackSymbolSize, TBDKit.weightBody))
+        .foregroundStyle(iconColor)
     }
   }
 }

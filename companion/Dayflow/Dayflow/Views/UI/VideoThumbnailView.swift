@@ -99,8 +99,8 @@ struct VideoThumbnailView: View {
           .clipped()
       } else {
         // Loading state
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-          .fill(Color.gray.opacity(0.3))
+        TBDBrickShape()
+          .fill(TBDColor.plate)
           .overlay(
             ProgressView()
               .scaleEffect(0.5)
@@ -110,15 +110,14 @@ struct VideoThumbnailView: View {
       // Play button overlay (match timelapse viewer style)
       Button(action: { triggerExpansion(geometry: geometry) }) {
         ZStack {
-          RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-            .strokeBorder(Color.white.opacity(0.9), lineWidth: 2)
+          TBDBrickShape()
+            .strokeBorder(TBDColor.overlayOn.opacity(0.9), lineWidth: 2)
             .frame(width: 64, height: 64)
-            .background(RoundedRectangle(cornerRadius: TBDTokens.Radius.base).fill(Color.black.opacity(0.35)))
+            .background(TBDBrickShape().fill(TBDColor.overlayFill.opacity(0.6)))
           Image(systemName: "play.fill")
-            .foregroundColor(.white)
-            .font(.system(size: 24, weight: .bold))
+            .foregroundStyle(TBDColor.overlayOn)
+            .font(TBDFonts.symbol(24, TBDKit.weightLabel))
         }
-        .shadow(color: .black.opacity(0.25), radius: 6, x: 0, y: 2)
         .accessibilityLabel("Play video summary")
       }
       .buttonStyle(PlainButtonStyle())

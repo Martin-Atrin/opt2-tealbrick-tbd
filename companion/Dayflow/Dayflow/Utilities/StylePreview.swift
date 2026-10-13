@@ -9,6 +9,7 @@
 //
 
 import SwiftUI
+import TBDDesign
 
 @MainActor
 final class StylePreview: ObservableObject {
@@ -24,9 +25,9 @@ final class StylePreview: ObservableObject {
 /// Fixed styling for the standup card's light mode, arrived at with the
 /// (now removed) dev tuning tools.
 enum StandupStyle {
-  static let strokeColor = Color(hex: "DADADA")
-  static let headingColor = Color(hex: "90837A")
-  static let shadowColor = Color(hex: "000000").opacity(0.1)
+  static let strokeColor = TBDColor.line
+  static let headingColor = TBDColor.muted
+  static let shadowColor = Color.clear   // One Lift Rule: cards in the flow are flat
   static let shadowBlur: Double = 8
   static let shadowDistance: Double = 4
   static let bottomSpace: Double = 52

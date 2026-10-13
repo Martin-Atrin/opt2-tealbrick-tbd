@@ -135,7 +135,7 @@ struct TBDMeetingPillView: View {
                 Image(systemName: "arrow.up.left.and.arrow.down.right").font(TBDFonts.symbol(11, TBDKit.weightNav)).foregroundStyle(TBDColor.overlayOn)
                     .frame(width: 28, height: 28)
                     .background(TBDColor.overlayOn.opacity(0.1), in: TBDBrickShape())
-                    .frame(width: 30, height: 36)
+                    .frame(width: 36, height: 36)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain).help("Open the live meeting panel").accessibilityLabel("Open live meeting panel")

@@ -50,8 +50,6 @@ private struct TimelineHeaderVisibility {
 }
 
 private struct TimelineNavigationButton: View {
-  @Environment(\.dayflowTheme) private var theme
-
   let assetName: String
   var isEnabled = true
   var arrowSize: CGFloat = TimelineNavigationLayout.arrowSize
@@ -66,8 +64,8 @@ private struct TimelineNavigationButton: View {
       action()
     }) {
       ZStack {
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-          .fill(TBDTokens.hover)
+        TBDBrickShape()
+          .fill(TBDColor.plate)
           .frame(width: hoverCircleSize, height: hoverCircleSize)
           .opacity(isHovering && isEnabled ? 1 : 0)
 
@@ -75,12 +73,13 @@ private struct TimelineNavigationButton: View {
           .resizable()
           .renderingMode(.template)
           .scaledToFit()
-          .foregroundColor(theme.textPrimary)
+          .foregroundStyle(TBDColor.ink)
           .frame(width: arrowSize, height: arrowSize)
           .opacity(isEnabled ? 1 : 0.35)
       }
       .frame(width: max(arrowSize, hoverCircleSize), height: max(arrowSize, hoverCircleSize))
-      .contentShape(Rectangle())
+      // Visual stays compact; the hit area reaches the kit's 36pt minimum.
+      .contentShape(Rectangle().inset(by: -3))
     }
     .buttonStyle(.plain)
     .disabled(!isEnabled)
@@ -138,9 +137,11 @@ extension MainView {
   // either over- or under-reserves. This matches the measurement pattern
   // used in `DateNavigationControls.swift:calculateOptimalPillWidth()`.
   private var measuredDateLabelWidth: CGFloat {
+    // Measured in the kit's display face (Nunito 26 / black); the system label font is the fallback.
+    TBDFonts.register()
     let font =
-      NSFont(name: "Georgia", size: 28)
-      ?? NSFont.systemFont(ofSize: 28)
+      NSFontManager.shared.font(withFamily: TBDFonts.family, traits: [], weight: 14, size: TBDKit.textH2)
+      ?? NSFont.labelFont(ofSize: TBDKit.textH2)
     return timelineTitleText.size(withAttributes: [.font: font]).width
   }
 
@@ -157,7 +158,7 @@ extension MainView {
     // Matches the pinned widths of each control (Figma-spec accurate).
     let chevronsWidth = (TimelineNavigationLayout.arrowSize * 2) + 2
     let calendarWidth: CGFloat = 36
-    let dayWeekWidth: CGFloat = 104
+    let dayWeekWidth: CGFloat = 132
     let todayWidth: CGFloat = 56
     let gap = TimelineNavigationLayout.calendarGap
     let datePad: CGFloat = 10
@@ -276,26 +277,25 @@ extension MainView {
           .resizable()
           .renderingMode(.template)
           .scaledToFit()
-          .foregroundColor(TBDTokens.ink)
+          .foregroundStyle(TBDColor.ink)
           .frame(width: 16, height: 16)
       }
       .frame(width: 36, height: 30)
-      .contentShape(Rectangle())
+      .contentShape(Rectangle().inset(by: -3))
     }
     .buttonStyle(.plain)
     .pointingHandCursorOnHover(reassertOnPressEnd: true)
     .trackTimelineCalendarButtonFrame()
   }
 
-  /// Square brick control chrome shared by the calendar pill and the selected
-  /// Day/Week segment: flat tint, hairline border. No glow, no shadow — this
-  /// is inline chrome, not a floating element.
+  /// Brick control chrome for the calendar button: tile (teal wash when open),
+  /// hairline ring. No glow, no shadow — this is inline chrome, not a floating element.
   private func squareControlBackground(isEmphasized: Bool = false) -> some View {
-    let shape = RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
+    let shape = TBDBrickShape()
     return
       shape
-      .fill(isEmphasized ? TBDTokens.selected : TBDTokens.paper)
-      .overlay(shape.strokeBorder(TBDTokens.border, lineWidth: isEmphasized ? TBDTokens.Stroke.bar : TBDTokens.Stroke.hairline))
+      .fill(isEmphasized ? TBDColor.tealWash : TBDColor.tile)
+      .overlay(shape.strokeBorder(TBDColor.line, lineWidth: isEmphasized ? 2 : TBDKit.hair))
   }
 
   private var timelineCalendarPopoverOpenAnimation: Animation {
@@ -345,8 +345,8 @@ extension MainView {
 
     return ZStack(alignment: .topLeading) {
       if showTimelineCalendarPopover {
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-          .fill(Color.black.opacity(0.001))
+        TBDBrickShape()
+          .fill(Color.clear)
           .contentShape(Rectangle())
           .onTapGesture {
             closeTimelineCalendarPopover()
@@ -385,41 +385,14 @@ extension MainView {
     .allowsHitTesting(showTimelineCalendarPopover)
   }
 
-  // Brick switcher: single ruled strip, square segments, selection = tint
-  // fill + 2pt ink bottom bar. Mirrors TBDWorkspaceView's Chat/Companion/
-  // Listening switcher exactly (docs/design-language.md).
+  // Day / Week: the kit's segmented toggle (pill track, tile thumb).
   private var timelineModeSwitch: some View {
-    HStack(spacing: 0) {
-      ForEach(Array(TimelineMode.allCases.enumerated()), id: \.element) { index, mode in
-        let isSelected = timelineMode == mode
-        if index > 0 {
-          RoundedRectangle(cornerRadius: TBDTokens.Radius.base).fill(TBDTokens.border).frame(width: TBDTokens.Stroke.hairline, height: 30)
-        }
-        Button(action: {
-          setTimelineMode(mode)
-        }) {
-          Text(mode.title)
-            .font(.custom("Switzer", size: 12).weight(isSelected ? .semibold : .medium))
-            .foregroundColor(isSelected ? TBDTokens.ink : TBDTokens.muted)
-            // Concrete width (52pt × 2 = 104pt container) instead of
-            // `.frame(maxWidth: .infinity)`. The infinity was being fought
-            // by the `.fixedSize(horizontal: true)` ancestor on
-            // `timelineLeadingControls`, which resolved the toggle's
-            // ideal width as ~0 and collapsed the background + "Day" label.
-            .frame(width: 52, height: 30)
-            .background(isSelected ? TBDTokens.selected : TBDTokens.paper)
-            .overlay(alignment: .bottom) {
-              RoundedRectangle(cornerRadius: TBDTokens.Radius.base).fill(isSelected ? TBDTokens.ink : .clear).frame(height: TBDTokens.Stroke.bar)
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-        .pointingHandCursorOnHover(reassertOnPressEnd: true)
-      }
-    }
-    .frame(width: 104, height: 30)
-    .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.base).strokeBorder(TBDTokens.border, lineWidth: TBDTokens.Stroke.hairline))
+    TBDSegmented(
+      selection: Binding(get: { timelineMode }, set: { setTimelineMode($0) }),
+      options: TimelineMode.allCases.map { ($0, $0.title) }
+    )
+    .fixedSize()
+    .frame(width: 132, height: 30)
   }
 
   private var timelineTodayButton: some View {
@@ -427,7 +400,7 @@ extension MainView {
       navigateTimeline(to: timelineDisplayDate(from: Date()), method: "today")
     }) {
       Text("Today")
-        .font(.custom("Switzer", size: 12).weight(.medium))
+        .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightNav))
         .padding(.horizontal, 10)
         // Explicit width pinned (natural ~52pt + 4pt safety margin). Same
         // rationale as the calendar pill: under the ancestor's `.fixedSize`
@@ -442,9 +415,9 @@ extension MainView {
 
   private var timelineHeaderDateLabel: some View {
     Text(timelineTitleText)
-      .font(.custom("Georgia", size: 28))
-      .tracking(-0.7)
-      .foregroundColor(theme.textPrimary)
+      .font(TBDTokens.Typography.display)
+      .tracking(TBDTokens.Typography.displayTracking)
+      .foregroundStyle(TBDColor.ink)
       .lineLimit(1)
       .fixedSize(horizontal: true, vertical: false)
       .onTapGesture {

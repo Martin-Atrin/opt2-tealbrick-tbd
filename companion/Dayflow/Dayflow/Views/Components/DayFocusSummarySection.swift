@@ -9,7 +9,6 @@ import SwiftUI
 import TBDDesign
 
 struct DayFocusSummarySection: View {
-  @Environment(\.dayflowTheme) private var theme
   @Environment(\.stylePreviewAfter) private var stylePreviewAfter
 
   let totalFocusText: String
@@ -37,8 +36,8 @@ struct DayFocusSummarySection: View {
 
       if isSelectionEmpty {
         Text("Edit categories to calculate focus.")
-          .font(.custom("Switzer", size: 11))
-          .foregroundColor(theme.textSecondary)
+          .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+          .foregroundColor(TBDColor.muted)
       }
 
       VStack(spacing: Design.cardsSpacing) {
@@ -67,13 +66,13 @@ struct DayFocusSummarySection: View {
   private var header: some View {
     HStack(alignment: .center, spacing: 6) {
       Text("Your focus")
-        .font(.custom("Switzer-Medium", size: 22))
-        .foregroundColor(theme.textPrimary)
+        .font(TBDTokens.Typography.title)
+        .foregroundColor(TBDColor.ink)
 
       if !stylePreviewAfter {
         Image(systemName: "info.circle")
-          .font(.system(size: 12))
-          .foregroundColor(theme.textMuted)
+          .font(TBDFonts.symbol(12, .regular))
+          .foregroundColor(TBDColor.muted)
       }
 
       Spacer()
@@ -87,7 +86,6 @@ struct DayFocusSummarySection: View {
 }
 
 private struct TotalFocusCard: View {
-  @Environment(\.dayflowTheme) private var theme
   @Environment(\.stylePreviewAfter) private var stylePreviewAfter
 
   let value: String
@@ -96,21 +94,21 @@ private struct TotalFocusCard: View {
     VStack(alignment: .leading, spacing: 4) {
       HStack(spacing: 6) {
         Text("Total focus time")
-          .font(.custom("Switzer-Medium", size: 16))
-          .foregroundColor(theme.textPrimary)
+          .font(TBDFonts.nunito(TBDKit.textLabel, TBDKit.weightNav))
+          .foregroundColor(TBDColor.ink)
 
         if !stylePreviewAfter {
           Image(systemName: "info.circle")
-            .font(.system(size: 12))
-            .foregroundColor(theme.textMuted)
+            .font(TBDFonts.symbol(12, .regular))
+            .foregroundColor(TBDColor.muted)
         }
 
         Spacer()
       }
 
       Text(value)
-        .font(.custom("Switzer-Medium", size: 34))
-        .foregroundColor(theme.summaryValue)
+        .font(TBDTokens.Typography.display)
+        .foregroundColor(TBDColor.ink)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
     .padding(.horizontal, 16)
@@ -120,27 +118,12 @@ private struct TotalFocusCard: View {
   }
 }
 
-// Figma summary card: translucent fill, hairline border, soft inner glow
-// (dark) or a faint drop shadow (light). Shared by the focus cards.
+// Summary card: tile, brick, hair line ring, flat (shared by the focus cards).
 struct DaySummaryCardModifier: ViewModifier {
-  @Environment(\.dayflowTheme) private var theme
-
   func body(content: Content) -> some View {
-    let shape = RoundedRectangle(cornerRadius: TBDTokens.Radius.base, style: .continuous)
     content
-      .background(theme.summaryCardFill)
-      .clipShape(shape)
-      .overlay(
-        InnerGlow(
-          shape: shape,
-          color: theme.summaryCardInnerGlow,
-          radius: 3,
-          spread: 3,
-          blur: 2.5
-        )
-      )
-      .overlay(shape.strokeBorder(theme.summaryCardBorder, lineWidth: 0.5))
-      .shadow(color: theme.summaryCardShadow, radius: 4, x: 0, y: 1)
+      .background(TBDColor.tile, in: TBDBrickShape())
+      .overlay(TBDBrickShape().strokeBorder(TBDColor.line, lineWidth: TBDKit.hair))
   }
 }
 

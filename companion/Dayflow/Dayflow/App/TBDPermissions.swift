@@ -4,6 +4,7 @@ import ApplicationServices
 import CoreGraphics
 import EventKit
 import SwiftUI
+import TBDDesign
 import UserNotifications
 
 /// TCC belongs to the signed host, never to a Portal account or workspace.
@@ -79,16 +80,18 @@ final class TBDPermissions: ObservableObject {
 struct TBDPermissionsView: View {
   @ObservedObject private var permissions = TBDPermissions.shared
   var body: some View {
-    VStack(alignment: .leading, spacing: 20) {
-      Text("Permissions").font(.title2)
-      Text("Access is granted to TBD on this Mac and shared across its features. Portal sign-in does not grant or revoke these permissions.").foregroundStyle(.secondary)
-      row("Microphone", permissions.microphone, "Chat dictation, Listening and microphone meetings.")
+    VStack(alignment: .leading, spacing: TBDKit.s5) {
+      Text("Permissions").font(TBDTokens.Typography.title).foregroundStyle(TBDColor.ink)
+      Text("Access is granted to TBD on this Mac and shared across its features. Portal sign-in does not grant or revoke these permissions.")
+        .font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
+      row("Microphone", permissions.microphone, "Chat dictation, Listen and microphone meetings.")
       row("Screen recording", permissions.screen, "Companion screenshots and meetings that capture system audio. macOS may require a restart after approval.")
       row("Accessibility", permissions.accessibility, "Global dictation insertion and desktop interactions.")
       row("Notifications", permissions.notifications, "Reminders, nudges and completion alerts.")
       row("Calendar", permissions.calendar, "Optional meeting calendar integration. Request access when enabling that feature.")
       Button("Refresh permissions") { Task { await permissions.refresh() } }
-      if !permissions.error.isEmpty { Text(permissions.error).foregroundStyle(.red) }
+        .buttonStyle(TBDButtonStyle(.secondary))
+      if !permissions.error.isEmpty { Text(permissions.error).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.brickInk) }
     }
     .task {
       while !Task.isCancelled {
@@ -100,15 +103,16 @@ struct TBDPermissionsView: View {
   private func row(_ name: String, _ status: String, _ detail: String) -> some View {
     VStack(alignment: .leading, spacing: 6) {
       HStack {
-        Text(name).fontWeight(.medium)
+        Text(name).font(TBDTokens.Typography.control).foregroundStyle(TBDColor.ink)
         Spacer()
-        Text(status).foregroundStyle(status == "Allowed" ? Color.green : Color.secondary)
+        Text(status).font(TBDTokens.Typography.tag).foregroundStyle(status == "Allowed" ? TBDColor.tealInk : TBDColor.muted)
         Button(status == "Allowed" || name == "Calendar" ? "Manage" : "Allow…") {
           Task { await permissions.request(name) }
         }
+        .buttonStyle(TBDButtonStyle(.secondary))
       }
-      Text(detail).font(.callout).foregroundStyle(.secondary)
-      Divider()
+      Text(detail).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
+      Rectangle().fill(TBDColor.line).frame(height: TBDKit.hair)
     }
   }
 }

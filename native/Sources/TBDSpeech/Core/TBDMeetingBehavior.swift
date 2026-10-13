@@ -362,7 +362,7 @@ public enum TBDMeetingPillRules {
     /// Width and height per face; the recording face carries the controls.
     public static func size(for face: TBDMeetingPillFace, hasNotice: Bool = false) -> CGSize {
         let base = baseSize(for: face)
-        return hasNotice && face.isLive ? CGSize(width: max(base.width, 330), height: base.height + 22) : base
+        return hasNotice && face.isLive ? CGSize(width: max(base.width, 354), height: base.height + 22) : base
     }
 
     private static func baseSize(for face: TBDMeetingPillFace) -> CGSize {
@@ -370,7 +370,7 @@ public enum TBDMeetingPillRules {
         case .hidden: .zero
         case .starting, .saving: CGSize(width: 150, height: 40)
         case .saved: CGSize(width: 120, height: 40)
-        case .recording, .paused: CGSize(width: 330, height: 40)
+        case .recording, .paused: CGSize(width: 354, height: 40)   // 4 icon controls with 36x36 hit areas (C145)
         }
     }
 

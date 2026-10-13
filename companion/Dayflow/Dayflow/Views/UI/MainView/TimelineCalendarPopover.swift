@@ -8,7 +8,7 @@ import SwiftUI
 
 // Compact month calendar popover (Figma 4291:4828).
 // Single-variant rendering: every day is a cell in a flat grid, with the
-// selected date shown as an 18pt orange circle. No week-pill; week-mode
+// selected date shown as an ink brick. No week-pill; week-mode
 // indication is conveyed elsewhere in the UI (the Day/Week toggle + the
 // header title). Self-contained: tracks its own displayed month, reports
 // picks via `onSelect`.
@@ -26,8 +26,6 @@ struct TimelineCalendarPopover: View {
   static let selectedWeekHighlightHeight: CGFloat = 30
   static let contentWidth: CGFloat = (columnWidth * 7) + (columnSpacing * 6)
   static let preferredWidth: CGFloat = contentWidth + (horizontalPadding * 2)
-
-  @Environment(\.dayflowTheme) private var theme
 
   @Binding var isPresented: Bool
   let selectedDate: Date
@@ -85,15 +83,15 @@ struct TimelineCalendarPopover: View {
     .padding(.top, Self.topPadding)
     .padding(.bottom, Self.bottomPadding)
     .frame(width: Self.preferredWidth, alignment: .topLeading)
-    // Floating popover: square brick, hard offset shadow, no glass.
+    // Floating popover: brick with the one float shadow.
     .tbdFloating()
   }
 
   private var monthHeader: some View {
     HStack(spacing: 0) {
       Text(Self.monthYearFormatter.string(from: displayMonth))
-        .font(.custom("Switzer", size: 14))
-        .foregroundColor(theme.textPrimary)
+        .font(TBDFonts.nunito(TBDKit.textControl, TBDKit.weightBody))
+        .foregroundStyle(TBDColor.ink)
         .lineLimit(1)
 
       Spacer(minLength: 0)
@@ -103,28 +101,23 @@ struct TimelineCalendarPopover: View {
         monthNavButton(systemName: "chevron.right") { shiftMonth(by: 1) }
       }
     }
-    .frame(height: 20)
+    .frame(height: 36)
   }
 
-  // Figma nav chevrons are plain gray glyphs, not the app's orange header
-  // arrows. Using SF Symbols here keeps the size and tint exact while
-  // avoiding extra asset work for a tiny 16pt icon.
+  // Month chevrons: SF Symbols on the kit's icon button (36pt hit area).
   private func monthNavButton(
     systemName: String,
     action: @escaping () -> Void
   ) -> some View {
     Button(action: action) {
       Image(systemName: systemName)
-        .font(.system(size: 16, weight: .medium))
-        .foregroundColor(theme.textMuted)
-        .frame(width: 20, height: 20)
-        .contentShape(Rectangle())
+        .font(TBDFonts.symbol(14, TBDKit.weightNav))
     }
-    .buttonStyle(.plain)
+    .buttonStyle(TBDButtonStyle(.icon))
     .pointingHandCursor()
   }
 
-  // Weekday header uses Instrument Serif 12pt per Figma (not Figtree).
+  // Weekday header: kit label type.
   private var weekdayRow: some View {
     // `id: \.self` on ["S","M","T","W","T","F","S"] duplicates the "T" and
     // "S" IDs — SwiftUI logs "the ID T occurs multiple times" and the diff
@@ -134,8 +127,8 @@ struct TimelineCalendarPopover: View {
     return HStack(spacing: Self.columnSpacing) {
       ForEach(labels.indices, id: \.self) { i in
         Text(labels[i])
-          .font(.custom("Switzer-Medium", size: 12))
-          .foregroundColor(theme.textPrimary)
+          .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightNav))
+          .foregroundStyle(TBDColor.ink)
           .frame(width: Self.columnWidth, height: Self.weekdayHeight)
       }
     }
@@ -150,9 +143,9 @@ struct TimelineCalendarPopover: View {
 
         ZStack {
           if isSelectedWeek {
-            // Selection is a tint, not a blob — square fill, no pill.
-            RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-              .fill(theme.accent)
+            // Selection is an ink brick behind the week.
+            TBDBrickShape()
+              .fill(TBDColor.primaryFill)
               .frame(
                 width: Self.contentWidth,
                 height: Self.selectedWeekHighlightHeight
@@ -185,12 +178,12 @@ struct TimelineCalendarPopover: View {
     }()
     let foregroundColor: Color = {
       if isInSelectedWeek {
-        return (!day.isCurrentMonth || isDisabled) ? .white.opacity(0.55) : .white
+        return (!day.isCurrentMonth || isDisabled) ? TBDColor.primaryOn.opacity(0.65) : TBDColor.primaryOn
       }
       if !day.isCurrentMonth || isDisabled {
-        return theme.textMuted
+        return TBDColor.muted
       }
-      return showsSelectedDayCircle ? .white : theme.textPrimary
+      return showsSelectedDayCircle ? TBDColor.primaryOn : TBDColor.ink
     }()
 
     return Button {
@@ -199,14 +192,14 @@ struct TimelineCalendarPopover: View {
     } label: {
       ZStack {
         if showsSelectedDayCircle {
-          // Selection is a tint, not a blob — square fill, no rounded pill.
-          RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-            .fill(theme.accent)
+          // Selection is an ink brick behind the day.
+          TBDBrickShape()
+            .fill(TBDColor.primaryFill)
             .frame(width: Self.selectedCircleSize, height: Self.selectedCircleSize)
         }
         Text(day.label)
-          .font(.custom("Switzer", size: 12))
-          .foregroundColor(foregroundColor)
+          .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+          .foregroundStyle(foregroundColor)
       }
       .frame(width: Self.columnWidth, height: Self.dayCellHeight)
       .contentShape(Rectangle())

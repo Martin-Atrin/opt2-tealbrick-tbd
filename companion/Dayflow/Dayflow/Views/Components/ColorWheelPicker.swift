@@ -30,7 +30,7 @@ extension Color {
   // Keep only HSL helper to avoid redeclaring `init(hex:)` (already defined elsewhere)
   static func fromHSL(h: Double, s: Double, l: Double) -> Color {
     let (r, g, b) = hslToRGB(h, s, l)
-    return Color(.sRGB, red: r, green: g, blue: b, opacity: 1)
+    return Color(.sRGB, red: r, green: g, blue: b, opacity: 1)  // design-guard: allow (colour picker data)
   }
 }
 
@@ -104,7 +104,7 @@ struct DotPattern: View {
         let cols = Int(ceil(size.width / width))
         let rows = Int(ceil(size.height / height))
         let dot = Path(ellipseIn: CGRect(x: 0, y: 0, width: 2, height: 2))
-        let color = Color(.sRGB, red: 107 / 255, green: 114 / 255, blue: 128 / 255, opacity: 0.22)
+        let color = TBDColor.lineStrong.opacity(0.35)
 
         for i in 0..<cols {
           for j in 0..<rows {
@@ -261,10 +261,10 @@ struct ColorPickerView: View {
       // Secondary bullets (ordered & sized like your JSX)
       if numPoints >= 2 {
         Circle()
-          .fill(Color(hex: color(at: +spread)))
+          .fill(Color(hex: color(at: +spread)))  // design-guard: allow (colour picker data)
           .frame(width: bulletRadius * 1.2, height: bulletRadius * 1.2)
-          .overlay(Circle().stroke(.white.opacity(0.8), lineWidth: 2))
-          .shadow(radius: 4, y: 2)
+          .overlay(Circle().strokeBorder(TBDColor.tile.opacity(0.8), lineWidth: 2))
+          .shadow(color: TBDColor.shadowInk, radius: 4, y: 2)
           .position(
             x: bx2 - bulletRadius / 1.7 + bulletRadius * 1.2 / 2,
             y: by2 - bulletRadius / 1.7 + bulletRadius * 1.2 / 2
@@ -275,10 +275,10 @@ struct ColorPickerView: View {
       }
       // Primary draggable bullet
       Circle()
-        .fill(Color(hex: colorHex))
+        .fill(Color(hex: colorHex))  // design-guard: allow (colour picker data)
         .frame(width: bulletRadius * 2, height: bulletRadius * 2)
-        .overlay(Circle().stroke(.white.opacity(0.9), lineWidth: 3))
-        .shadow(radius: 8, y: 2)
+        .overlay(Circle().strokeBorder(TBDColor.tile.opacity(0.9), lineWidth: 3))
+        .shadow(color: TBDColor.shadowInk, radius: 8, y: 2)
         .position(x: bx, y: by)
         .zIndex(30)
         .gesture(
@@ -288,10 +288,10 @@ struct ColorPickerView: View {
 
       if numPoints >= 3 {
         Circle()
-          .fill(Color(hex: color(at: -spread)))
+          .fill(Color(hex: color(at: -spread)))  // design-guard: allow (colour picker data)
           .frame(width: bulletRadius * 1.2, height: bulletRadius * 1.2)
-          .overlay(Circle().stroke(.white.opacity(0.8), lineWidth: 2))
-          .shadow(radius: 4, y: 2)
+          .overlay(Circle().strokeBorder(TBDColor.tile.opacity(0.8), lineWidth: 2))
+          .shadow(color: TBDColor.shadowInk, radius: 4, y: 2)
           .position(
             x: bx1 - bulletRadius / 1.7 + bulletRadius * 1.2 / 2,
             y: by1 - bulletRadius / 1.7 + bulletRadius * 1.2 / 2
@@ -302,10 +302,10 @@ struct ColorPickerView: View {
       }
       if numPoints >= 4 {
         Circle()
-          .fill(Color(hex: color(at: -spread * 2)))
+          .fill(Color(hex: color(at: -spread * 2)))  // design-guard: allow (colour picker data)
           .frame(width: bulletRadius, height: bulletRadius)
-          .overlay(Circle().stroke(.white.opacity(0.7), lineWidth: 2))
-          .shadow(radius: 4, y: 2)
+          .overlay(Circle().strokeBorder(TBDColor.tile.opacity(0.7), lineWidth: 2))
+          .shadow(color: TBDColor.shadowInk, radius: 4, y: 2)
           .position(x: bx3, y: by3)
           .opacity(0.8)
           .zIndex(15)
@@ -313,10 +313,10 @@ struct ColorPickerView: View {
       }
       if numPoints >= 5 {
         Circle()
-          .fill(Color(hex: color(at: +spread * 2)))
+          .fill(Color(hex: color(at: +spread * 2)))  // design-guard: allow (colour picker data)
           .frame(width: bulletRadius, height: bulletRadius)
-          .overlay(Circle().stroke(.white.opacity(0.7), lineWidth: 2))
-          .shadow(radius: 4, y: 2)
+          .overlay(Circle().strokeBorder(TBDColor.tile.opacity(0.7), lineWidth: 2))
+          .shadow(color: TBDColor.shadowInk, radius: 4, y: 2)
           .position(x: bx4, y: by4)
           .opacity(0.8)
           .zIndex(15)
@@ -357,21 +357,20 @@ struct ColorSwatch: View {
 
   var body: some View {
     ZStack {
-      RoundedRectangle(cornerRadius: 6)
-        .fill(Color(hex: hex))
-        .overlay(RoundedRectangle(cornerRadius: 6).stroke(.white, lineWidth: 2))
+      TBDBrickShape()
+        .fill(Color(hex: hex))  // design-guard: allow (colour picker data)
+        .overlay(TBDBrickShape().strokeBorder(TBDColor.tile, lineWidth: 2))
         .frame(width: 60, height: 36)
         .offset(y: hovering ? -2 : 0)
         .animation(TBDMotion.instant, value: hovering)
 
       if showHint && hovering {
         Text("Drag to category")
-          .font(.custom("Switzer", size: 11))
-          .foregroundColor(.white)
+          .font(TBDFonts.nunito(11, TBDKit.weightNav))
+          .foregroundStyle(TBDColor.primaryOn)
           .padding(.vertical, 4)
           .padding(.horizontal, 8)
-          .background(Color.black.opacity(0.8))
-          .clipShape(RoundedRectangle(cornerRadius: 4))
+          .background(TBDColor.primaryFill, in: TBDBrickShape())
           .offset(y: -30)
           .allowsHitTesting(false)
       }

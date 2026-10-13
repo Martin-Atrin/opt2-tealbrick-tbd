@@ -23,7 +23,6 @@ struct ColorOrganizerRoot: View {
   var showsTitles: Bool = true
   var analyticsSurface: String? = nil
   @EnvironmentObject private var categoryStore: CategoryStore
-  @Environment(\.dayflowTheme) private var theme
 
   private enum CategorySetupStage: String, Hashable {
     case details
@@ -138,11 +137,9 @@ struct ColorOrganizerRoot: View {
           // Rendered in both stages (invisible in part 2) so the modal keeps
           // the same height when moving between parts.
           Text("Customize your categories")
-            .font(
-              Font.custom(
-                "Switzer-Medium", size: 36)
-            )
-            .foregroundColor(theme.isDark ? .white : .black)
+            .font(TBDTokens.Typography.display)
+            .tracking(TBDTokens.Typography.displayTracking)
+            .foregroundStyle(TBDColor.ink)
             .frame(maxWidth: .infinity, alignment: .center)
             .opacity(stage == .details ? 1 : 0)
         }
@@ -196,34 +193,15 @@ struct ColorOrganizerRoot: View {
           + (presentationStyle == .embedded ? 76 : 0)
       )
       .frame(maxWidth: 1180)
-      .background(
-        Group {
-          if presentationStyle == .sheet {
-            // Floating modal: square brick, hard offset shadow, no glass.
-            if theme.isDark {
-              RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-                .fill(Color(red: 62 / 255, green: 64 / 255, blue: 80 / 255))
-                .overlay(
-                  RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-                    .inset(by: 0.5)
-                    .stroke(Color(hex: "585858"), lineWidth: 1)
-                )
-                .background(
-                  RoundedRectangle(cornerRadius: TBDTokens.Radius.base).fill(TBDTokens.ink.opacity(TBDTokens.Shadow.brickLg.opacity))
-                    .offset(x: TBDTokens.Shadow.brickLg.x, y: TBDTokens.Shadow.brickLg.y)
-                )
-            } else {
-              RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-                .fill(Color.white)
-                .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.base).strokeBorder(TBDTokens.border, lineWidth: TBDTokens.Stroke.hairline))
-                .background(
-                  RoundedRectangle(cornerRadius: TBDTokens.Radius.base).fill(TBDTokens.ink.opacity(TBDTokens.Shadow.brickLg.opacity))
-                    .offset(x: TBDTokens.Shadow.brickLg.x, y: TBDTokens.Shadow.brickLg.y)
-                )
-            }
-          }
+      .background {
+        if presentationStyle == .sheet {
+          // Floating modal: tile, hair ring and the one float shadow.
+          TBDBrickShape()
+            .fill(TBDColor.tile)
+            .overlay(TBDBrickShape().strokeBorder(TBDColor.line, lineWidth: TBDKit.hair))
+            .shadow(color: TBDColor.shadowInk, radius: TBDKit.floatShadowRadius, y: TBDKit.floatShadowY)
         }
-      )
+      }
       .overlay(alignment: .topTrailing) {
         if presentationStyle == .sheet {
           Button {
@@ -232,12 +210,12 @@ struct ColorOrganizerRoot: View {
             onDismiss?()
           } label: {
             Image(systemName: "xmark")
-              .font(.system(size: 14, weight: .semibold))
-              .foregroundColor(theme.isDark ? Color(hex: "DDDDDD") : Color(hex: "606060"))
+              .font(TBDFonts.symbol(14, TBDKit.weightNav))
           }
-          .buttonStyle(.plain)
+          .buttonStyle(TBDButtonStyle(.icon))
+          .accessibilityLabel(Text("Close"))
           .pointingHandCursor()
-          .padding(20)
+          .padding(12)
         }
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
@@ -251,17 +229,15 @@ struct ColorOrganizerRoot: View {
       if showTitles {
         VStack(alignment: .leading, spacing: 6) {
           Text("Part 1 of 2")
-            .font(Font.custom("Switzer", size: 14).weight(.bold))
-            .foregroundColor(
-              theme.isDark ? Color(hex: "FF9A64") : Color(red: 0.98, green: 0.43, blue: 0)
-            )
+            .font(TBDFonts.nunito(TBDKit.textControl, TBDKit.weightLabel))
+            .foregroundStyle(TBDColor.tealInk)
             .frame(maxWidth: .infinity, alignment: .leading)
 
           Text("Edit title and description")
             .font(
-              Font.custom("Switzer-Medium", size: 30)
+              TBDFonts.nunito(TBDKit.textH1, TBDKit.weightNav)
             )
-            .foregroundColor(theme.isDark ? .white : .black)
+            .foregroundStyle(TBDColor.ink)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
       }
@@ -291,10 +267,8 @@ struct ColorOrganizerRoot: View {
       Text(
         "This step is optional. You can customize the categories or create new ones anytime while using Tealbrick."
       )
-      .font(Font.custom("Switzer", size: 12).weight(.medium))
-      .foregroundColor(
-        theme.isDark ? Color(hex: "BDBDBD") : Color(red: 0.48, green: 0.48, blue: 0.48)
-      )
+      .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightNav))
+      .foregroundStyle(TBDColor.muted)
       .frame(maxWidth: isCompact ? .infinity : 280, alignment: .leading)
     }
   }
@@ -306,8 +280,8 @@ struct ColorOrganizerRoot: View {
         .frame(width: 28, height: 28)
 
       Text(text)
-        .font(Font.custom("Switzer", size: 14).weight(.medium))
-        .foregroundColor(theme.isDark ? .white : .black)
+        .font(TBDFonts.nunito(TBDKit.textControl, TBDKit.weightNav))
+        .foregroundStyle(TBDColor.ink)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
   }
@@ -317,17 +291,15 @@ struct ColorOrganizerRoot: View {
       if showTitles {
         VStack(alignment: .leading, spacing: 6) {
           Text("Part 2 of 2")
-            .font(Font.custom("Switzer", size: 14).weight(.bold))
-            .foregroundColor(
-              theme.isDark ? Color(hex: "FF9A64") : Color(red: 0.98, green: 0.43, blue: 0)
-            )
+            .font(TBDFonts.nunito(TBDKit.textControl, TBDKit.weightLabel))
+            .foregroundStyle(TBDColor.tealInk)
             .frame(maxWidth: .infinity, alignment: .leading)
 
           Text("Edit colors")
             .font(
-              Font.custom("Switzer-Medium", size: 30)
+              TBDFonts.nunito(TBDKit.textH1, TBDKit.weightNav)
             )
-            .foregroundColor(theme.isDark ? .white : .black)
+            .foregroundStyle(TBDColor.ink)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
       }
@@ -336,7 +308,7 @@ struct ColorOrganizerRoot: View {
         ZStack {
           DotPattern(width: 10, height: 10)
             .frame(width: 224, height: 224)
-            .clipShape(RoundedRectangle(cornerRadius: TBDTokens.Radius.base))
+            .clipShape(TBDBrickShape())
 
           ColorPickerView(
             size: 224,
@@ -367,9 +339,8 @@ struct ColorOrganizerRoot: View {
                 "Click and drag on the canvas above to change the color palette. Then drag a color onto a category."
             )
         )
-        .font(Font.custom("Switzer", size: 13).weight(.medium))
-        .foregroundColor(
-          theme.isDark ? theme.textSecondary : Color(red: 0.3, green: 0.3, blue: 0.3))
+        .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightNav))
+        .foregroundStyle(TBDColor.inkSoft)
 
         LazyVGrid(
           columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8
@@ -403,24 +374,12 @@ struct ColorOrganizerRoot: View {
     } label: {
       HStack(spacing: 8) {
         Image(systemName: "plus")
-          .font(.system(size: 10, weight: .bold))
-          .foregroundColor(theme.controlText)
+          .font(TBDFonts.symbol(10, TBDKit.weightLabel))
 
         Text("Create a new category")
-          .font(Font.custom("Switzer", size: 14).weight(.regular))
-          .foregroundColor(theme.controlText)
       }
-      .padding(.horizontal, 14)
-      .padding(.vertical, 6)
-      .background(theme.controlFill)
-      .overlay(
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-          .inset(by: 0.5)
-          .stroke(theme.controlBorder, lineWidth: 1)
-      )
-      .opacity(canAddMoreCategories ? 1 : 0.45)
     }
-    .buttonStyle(.plain)
+    .buttonStyle(TBDButtonStyle(.secondary))
     .disabled(!canAddMoreCategories)
     .onHover { hovering in
       if canAddMoreCategories {
@@ -437,18 +396,12 @@ struct ColorOrganizerRoot: View {
 
     return VStack(alignment: .leading, spacing: 16) {
       ZStack(alignment: .top) {
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-          .fill(
-            theme.isDark
-              ? Color(hex: "7F7A94").opacity(0.1) : Color.white.opacity(0.2)
-          )
+        TBDBrickShape()
+          .fill(TBDColor.paper)
           .frame(maxWidth: .infinity, minHeight: containerHeight, maxHeight: containerHeight)
 
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-          .stroke(
-            theme.isDark ? Color(hex: "4E4E4E") : Color(red: 0.94, green: 0.91, blue: 0.87),
-            lineWidth: theme.isDark ? 0.75 : 1
-          )
+        TBDBrickShape()
+          .strokeBorder(TBDColor.line, lineWidth: TBDKit.hair)
           .frame(maxWidth: .infinity, minHeight: containerHeight, maxHeight: containerHeight)
 
         ScrollView(showsIndicators: false) {
@@ -474,10 +427,8 @@ struct ColorOrganizerRoot: View {
       .frame(height: containerHeight, alignment: .topLeading)
 
       Text("This step is optional. You can change the colors anytime while using Tealbrick.")
-        .font(Font.custom("Switzer", size: 12).weight(.medium))
-        .foregroundColor(
-          theme.isDark ? Color(hex: "BDBDBD") : Color(red: 0.48, green: 0.48, blue: 0.48)
-        )
+        .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightNav))
+        .foregroundStyle(TBDColor.muted)
         .frame(maxWidth: .infinity, alignment: .leading)
 
     }
@@ -534,18 +485,12 @@ struct ColorOrganizerRoot: View {
     return ScrollViewReader { proxy in
       VStack(alignment: .leading, spacing: 24) {
         ZStack(alignment: .top) {
-          RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-            .fill(
-              theme.isDark
-                ? Color(hex: "7F7A94").opacity(0.1) : Color.white.opacity(0.2)
-            )
+          TBDBrickShape()
+            .fill(TBDColor.paper)
             .frame(maxWidth: .infinity, minHeight: containerHeight, maxHeight: containerHeight)
 
-          RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-            .stroke(
-              theme.isDark ? Color(hex: "4E4E4E") : Color(red: 0.94, green: 0.91, blue: 0.87),
-              lineWidth: theme.isDark ? 0.75 : 1
-            )
+          TBDBrickShape()
+            .strokeBorder(TBDColor.line, lineWidth: TBDKit.hair)
             .frame(maxWidth: .infinity, minHeight: containerHeight, maxHeight: containerHeight)
 
           ScrollView(showsIndicators: false) {
@@ -594,18 +539,11 @@ struct ColorOrganizerRoot: View {
 
   private var emptyState: some View {
     Text("Add a category to get started.")
-      .font(Font.custom("Switzer", size: 13).weight(.medium))
-      .foregroundColor(
-        theme.isDark ? Color(hex: "BDBDBD") : Color(red: 0.35, green: 0.35, blue: 0.35)
-      )
+      .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightNav))
+      .foregroundStyle(TBDColor.muted)
       .frame(maxWidth: .infinity, alignment: .leading)
       .padding()
-      .background(
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-          .stroke(
-            theme.isDark ? Color(hex: "4E4E4E") : Color(red: 0.89, green: 0.89, blue: 0.89),
-            lineWidth: 0.5)
-      )
+      .overlay(TBDBrickShape().strokeBorder(TBDColor.line, lineWidth: TBDKit.hair))
   }
 
   @ViewBuilder
@@ -614,7 +552,7 @@ struct ColorOrganizerRoot: View {
     case .embedded:
       Color.clear
     case .sheet:
-      (theme.isDark ? theme.sheetOverlay : Color.black.opacity(0.16))
+      TBDColor.scrim
         .ignoresSafeArea()
     }
   }
@@ -624,7 +562,6 @@ struct ColorOrganizerRoot: View {
     let isEnabled: Bool
     let action: () -> Void
 
-    @Environment(\.dayflowTheme) private var theme
     @State private var isPressed = false
     @State private var isHovered = false
 
@@ -637,27 +574,9 @@ struct ColorOrganizerRoot: View {
     var body: some View {
       Button(action: isEnabled ? action : {}) {
         Text(title)
-          .font(Font.custom("Switzer", size: 14).weight(.medium))
-          .tracking(-0.48)
-          .foregroundColor(
-            theme.isDark ? theme.secondaryButtonText : Color(red: 0.26, green: 0.26, blue: 0.26)
-          )
-          .padding(.horizontal, 32)
-          .frame(height: 44)
-          .background(
-            RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-              .fill(theme.isDark ? theme.secondaryButtonFill : Color.white.opacity(0.85))
-              .overlay(
-                RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-                  .stroke(
-                    theme.isDark
-                      ? theme.secondaryButtonBorder : Color(red: 0.88, green: 0.88, blue: 0.88),
-                    lineWidth: 1)
-              )
-          )
-          .opacity(isEnabled ? 1.0 : 0.4)
+          .padding(.horizontal, TBDKit.s4)
       }
-      .buttonStyle(.plain)
+      .buttonStyle(TBDButtonStyle(.secondary, size: .large))
       .onHover { hovering in
         if isEnabled {
           isHovered = hovering

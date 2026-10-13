@@ -6,10 +6,9 @@
 //
 
 import SwiftUI
+import TBDDesign
 
 struct DistractionSummaryCard: View {
-  @Environment(\.dayflowTheme) private var theme
-
   let totalCaptured: String
   let totalDistracted: String
   let distractedRatio: Double
@@ -41,15 +40,12 @@ struct DistractionSummaryCard: View {
     static let donutInnerMaxSize: CGFloat = 136
     static let donutInnerBottomInset: CGFloat = 4.868
 
-    static let donutGradientStart = Color(hex: "FFE3DE")
-    static let donutGradientEnd = Color(hex: "FF694B")
+    static var distractedTextColor: Color { TBDColor.brickInk }
 
-    static let distractedTextColor = Color(hex: "FF694B")
-
-    static let labelFont = Font.custom("Switzer-Medium", size: 14)
-    static let valueFont = Font.custom("Switzer-Medium", size: 20)
-    static let patternTitleFont = Font.custom("Switzer", size: 12).weight(.bold)
-    static let patternBodyFont = Font.custom("Switzer", size: 12)
+    static var labelFont: Font { TBDTokens.Typography.tag }
+    static var valueFont: Font { TBDTokens.Typography.title }
+    static var patternTitleFont: Font { TBDTokens.Typography.label }
+    static var patternBodyFont: Font { TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody) }
   }
 
   var body: some View {
@@ -76,26 +72,16 @@ struct DistractionSummaryCard: View {
 
     return ZStack(alignment: .topLeading) {
       Circle()
-        .fill(theme.targetsTrackFill)
+        .fill(TBDColor.plate)
         .overlay(
           Circle()
-            .stroke(theme.targetsTrackBorder, lineWidth: 1)
+            .strokeBorder(TBDColor.line, lineWidth: TBDKit.hair)
         )
         .frame(width: Design.donutSize, height: Design.donutSize)
 
       if innerDiameter > 0.5 {
         Circle()
-          .fill(
-            LinearGradient(
-              stops: [
-                .init(color: Design.donutGradientStart, location: 0),
-                .init(color: Design.donutGradientEnd, location: 0.78306),
-                .init(color: Design.donutGradientEnd, location: 1),
-              ],
-              startPoint: .leading,
-              endPoint: .trailing
-            )
-          )
+          .fill(TBDColor.brick)
           .frame(width: innerDiameter, height: innerDiameter)
           .rotationEffect(.degrees(90))
           .offset(x: innerX, y: innerY)
@@ -109,7 +95,7 @@ struct DistractionSummaryCard: View {
       statText(
         title: String(localized: "Total time captured"),
         value: totalCaptured,
-        color: theme.textMuted
+        color: TBDColor.muted
       )
 
       statText(
@@ -142,12 +128,12 @@ struct DistractionSummaryCard: View {
 
         Text(patternTitle)
           .font(Design.patternTitleFont)
-          .foregroundColor(theme.textPrimary)
+          .foregroundColor(TBDColor.ink)
       }
 
       Text(patternDescription)
         .font(Design.patternBodyFont)
-        .foregroundColor(theme.textPrimary)
+        .foregroundColor(TBDColor.ink)
         .frame(maxWidth: .infinity, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
     }
@@ -164,5 +150,5 @@ struct DistractionSummaryCard: View {
       "YouTube recommendations pull attention from one video to the next for extended periods."
   )
   .padding(24)
-  .background(Color.white)
+  .background(TBDColor.paper)
 }

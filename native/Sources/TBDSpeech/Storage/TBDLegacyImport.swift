@@ -143,7 +143,7 @@ public enum TBDLegacyImport {
             if report.status == .alreadyImported { changed = try backfillLibraryMeta(legacyURL: legacyURL, into: database) > 0 }
             return StartOutcome(message: report.message, changed: changed)
         } catch {
-            let message = "Could not import Listening data from the earlier TBD version: \(error.localizedDescription) TBD tries again at next start."
+            let message = "Could not import Listen data from the earlier TBD version: \(error.localizedDescription) TBD tries again at next start."
             return StartOutcome(message: message, changed: false)
         }
     }

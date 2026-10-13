@@ -208,11 +208,11 @@ struct TBDMeetingIconControls: View {
             let glyph = Image(systemName: symbol).font(TBDFonts.symbol(12, TBDKit.weightNav))
             if onDark {
                 // Over the dark floating pill: light glyph on a faint light brick. The pill is 40pt high and fixed in width,
-                // so the hit area is 30 x 36 around a 28pt brick.
+                // so the hit area is 36 x 36 around a 28pt brick (C145).
                 glyph.foregroundStyle(tint ?? TBDColor.overlayOn)
                     .frame(width: 28, height: 28)
                     .background(TBDColor.overlayOn.opacity(0.1), in: TBDBrickShape())
-                    .frame(width: 30, height: 36)
+                    .frame(width: 36, height: 36)
                     .contentShape(Rectangle())
             } else if let tint {
                 glyph.foregroundStyle(tint)
@@ -257,7 +257,7 @@ struct TBDStopConfirmButton: View {
                     .foregroundStyle(TBDColor.overlayOn)
                     .frame(width: 28, height: 28)
                     .background(TBDColor.overlayOn.opacity(0.1), in: TBDBrickShape())
-                    .frame(width: 30, height: 36)
+                    .frame(width: 36, height: 36)
                     .contentShape(Rectangle())
             } else {
                 Image(systemName: "stop.fill").font(TBDFonts.symbol(11, TBDKit.weightNav))

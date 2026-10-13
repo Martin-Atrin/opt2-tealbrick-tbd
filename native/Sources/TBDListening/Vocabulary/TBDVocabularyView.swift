@@ -233,7 +233,7 @@ struct TBDVocabularyBackupCard: View {
                 .font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
             HStack(spacing: TBDTokens.Space.sm) {
                 Button { export() } label: { Label("Export…", systemImage: "square.and.arrow.up") }
-                    .buttonStyle(TBDButtonStyle(.primary)).disabled(!model.canExport)
+                    .buttonStyle(TBDButtonStyle(.secondary)).disabled(!model.canExport)
                 Button { importFile() } label: { Label("Import…", systemImage: "square.and.arrow.down") }
                     .buttonStyle(TBDButtonStyle(.secondary))
                 if !model.canExport { Text("Add a word or snippet to enable export.").font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted) }

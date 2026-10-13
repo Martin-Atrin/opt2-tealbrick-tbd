@@ -1,4 +1,5 @@
 import SwiftUI
+import TBDDesign
 
 // MARK: - Hover-expand prototype preview
 
@@ -17,13 +18,13 @@ private struct WeekTimelineHoverPrototypeHarness: View {
     VStack(alignment: .leading, spacing: 12) {
       VStack(alignment: .leading, spacing: 4) {
         Text("Hover-expand prototype")
-          .font(.custom("Switzer", size: 13).weight(.semibold))
-          .foregroundColor(Color(hex: "333333"))
+          .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightNav))
+          .foregroundStyle(TBDColor.ink)
         Text(
           "Hover a short card — the card grows to reveal the full title. No text shifts; only new lines appear below."
         )
-        .font(.custom("Switzer", size: 11))
-        .foregroundColor(Color(hex: "6B5548"))
+        .font(TBDFonts.nunito(11, TBDKit.weightBody))
+        .foregroundStyle(TBDColor.muted)
       }
 
       WeekTimelineGridView(
@@ -36,11 +37,11 @@ private struct WeekTimelineHoverPrototypeHarness: View {
         onClearSelection: { selectedActivity = nil },
         previewPositionedActivities: Self.mockActivities()
       )
-      .background(Color(hex: "FFF6EE"))
+      .background(TBDColor.tile)
     }
     .padding(16)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(Color(hex: "FAF3EB"))
+    .background(TBDColor.paper)
     .preferredColorScheme(.light)
   }
 

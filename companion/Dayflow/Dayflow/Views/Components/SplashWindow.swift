@@ -65,7 +65,10 @@ struct SplashView: View {
     ZStack {
       Color.clear
 
-      Text("Tealbrick").font(.custom("Switzer", size: 32).weight(.semibold))
+      Text("Tealbrick")
+        .font(TBDFonts.nunito(TBDKit.textH1, TBDKit.weightHead))
+        .tracking(TBDKit.textH1 * TBDKit.trackingHead)
+        .foregroundStyle(TBDColor.ink)
         .opacity(logoOpacity)
     }
     .frame(width: 250, height: 250)

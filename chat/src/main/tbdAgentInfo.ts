@@ -5,7 +5,7 @@
  */
 export const TBD_TOOLS = [
   { name: "Companion timeline", description: "Your screen-activity timeline on this Mac." },
-  { name: "Listening", description: "Your local transcripts, meetings and dictations." },
+  { name: "Listen", description: "Your local transcripts, meetings and dictations." },
 ] as const;
 
 export function tbdAgentInfo(modelName: string | null): Record<string, unknown> {

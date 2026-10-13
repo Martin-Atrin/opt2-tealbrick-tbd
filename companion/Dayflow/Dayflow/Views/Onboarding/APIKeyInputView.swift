@@ -28,13 +28,12 @@ struct APIKeyInputView: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
       Text(title)
-        .font(.custom("Switzer", size: 16))
-        .fontWeight(.semibold)
-        .foregroundColor(.black.opacity(0.9))
+        .font(TBDFonts.nunito(TBDKit.textLabel, TBDKit.weightLabel))
+        .foregroundColor(TBDColor.ink)
 
       Text(subtitle)
-        .font(.custom("Switzer", size: 14))
-        .foregroundColor(.black.opacity(0.6))
+        .font(TBDTokens.Typography.hint)
+        .foregroundColor(TBDColor.muted)
 
       // Input field container
       VStack(alignment: .leading, spacing: 8) {
@@ -48,7 +47,8 @@ struct APIKeyInputView: View {
                 .textFieldStyle(.plain)
             }
           }
-          .font(.custom("JetBrainsMono-Regular", size: 13))
+          .font(TBDFonts.mono(13))
+          .foregroundColor(TBDColor.fieldOn)
           .focused($isFocused)
           .onChange(of: apiKey) { _, newValue in
             let cleaned = cleanedAPIKey(newValue)
@@ -61,10 +61,11 @@ struct APIKeyInputView: View {
 
           Button(action: { showPassword.toggle() }) {
             Image(systemName: showPassword ? "eye.slash" : "eye")
-              .font(.system(size: 14, weight: .medium))
-              .foregroundColor(.black.opacity(0.4))
+              .font(TBDFonts.symbol(14, .bold))
+              .frame(minWidth: 36, minHeight: 36)
+              .contentShape(Rectangle())
           }
-          .buttonStyle(.plain)
+          .buttonStyle(TBDButtonStyle(.icon))
           .pointingHandCursor()
 
           // Validation indicator
@@ -72,27 +73,25 @@ struct APIKeyInputView: View {
             Image(
               systemName: validationState == .valid ? "checkmark.circle.fill" : "xmark.circle.fill"
             )
-            .font(.system(size: 16))
-            .foregroundColor(
-              validationState == .valid
-                ? Color(red: 0.34, green: 1, blue: 0.45) : Color(hex: "E91515")
-            )
+            .font(TBDTokens.Typography.body)
+            .foregroundColor(validationState == .valid ? TBDColor.tealInk : TBDColor.brickInk)
             .transition(.scale.combined(with: .opacity))
           }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(Color.white.opacity(0.8))
+        .padding(.vertical, 4)
+        .background(TBDColor.fieldFill, in: TBDBrickShape())
         .overlay(
-          RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-            .stroke(borderColor, lineWidth: isFocused ? TBDTokens.Stroke.bar : TBDTokens.Stroke.hairline)
+          TBDBrickShape()
+            .strokeBorder(borderColor, lineWidth: validationState == .invalid ? 2 : TBDKit.hair)
         )
+        .tbdFocusRing(isFocused, offset: TBDKit.focusOffsetTight)
 
         // Validation message
         if validationState == .invalid {
           Text("API key should be more than 10 characters")
-            .font(.custom("Switzer", size: 12))
-            .foregroundColor(Color(hex: "E91515"))
+            .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+            .foregroundColor(TBDColor.brickInk)
             .transition(.opacity)
         }
       }
@@ -101,31 +100,20 @@ struct APIKeyInputView: View {
       // Help text
       HStack(spacing: 4) {
         Image(systemName: "lock.shield.fill")
-          .font(.system(size: 12))
-          .foregroundColor(Color(red: 0.34, green: 1, blue: 0.45).opacity(0.7))
+          .font(TBDFonts.symbol(12, .regular))
+          .foregroundColor(TBDColor.tealInk)
 
         Text(
           "Your API key is encrypted and stored in your macOS Keychain - never uploaded anywhere"
         )
-        .font(.custom("Switzer", size: 12))
-        .foregroundColor(.black.opacity(0.5))
+        .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+        .foregroundColor(TBDColor.muted)
       }
     }
   }
 
   private var borderColor: Color {
-    if isFocused {
-      switch validationState {
-      case .valid:
-        return Color(red: 0.34, green: 1, blue: 0.45).opacity(0.6)
-      case .invalid:
-        return Color(hex: "E91515").opacity(0.6)
-      case .none:
-        return TBDTokens.accent.opacity(0.6)
-      }
-    } else {
-      return Color.black.opacity(0.1)
-    }
+    validationState == .invalid ? TBDColor.fieldInvalidEdge : TBDColor.fieldEdge
   }
 
   private func validateKey(_ key: String) {

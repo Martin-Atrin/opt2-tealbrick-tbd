@@ -14,8 +14,6 @@ struct ActivityCard: View {
   var onTitleChange: ((String, TimelineActivity) -> Void)? = nil
   var onNavigateToCategoryEditor: (() -> Void)? = nil
   var onRetryBatchCompleted: ((Int64) -> Void)? = nil
-  @Environment(\.dayflowTheme) private var theme
-  @Environment(\.stylePreviewAfter) private var stylePreviewAfter
   @EnvironmentObject private var appState: AppState
   @EnvironmentObject private var categoryStore: CategoryStore
   @EnvironmentObject private var retryCoordinator: RetryCoordinator
@@ -43,8 +41,6 @@ struct ActivityCard: View {
     formatter.timeStyle = .short
     return formatter
   }()
-
-  private var usesDarkChrome: Bool { stylePreviewAfter && theme.isDark }
 
   var body: some View {
     if let activity = activity {
@@ -131,31 +127,30 @@ struct ActivityCard: View {
         Spacer()
         if hasAnyActivities {
           Text("Select an activity to view details")
-            .font(.custom("Switzer", size: 15))
-            .fontWeight(.regular)
-            .foregroundColor(.gray.opacity(0.5))
+            .font(TBDFonts.nunito(TBDKit.textLabel, TBDKit.weightBody))
+            .foregroundStyle(TBDColor.muted)
         } else {
           if appState.isRecording {
             VStack(spacing: 6) {
               Text("No cards yet")
-                .font(.custom("Switzer", size: 14).weight(.semibold))
-                .foregroundColor(.gray.opacity(0.7))
+                .font(TBDFonts.nunito(TBDKit.textControl, TBDKit.weightNav))
+                .foregroundStyle(TBDColor.inkSoft)
               Text(
                 "Cards are generated about every 15 minutes. If Tealbrick is on and no cards show up within 30 minutes, please report a bug."
               )
-              .font(.custom("Switzer", size: 13))
-              .foregroundColor(.gray.opacity(0.6))
+              .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+              .foregroundStyle(TBDColor.muted)
               .multilineTextAlignment(.center)
               .padding(.horizontal, 16)
             }
           } else {
             VStack(spacing: 6) {
               Text("Recording is off")
-                .font(.custom("Switzer", size: 14).weight(.semibold))
-                .foregroundColor(.gray.opacity(0.7))
+                .font(TBDFonts.nunito(TBDKit.textControl, TBDKit.weightNav))
+                .foregroundStyle(TBDColor.inkSoft)
               Text("Tealbrick recording is currently turned off, so cards aren’t being produced.")
-                .font(.custom("Switzer", size: 13))
-                .foregroundColor(.gray.opacity(0.6))
+                .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+                .foregroundStyle(TBDColor.muted)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 16)
             }
@@ -184,57 +179,33 @@ struct ActivityCard: View {
               "\(timeFormatter.string(from: activity.startTime)) - \(timeFormatter.string(from: activity.endTime))"
             )
             .font(
-              Font.custom("Switzer", size: 12)
+              TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody)
             )
-            .foregroundColor(
-              usesDarkChrome ? theme.textSecondary : Color(red: 0.2, green: 0.2, blue: 0.2)
-            )
+            .foregroundStyle(TBDColor.inkSoft)
             .lineLimit(1)
-            .padding(.horizontal, usesDarkChrome ? 6 : 8)
-            .padding(.vertical, 4)
-            .background(
-              usesDarkChrome
-                ? Color(hex: "494B5B")
-                : Color.white.opacity(0.76)
-            )
-            .cornerRadius(TBDTokens.Radius.xs)
-            .overlay(
-              RoundedRectangle(cornerRadius: TBDTokens.Radius.xs)
-                .inset(by: usesDarkChrome ? 0.38 : 0.25)
-                .stroke(
-                  usesDarkChrome ? Color(hex: "888888") : Color(red: 0.88, green: 0.88, blue: 0.88),
-                  lineWidth: usesDarkChrome ? 0.75 : 0.5
-                )
-            )
+            .padding(.horizontal, TBDKit.s2)
+            .padding(.vertical, TBDKit.s1)
+            .background(TBDColor.tile, in: TBDBrickShape())
+            .overlay(TBDBrickShape().strokeBorder(TBDColor.line, lineWidth: TBDKit.hair))
 
             Spacer(minLength: 6)
 
             HStack(spacing: 6) {
               if let badge = categoryBadge(for: activity.category) {
                 HStack(spacing: 6) {
-                  RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
+                  Circle()
                     .fill(badge.indicator)
                     .frame(width: 6, height: 6)
 
                   Text(badge.name)
-                    .font(Font.custom("Switzer", size: 12))
-                    .foregroundColor(
-                      usesDarkChrome ? theme.chipText : Color(red: 0.2, green: 0.2, blue: 0.2)
-                    )
+                    .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+                    .foregroundStyle(TBDColor.inkSoft)
                     .lineLimit(1)
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(usesDarkChrome ? theme.chipFill : Color.white.opacity(0.76))
-                .cornerRadius(TBDTokens.Radius.xs)
-                .overlay(
-                  RoundedRectangle(cornerRadius: TBDTokens.Radius.xs)
-                    .inset(by: 0.25)
-                    .stroke(
-                      usesDarkChrome ? theme.chipBorder : Color(red: 0.88, green: 0.88, blue: 0.88),
-                      lineWidth: 0.5
-                    )
-                )
+                .padding(.horizontal, TBDKit.s2)
+                .padding(.vertical, TBDKit.s1)
+                .background(TBDColor.tile, in: Capsule())
+                .tbdPillEdge(TBDColor.line)
               }
 
               if !isFailedCard(activity) {
@@ -264,8 +235,8 @@ struct ActivityCard: View {
       if isFailedCard(activity), let statusLine = retryCoordinator.statusLine(for: activity.batchId)
       {
         Text(statusLine)
-          .font(.custom("Switzer", size: 11))
-          .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.5))
+          .font(TBDFonts.nunito(11, TBDKit.weightBody))
+          .foregroundStyle(TBDColor.muted)
           .lineLimit(1)
       }
 
@@ -310,10 +281,9 @@ struct ActivityCard: View {
       TextField("Title", text: $draftTitle)
         .textFieldStyle(.plain)
         .font(
-          Font.custom("Switzer", size: 16)
-            .weight(.semibold)
+          TBDFonts.nunito(TBDKit.textBody, TBDKit.weightNav)
         )
-        .foregroundColor(stylePreviewAfter && theme.isDark ? .white : .black)
+        .foregroundStyle(TBDColor.ink)
         .focused($titleFieldFocused)
         .onSubmit { commitTitleEdit(for: activity) }
         .onExitCommand { isEditingTitle = false }
@@ -327,10 +297,9 @@ struct ActivityCard: View {
       HStack(alignment: .center, spacing: 6) {
         Text(isFailedCard(activity) ? String(localized: "Processing failed") : activity.title)
           .font(
-            Font.custom("Switzer", size: 16)
-              .weight(.semibold)
+            TBDFonts.nunito(TBDKit.textBody, TBDKit.weightNav)
           )
-          .foregroundColor(stylePreviewAfter && theme.isDark ? .white : .black)
+          .foregroundStyle(TBDColor.ink)
           .onTapGesture { startTitleEdit(for: activity) }
 
         if isHoveringTitle && !isFailedCard(activity) {
@@ -365,18 +334,17 @@ struct ActivityCard: View {
   private func summaryContent(for activity: TimelineActivity) -> some View {
     VStack(alignment: .leading, spacing: 8) {
       VStack(alignment: .leading, spacing: 3) {
-        Text("SUMMARY")
+        Text("Summary")
           .font(
-            Font.custom("Switzer", size: 12)
-              .weight(.semibold)
+            TBDFonts.nunito(TBDKit.textHint, TBDKit.weightNav)
           )
-          .foregroundColor(Color(red: 0.55, green: 0.55, blue: 0.55))
+          .foregroundStyle(TBDColor.muted)
 
         renderMarkdownText(activity.summary)
           .font(
-            Font.custom("Switzer", size: 12)
+            TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody)
           )
-          .foregroundColor(stylePreviewAfter && theme.isDark ? .white : .black)
+          .foregroundStyle(TBDColor.ink)
           .lineLimit(nil)
           .fixedSize(horizontal: false, vertical: true)
           .textSelection(.enabled)
@@ -384,18 +352,17 @@ struct ActivityCard: View {
 
       if !activity.detailedSummary.isEmpty && activity.detailedSummary != activity.summary {
         VStack(alignment: .leading, spacing: 3) {
-          Text("DETAILED SUMMARY")
+          Text("Detailed summary")
             .font(
-              Font.custom("Switzer", size: 12)
-                .weight(.semibold)
+              TBDFonts.nunito(TBDKit.textHint, TBDKit.weightNav)
             )
-            .foregroundColor(Color(red: 0.55, green: 0.55, blue: 0.55))
+            .foregroundStyle(TBDColor.muted)
 
           renderMarkdownText(formattedDetailedSummary(activity.detailedSummary))
             .font(
-              Font.custom("Switzer", size: 12)
+              TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody)
             )
-            .foregroundColor(stylePreviewAfter && theme.isDark ? .white : .black)
+            .foregroundStyle(TBDColor.ink)
             .lineLimit(nil)
             .fixedSize(horizontal: false, vertical: true)
             .textSelection(.enabled)
@@ -455,7 +422,7 @@ struct ActivityCard: View {
 
     guard let resolvedCategory = category else { return nil }
 
-    let nsColor = NSColor(hex: resolvedCategory.colorHex) ?? NSColor(hex: "#4F80EB") ?? .systemBlue
+    let nsColor = NSColor(hex: resolvedCategory.colorHex) ?? NSColor(TBDColor.toneTeal)
     return (name: resolvedCategory.name, indicator: Color(nsColor: nsColor))
   }
 
@@ -478,22 +445,22 @@ struct ActivityCard: View {
           .frame(width: 16, height: 16)
 
         Text("Processing")
-          .font(.custom("Switzer", size: 13))
-          .foregroundColor(Color(red: 0.4, green: 0.4, blue: 0.4))
+          .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+          .foregroundStyle(TBDColor.inkSoft)
           .lineLimit(1)
       }
-      .padding(.horizontal, 12)
-      .padding(.vertical, 8)
-      .background(Color(red: 0.91, green: 0.85, blue: 0.8))
-      .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.base).strokeBorder(TBDTokens.border, lineWidth: TBDTokens.Stroke.hairline))
+      .padding(.horizontal, TBDKit.s3)
+      .padding(.vertical, TBDKit.s2)
+      .background(TBDColor.plate, in: TBDBrickShape())
+      .overlay(TBDBrickShape().strokeBorder(TBDColor.line, lineWidth: TBDKit.hair))
     } else {
       // Retry button - square brick primary button, matching the "Resume" CTA
       Button(action: { handleRetry(for: activity) }) {
         HStack(alignment: .center, spacing: 4) {
           Text("Retry")
-            .font(.custom("Switzer", size: 13).weight(.medium))
+            .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightNav))
           Image(systemName: "arrow.clockwise")
-            .font(.system(size: 13, weight: .medium))
+            .font(TBDFonts.symbol(13, TBDKit.weightNav))
         }
       }
       .buttonStyle(TBDButtonStyle(.primary))
@@ -536,37 +503,37 @@ struct ActivityCard: View {
               .frame(width: geometry.size.width, height: geometry.size.height)
               .clipped()
           } else {
-            RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-              .fill(Color.gray.opacity(0.3))
+            TBDBrickShape()
+              .fill(TBDColor.plate)
               .overlay(
                 Image(systemName: "photo")
-                  .font(.system(size: 18, weight: .medium))
-                  .foregroundColor(Color.white.opacity(0.9))
+                  .font(TBDFonts.symbol(18, TBDKit.weightNav))
+                  .foregroundStyle(TBDColor.inkSoft)
               )
           }
 
           if isPreparingSlideshow {
             ZStack {
-              RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-                .fill(Color.black.opacity(0.28))
+              TBDBrickShape()
+                .fill(TBDColor.overlayFill.opacity(0.55))
 
               HStack(spacing: 8) {
                 ProgressView()
                   .scaleEffect(0.8)
                 Text("Preparing timelapse...")
-                  .font(.custom("Switzer", size: 12).weight(.semibold))
-                  .foregroundColor(.white)
+                  .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightNav))
+                  .foregroundStyle(TBDColor.overlayOn)
               }
             }
           } else {
             ZStack {
               Circle()
-                .strokeBorder(Color.white.opacity(0.9), lineWidth: 2)
+                .strokeBorder(TBDColor.overlayOn.opacity(0.9), lineWidth: 2)
                 .frame(width: 64, height: 64)
-                .background(Circle().fill(Color.black.opacity(0.35)))
+                .background(Circle().fill(TBDColor.overlayFill.opacity(0.6)))
               Image(systemName: "play.fill")
-                .foregroundColor(.white)
-                .font(.system(size: 24, weight: .bold))
+                .foregroundStyle(TBDColor.overlayOn)
+                .font(TBDFonts.symbol(24, TBDKit.weightLabel))
             }
           }
         }
@@ -591,8 +558,8 @@ struct ActivityCard: View {
 
       if let errorMessage = slideshowError {
         Text(errorMessage)
-          .font(Font.custom("Switzer", size: 11))
-          .foregroundColor(Color(red: 0.76, green: 0.16, blue: 0.2))
+          .font(TBDFonts.nunito(11, TBDKit.weightBody))
+          .foregroundStyle(TBDColor.brickInk)
       }
     }
   }

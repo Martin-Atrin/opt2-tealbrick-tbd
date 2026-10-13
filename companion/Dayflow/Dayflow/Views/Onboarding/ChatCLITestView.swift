@@ -8,9 +8,6 @@ struct ChatCLITestView: View {
   let onTestComplete: (Bool) -> Void
   var usesOnboardingStyle: Bool = false
 
-  let accentColor = Color(red: 0.25, green: 0.17, blue: 0)
-  let successAccentColor = Color(red: 0.34, green: 1, blue: 0.45)
-
   @State var isTesting = false
   @State var success = false
   @State var resultMessage: String?
@@ -19,40 +16,28 @@ struct ChatCLITestView: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
       Text("We'll ask your CLI a simple question to verify it's working and signed in.")
-        .font(.custom("Switzer", size: usesOnboardingStyle ? 16 : 12))
-        .foregroundColor(usesOnboardingStyle ? Color(hex: "898989") : SettingsStyle.secondary)
+        .font(usesOnboardingStyle ? TBDTokens.Typography.body : TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+        .foregroundColor(TBDColor.muted)
         .fixedSize(horizontal: false, vertical: true)
 
       if usesOnboardingStyle {
-        DayflowSurfaceButton(
-          action: runTest,
-          content: {
-            HStack(spacing: 4) {
-              Group {
-                if isTesting {
-                  ProgressView()
-                    .controlSize(.small)
-                    .scaleEffect(0.6)
-                } else {
-                  Image(systemName: "bolt.fill").font(.system(size: 13, weight: .semibold))
-                }
+        Button(action: runTest) {
+          HStack(spacing: 4) {
+            Group {
+              if isTesting {
+                ProgressView()
+                  .controlSize(.small)
+                  .scaleEffect(0.6)
+              } else {
+                Image(systemName: "bolt.fill").font(TBDFonts.symbol(13, .bold))
               }
-              .frame(width: 16, height: 16)
-              Text(isTesting ? String(localized: "Testing…") : String(localized: "Test CLI"))
-                .font(.custom("Switzer", size: 14))
-                .fontWeight(.medium)
             }
-          },
-          background: Color(hex: "FDCEA4"),
-          foreground: Color(hex: "926244"),
-          borderColor: Color(hex: "F1CEBC"),
-          cornerRadius: TBDTokens.Radius.base,
-          horizontalPadding: 24,
-          verticalPadding: 8,
-          fixedHeight: 41,
-          showOverlayStroke: false,
-          innerGlowColor: Color(hex: "FFECE6")
-        )
+            .frame(width: 16, height: 16)
+            Text(isTesting ? String(localized: "Testing…") : String(localized: "Test CLI"))
+          }
+        }
+        .buttonStyle(TBDButtonStyle(.secondary))
+        .pointingHandCursor()
         .disabled(isTesting || selectedTool == nil)
         .opacity(selectedTool == nil ? 0.5 : 1)
       } else {
@@ -67,8 +52,8 @@ struct ChatCLITestView: View {
 
       if selectedTool == nil {
         Text("Select ChatGPT or Claude above before running the test.")
-          .font(.custom("Switzer", size: 12))
-          .foregroundColor(SettingsStyle.secondary)
+          .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+          .foregroundColor(TBDColor.muted)
       }
 
       if success {
@@ -89,17 +74,14 @@ struct ChatCLITestView: View {
           if let debug = debugOutput {
             ScrollView {
               Text(debug)
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundColor(SettingsStyle.secondary)
+                .font(TBDFonts.mono(11))
+                .foregroundColor(TBDColor.muted)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .frame(maxHeight: 120)
             .padding(10)
-            .background(
-              RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-                .fill(Color.black.opacity(0.03))
-            )
+            .background(TBDColor.plate, in: TBDBrickShape())
           }
         }
       }

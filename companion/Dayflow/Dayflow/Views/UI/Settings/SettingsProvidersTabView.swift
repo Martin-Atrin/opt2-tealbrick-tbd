@@ -813,6 +813,7 @@ struct LocalModelUpgradeSheet: View {
         SettingsPrimaryButton(
           title: buttonTitle,
           systemImage: "arrow.down.circle.fill",
+          prominent: false,
           action: { NSWorkspace.shared.open(url) }
         )
       }

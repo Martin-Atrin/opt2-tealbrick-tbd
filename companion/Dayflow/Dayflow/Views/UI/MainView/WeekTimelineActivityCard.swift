@@ -17,8 +17,6 @@ struct WeekTimelineCardPalette {
 }
 
 struct WeekTimelineActivityCard: View {
-  @Environment(\.dayflowTheme) private var theme
-
   let cardId: String
   let title: String
   let hoverTimeLabel: String
@@ -136,14 +134,14 @@ struct WeekTimelineActivityCard: View {
           primaryHost: faviconPrimaryHost,
           secondaryHost: faviconSecondaryHost,
           size: 12,
-          backgroundColor: isFailedCard ? theme.cardFailedFill : palette.fill
+          backgroundColor: isFailedCard ? TBDColor.brickWash : palette.fill
         )
       }
 
       VStack(alignment: .leading, spacing: 2) {
         Text(displayTitle)
-          .font(.custom("Switzer", size: titleFontSize).weight(.semibold))
-          .foregroundColor(palette.title)
+          .font(TBDFonts.nunito(titleFontSize, TBDKit.weightNav))
+          .foregroundStyle(palette.title)
           .multilineTextAlignment(.leading)
           .lineLimit(renderingExpanded ? nil : maxUnhoveredTitleLines)
           .truncationMode(.tail)
@@ -165,14 +163,14 @@ struct WeekTimelineActivityCard: View {
     // stroke, and no left accent bar. Kept as three inline branches rather
     // than a dedicated Modifier so it's obvious at read-time what's
     // special-cased.
-    .background(isFailedCard ? theme.cardFailedFill : palette.fill)
-    .background(theme.panelSolid)
-    .clipShape(RoundedRectangle(cornerRadius: TBDTokens.Radius.base))
+    .background(isFailedCard ? TBDColor.brickWash : palette.fill)
+    .background(TBDColor.tile)
+    .clipShape(TBDBrickShape())
     .overlay(
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
+      TBDBrickShape()
         .stroke(
           isFailedCard
-            ? Color(red: 1, green: 0.16, blue: 0.11)
+            ? TBDColor.brick
             : (isSelected ? palette.accent : palette.border),
           style: isFailedCard
             ? StrokeStyle(lineWidth: 0.5, dash: [2.5, 2.5])
@@ -181,22 +179,14 @@ struct WeekTimelineActivityCard: View {
     )
     .overlay(alignment: .leading) {
       if !isFailedCard {
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
+        TBDBrickShape()
           .fill(palette.accent)
           .frame(width: 5)
       }
     }
     .overlay(
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-        .stroke(theme.textPrimary.opacity(isHovered ? 0.10 : 0), lineWidth: 1)
-    )
-    // Hovered cards lift onto a hard, zero-blur offset shadow (the brick
-    // "mortar") instead of a soft drop-shadow — flat content otherwise
-    // never floats.
-    .background(
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-        .fill(TBDTokens.ink.opacity(isHovered ? TBDTokens.Shadow.brickSm.opacity : 0))
-        .offset(x: TBDTokens.Shadow.brickSm.x, y: TBDTokens.Shadow.brickSm.y)
+      TBDBrickShape()
+        .stroke(TBDColor.ink.opacity(isHovered ? 0.10 : 0), lineWidth: 1)
     )
     .offset(x: isHovered ? -1 : 0, y: isHovered ? -1 : 0)
   }
@@ -214,7 +204,7 @@ struct WeekTimelineActivityCard: View {
 
       VStack(alignment: .leading, spacing: 2) {
         Text(displayTitle)
-          .font(.custom("Switzer", size: titleFontSize).weight(.semibold))
+          .font(TBDFonts.nunito(titleFontSize, TBDKit.weightNav))
           .multilineTextAlignment(.leading)
           .fixedSize(horizontal: false, vertical: true)
 
@@ -252,8 +242,8 @@ struct WeekTimelineActivityCard: View {
       }
 
       Text(statusLine)
-        .font(.custom("Switzer", size: 9))
-        .foregroundColor(theme.cardTime)
+        .font(TBDFonts.nunito(9, TBDKit.weightBody))
+        .foregroundStyle(TBDColor.brickInk)
         .lineLimit(renderingExpanded ? nil : 1)
         .truncationMode(.tail)
     }

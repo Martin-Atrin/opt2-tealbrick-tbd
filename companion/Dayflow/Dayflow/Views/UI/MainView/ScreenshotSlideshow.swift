@@ -41,29 +41,29 @@ struct ScreenshotSlideshowModal: View {
         VStack(alignment: .leading, spacing: 3) {
           if let title {
             Text(title)
-              .font(.title3)
-              .fontWeight(.semibold)
+              .font(TBDTokens.Typography.title)
+              .foregroundStyle(TBDColor.ink)
           }
           if let startTime, let endTime {
             Text(
               "\(Self.timeFormatter.string(from: startTime)) to \(Self.timeFormatter.string(from: endTime))"
             )
-            .font(.caption)
-            .foregroundColor(Color(red: 0.4, green: 0.4, blue: 0.4))
+            .font(TBDTokens.Typography.hint)
+            .foregroundStyle(TBDColor.muted)
           }
         }
         Spacer()
         Button(action: { dismiss() }) {
-          Image(systemName: "xmark.circle.fill")
-            .font(.system(size: 20))
-            .foregroundColor(Color.black.opacity(0.5))
+          Image(systemName: "xmark")
+            .font(TBDFonts.symbol(14, TBDKit.weightNav))
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(TBDButtonStyle(.icon))
+        .accessibilityLabel(Text("Close"))
         .pointingHandCursorOnHover(reassertOnPressEnd: true)
       }
-      .padding(.horizontal, 16)
-      .padding(.vertical, 10)
-      .background(Color.white)
+      .padding(.horizontal, TBDKit.s4)
+      .padding(.vertical, TBDKit.s2)
+      .background(TBDColor.tile)
 
       Divider()
 
@@ -97,10 +97,10 @@ struct ScreenshotSlideshowModal: View {
         .padding(.horizontal)
         .padding(.bottom, 12)
       }
-      .background(Color.white)
+      .background(TBDColor.tile)
     }
     .frame(minWidth: 960, minHeight: 640)
-    .background(Color.white)
+    .background(TBDColor.tile)
     .overlay {
       ScreenshotSlideshowDisplayLinkDriver(
         playbackState: playbackModel.timelineState,
@@ -162,7 +162,7 @@ private struct ScreenshotSlideshowStageView: View {
   var body: some View {
     GeometryReader { geometry in
       ZStack {
-        Color.black.opacity(0.95)
+        TBDColor.overlayFill
 
         if let image = mediaState.currentImage {
           ScreenshotSlideshowLayerBackedImageView(image: image)
@@ -185,12 +185,12 @@ private struct ScreenshotSlideshowStageView: View {
         if !playbackState.isPlaying {
           ZStack {
             Circle()
-              .strokeBorder(Color.white.opacity(0.9), lineWidth: 2)
+              .strokeBorder(TBDColor.overlayOn.opacity(0.9), lineWidth: 2)
               .frame(width: 68, height: 68)
-              .background(Circle().fill(Color.black.opacity(0.35)))
+              .background(Circle().fill(TBDColor.overlayFill.opacity(0.6)))
             Image(systemName: "play.fill")
-              .foregroundColor(.white)
-              .font(.system(size: 26, weight: .bold))
+              .foregroundStyle(TBDColor.overlayOn)
+              .font(TBDFonts.symbol(26, TBDKit.weightLabel))
           }
           .allowsHitTesting(false)
         }
@@ -201,12 +201,12 @@ private struct ScreenshotSlideshowStageView: View {
             Spacer()
             Button(action: onCycleSpeed) {
               Text(playbackState.speedLabel)
-                .font(.custom("Switzer", size: 16).weight(.semibold))
-                .foregroundColor(.white)
-                .padding(.horizontal, 12)
+                .font(TBDFonts.nunito(TBDKit.textBody, TBDKit.weightNav))
+                .foregroundStyle(TBDColor.overlayOn)
+                .padding(.horizontal, TBDKit.s3)
                 .padding(.vertical, 6)
-                .background(Color.black.opacity(0.8))
-                .cornerRadius(TBDTokens.Radius.xs)
+                .background(TBDColor.overlayFill.opacity(0.9), in: TBDBrickShape())
+                .overlay(TBDBrickShape().strokeBorder(TBDColor.overlayOn.opacity(0.35), lineWidth: TBDKit.hair))
             }
             .buttonStyle(PlainButtonStyle())
             .pointingHandCursorOnHover(reassertOnPressEnd: true)
@@ -456,7 +456,7 @@ private final class ScreenshotFilmstripGenerator {
   private func placeholderImage(width: CGFloat, height: CGFloat) -> NSImage {
     let image = NSImage(size: NSSize(width: width, height: height))
     image.lockFocus()
-    NSColor(calibratedWhite: 0.94, alpha: 1).setFill()
+    NSColor(TBDColor.plate).setFill()
     NSBezierPath(rect: NSRect(x: 0, y: 0, width: width, height: height)).fill()
     image.unlockFocus()
     return image
@@ -521,12 +521,11 @@ private struct ScreenshotScrubberView: View {
           ZStack(alignment: .topLeading) {
             Color.clear.frame(height: chipRowHeight)
             Text(timeLabel(for: currentTime))
-              .font(.custom("Switzer", size: 12).weight(.semibold))
-              .foregroundColor(.white)
-              .padding(.horizontal, 8)
-              .padding(.vertical, 4)
-              .background(Color.black.opacity(0.85))
-              .cornerRadius(TBDTokens.Radius.xs)
+              .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightNav))
+              .foregroundStyle(TBDColor.primaryOn)
+              .padding(.horizontal, TBDKit.s2)
+              .padding(.vertical, TBDKit.s1)
+              .background(TBDColor.primaryFill, in: Capsule())
               .scaleEffect(0.8)
               .position(x: x, y: chipRowHeight / 2)
           }
@@ -534,7 +533,7 @@ private struct ScreenshotScrubberView: View {
 
           ZStack(alignment: .topLeading) {
             Rectangle()
-              .fill(Color.white)
+              .fill(TBDColor.tile)
 
             let tileWidth = filmstripHeight * aspect
             let columnsNeeded = max(1, Int(ceil(stripWidth / tileWidth)))
@@ -551,7 +550,7 @@ private struct ScreenshotScrubberView: View {
               } else if images.isEmpty {
                 ForEach(0..<columnsNeeded, id: \.self) { _ in
                   Rectangle()
-                    .fill(Color.black.opacity(0.06))
+                    .fill(TBDColor.plate)
                     .frame(width: tileWidth, height: filmstripHeight)
                 }
               } else {
@@ -564,7 +563,7 @@ private struct ScreenshotScrubberView: View {
                         .aspectRatio(contentMode: .fill)
                         .scaleEffect(zoom, anchor: .center)
                     } else {
-                      Rectangle().fill(Color.black.opacity(0.06))
+                      Rectangle().fill(TBDColor.plate)
                     }
                   }
                   .frame(width: tileWidth, height: filmstripHeight)
@@ -581,12 +580,12 @@ private struct ScreenshotScrubberView: View {
 
             let barHeight = filmstripHeight + 3
             Rectangle()
-              .fill(Color.black)
+              .fill(TBDColor.ink)
               .frame(width: 5, height: barHeight)
               .offset(x: xInside - 2.5, y: -3)
               .allowsHitTesting(false)
             Rectangle()
-              .fill(Color.white)
+              .fill(TBDColor.tile)
               .frame(width: 3, height: barHeight)
               .offset(x: xInside - 1.5, y: -3)
               .allowsHitTesting(false)

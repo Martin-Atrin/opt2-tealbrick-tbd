@@ -361,7 +361,6 @@ extension MainView {
 }
 
 private struct TimelineFailureToastView: View {
-  @Environment(\.dayflowTheme) private var theme
   let title: String?
   let message: String
   let actionTitle: String
@@ -372,8 +371,8 @@ private struct TimelineFailureToastView: View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .top, spacing: 10) {
         Image(systemName: "exclamationmark.triangle.fill")
-          .font(.system(size: 14))
-          .foregroundColor(Color(hex: "C04A00"))
+          .font(TBDFonts.symbol(14, TBDKit.weightBody))
+          .foregroundStyle(TBDColor.brickInk)
           .padding(.top, 2)
 
         // Mirrors ScreenRecordingPermissionNoticeView: semibold title with a
@@ -381,56 +380,43 @@ private struct TimelineFailureToastView: View {
         VStack(alignment: .leading, spacing: 3) {
           if let title {
             Text(title)
-              .font(.custom("Switzer", size: 13))
-              .fontWeight(.semibold)
-              .foregroundColor(theme.textPrimary)
+              .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightNav))
+              .foregroundStyle(TBDColor.ink)
           }
 
           Text(message)
-            .font(.custom("Switzer", size: title == nil ? 13 : 12))
-            .foregroundColor(title == nil ? theme.textPrimary : theme.textSecondary)
+            .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+            .foregroundStyle(title == nil ? TBDColor.ink : TBDColor.muted)
             .fixedSize(horizontal: false, vertical: true)
         }
 
         Button(action: onDismiss) {
           Image(systemName: "xmark")
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundColor(theme.textMuted)
-            .frame(width: 18, height: 18)
+            .font(TBDFonts.symbol(11, TBDKit.weightNav))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TBDButtonStyle(.icon))
+        .accessibilityLabel(Text("Close"))
         .pointingHandCursorOnHover(reassertOnPressEnd: true)
       }
 
-      DayflowSurfaceButton(
-        action: onOpenSettings,
-        content: {
-          HStack(spacing: 6) {
-            Image(systemName: "gearshape")
-              .font(.system(size: 12))
-            Text(actionTitle)
-              .font(.custom("Switzer", size: 12))
-              .fontWeight(.semibold)
-          }
-        },
-        background: theme.primaryButtonFill,
-        foreground: theme.primaryButtonText,
-        borderColor: .clear,
-        cornerRadius: TBDTokens.Radius.base,
-        horizontalPadding: 14,
-        verticalPadding: 8,
-        showOverlayStroke: true
-      )
+      Button(action: onOpenSettings) {
+        HStack(spacing: 6) {
+          Image(systemName: "gearshape")
+            .font(TBDFonts.symbol(12, TBDKit.weightNav))
+          Text(actionTitle)
+        }
+      }
+      .buttonStyle(TBDButtonStyle(.secondary))
+      .pointingHandCursor()
     }
     .padding(14)
     .frame(width: 360, alignment: .leading)
-    // Floating notice: square brick with a hard offset shadow, no blur.
+    // Floating notice: brick with the one float shadow.
     .tbdFloating()
   }
 }
 
 private struct ScreenRecordingPermissionNoticeView: View {
-  @Environment(\.dayflowTheme) private var theme
   let onOpenSettings: () -> Void
   let onDismiss: () -> Void
 
@@ -438,55 +424,43 @@ private struct ScreenRecordingPermissionNoticeView: View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .top, spacing: 10) {
         Image(systemName: "record.circle.fill")
-          .font(.system(size: 15))
-          .foregroundColor(Color(hex: "C7352D"))
+          .font(TBDFonts.symbol(15, TBDKit.weightBody))
+          .foregroundStyle(TBDColor.brick)
           .padding(.top, 2)
 
         VStack(alignment: .leading, spacing: 3) {
           Text("Screen recording access needed")
-            .font(.custom("Switzer", size: 13))
-            .fontWeight(.semibold)
-            .foregroundColor(theme.textPrimary)
+            .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightNav))
+            .foregroundStyle(TBDColor.ink)
 
           Text("Tealbrick cannot update your timeline until access is restored.")
-            .font(.custom("Switzer", size: 12))
-            .foregroundColor(theme.textSecondary)
+            .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+            .foregroundStyle(TBDColor.muted)
             .fixedSize(horizontal: false, vertical: true)
         }
 
         Button(action: onDismiss) {
           Image(systemName: "xmark")
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundColor(theme.textMuted)
-            .frame(width: 18, height: 18)
+            .font(TBDFonts.symbol(11, TBDKit.weightNav))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TBDButtonStyle(.icon))
+        .accessibilityLabel(Text("Close"))
         .pointingHandCursorOnHover(reassertOnPressEnd: true)
       }
 
-      DayflowSurfaceButton(
-        action: onOpenSettings,
-        content: {
-          HStack(spacing: 6) {
-            Image(systemName: "gearshape")
-              .font(.system(size: 12))
-            Text("Open System Settings")
-              .font(.custom("Switzer", size: 12))
-              .fontWeight(.semibold)
-          }
-        },
-        background: theme.primaryButtonFill,
-        foreground: theme.primaryButtonText,
-        borderColor: .clear,
-        cornerRadius: TBDTokens.Radius.base,
-        horizontalPadding: 14,
-        verticalPadding: 8,
-        showOverlayStroke: true
-      )
+      Button(action: onOpenSettings) {
+        HStack(spacing: 6) {
+          Image(systemName: "gearshape")
+            .font(TBDFonts.symbol(12, TBDKit.weightNav))
+          Text("Open System Settings")
+        }
+      }
+      .buttonStyle(TBDButtonStyle(.secondary))
+      .pointingHandCursor()
     }
     .padding(14)
     .frame(width: 360, alignment: .leading)
-    // Floating notice: square brick with a hard offset shadow, no blur.
+    // Floating notice: brick with the one float shadow.
     .tbdFloating()
   }
 }

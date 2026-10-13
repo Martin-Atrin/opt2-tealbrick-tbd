@@ -5,8 +5,6 @@ import TBDDesign
 // Week view. The parent grid positions it; this view only renders the pill.
 // Colors mirror the Day view's status cards so both views flip together.
 struct WeekRecordingStatusCard: View {
-  @Environment(\.dayflowTheme) private var theme
-
   let mode: RecordingControlMode
   let width: CGFloat
   let height: CGFloat
@@ -32,19 +30,14 @@ struct WeekRecordingStatusCard: View {
       alignment: .leading
     )
     .background(
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-        .fill(theme.panelSolid)
-        .overlay(
-          RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-            .fill(isActive ? theme.generatingGradient : theme.pausedCardGradient)
-        )
+      TBDBrickShape()
+        .fill(isActive ? TBDColor.statusLiveFill : TBDColor.statusIdleFill)
     )
-    .overlay {
-      if !isActive {
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-          .stroke(theme.cardBorder.opacity(0.6), lineWidth: 0.5)
-      }
-    }
+    .overlay(
+      TBDBrickShape()
+        .strokeBorder(
+          isActive ? TBDColor.statusLiveEdge : TBDColor.statusIdleEdge, lineWidth: TBDKit.hair)
+    )
   }
 
   @ViewBuilder
@@ -55,28 +48,29 @@ struct WeekRecordingStatusCard: View {
         TimelineThinkingSpinner(config: spinnerConfig, visualScale: 0.4)
         if !compact {
           Text("Next card...")
-            .font(.custom("Switzer", size: 10).weight(.semibold))
-            .foregroundColor(.white)
+            .font(TBDFonts.nunito(10, TBDKit.weightNav))
+            .foregroundStyle(TBDColor.statusLiveOn)
             .lineLimit(1)
         }
       }
     case .pausedTimed, .pausedIndefinite:
       Label("Paused", systemImage: "pause.fill")
-        .font(.custom("Switzer", size: 10).weight(.medium))
-        .foregroundColor(theme.pausedCardText)
+        .font(TBDFonts.nunito(10, TBDKit.weightNav))
+        .foregroundStyle(TBDColor.statusIdleOn)
     case .stopped:
       Label("Resume", systemImage: "play.fill")
-        .font(.custom("Switzer", size: 10).weight(.medium))
-        .foregroundColor(theme.pausedCardText)
+        .font(TBDFonts.nunito(10, TBDKit.weightNav))
+        .foregroundStyle(TBDColor.statusIdleOn)
     }
   }
 
   private var spinnerConfig: TimelineSpinnerConfig {
     var config = TimelineSpinnerConfig.reference
     config.gap = 1.0
-    config.colorDim = .init(0.263, 0.365, 0.592)
-    config.colorMid = .init(0.722, 0.518, 0.737)
-    config.colorHot = .init(0.965, 0.745, 0.455)
+    // Kit teal ramp (teal-deep, teal, teal-ink dark) for the thinking spinner.
+    config.colorDim = .init(0.043, 0.396, 0.388)
+    config.colorMid = .init(0.043, 0.584, 0.580)
+    config.colorHot = .init(0.435, 0.827, 0.812)
     return config
   }
 }

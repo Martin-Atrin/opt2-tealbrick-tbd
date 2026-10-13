@@ -1,4 +1,5 @@
 import SwiftUI
+import TBDDesign
 
 // MARK: - Constants
 
@@ -20,12 +21,12 @@ private enum K {
   static let counterBounce: CGFloat = 1.05
   static let segStaggerSec: Double = 0.07
 
-  // Shared branding follows the selected palette.
-  static var trackColor: Color { CompanionPalette.soft }
-  static var fillColor: Color { CompanionPalette.accent }
-  static var textColor: Color { CompanionPalette.accent }
-  static var particleColors: [Color] { [CompanionPalette.accent, CompanionPalette.soft, CompanionPalette.alert] }
-  static var confettiColors: [Color] { [CompanionPalette.accent, CompanionPalette.alert, CompanionPalette.border] }
+  // Kit marks: teal track wash, teal fill, tealInk text; brick for the celebration accents.
+  static var trackColor: Color { TBDColor.tealWash }
+  static var fillColor: Color { TBDColor.teal }
+  static var textColor: Color { TBDColor.tealInk }
+  static var particleColors: [Color] { [TBDColor.teal, TBDColor.tealWashLine, TBDColor.brick] }
+  static var confettiColors: [Color] { [TBDColor.teal, TBDColor.brick, TBDColor.lineStrong] }
 
   // Dynamic geometry helpers
   static func segFrac(for count: Int) -> CGFloat {
@@ -91,8 +92,8 @@ struct ProgressRingView: View {
         .rotationEffect(.degrees(ringRotation))
 
       Text("\(displayPercent)%")
-        .font(.custom("Switzer-Bold", size: 16))
-        .foregroundColor(K.textColor)
+        .font(TBDFonts.nunito(TBDKit.textBody, TBDKit.weightLabel))
+        .foregroundStyle(K.textColor)
         .scaleEffect(percentScale)
 
       ForEach(particles) { p in ParticleView(data: p) }
@@ -117,7 +118,7 @@ struct ProgressRingView: View {
         Circle()
           .trim(from: 0, to: segFrac)
           .stroke(style: StrokeStyle(lineWidth: K.strokeWidth, lineCap: .round))
-          .foregroundColor(K.trackColor)
+          .foregroundStyle(K.trackColor)
           .rotationEffect(.degrees(segRotation(i)))
       }
 
@@ -126,7 +127,7 @@ struct ProgressRingView: View {
           Circle()
             .trim(from: 0, to: segFillAmounts[i])
             .stroke(style: StrokeStyle(lineWidth: segStrokeWidths[i], lineCap: .round))
-            .foregroundColor(K.fillColor)
+            .foregroundStyle(K.fillColor)
             .rotationEffect(.degrees(segRotation(i)))
             .opacity(segVisible[i] ? 1 : 0)
         }
@@ -436,7 +437,7 @@ private struct ConfettiView: View {
   @State private var progress: CGFloat = 0
 
   var body: some View {
-    RoundedRectangle(cornerRadius: 2)
+    Rectangle()
       .fill(data.color)
       .frame(width: data.width, height: data.height)
       .offset(x: data.targetX * progress, y: data.targetY * progress)
@@ -458,7 +459,7 @@ private struct ConfettiView: View {
 #Preview("Progress Ring") {
   ProgressRingDemoView()
     .frame(width: 300, height: 280)
-    .background(Color(red: 253.0 / 255, green: 248.0 / 255, blue: 241.0 / 255))
+    .background(TBDColor.paper)
 }
 
 /// Interactive demo wrapper for previewing the ring with step controls.
@@ -471,11 +472,11 @@ private struct ProgressRingDemoView: View {
 
       HStack(spacing: 8) {
         Button("Advance") { filled = min(filled + 1, 7) }
-          .buttonStyle(.borderedProminent)
+          .buttonStyle(TBDButtonStyle(.primary))
           .disabled(filled >= 7)
 
         Button("Reset") { filled = 0 }
-          .buttonStyle(.bordered)
+          .buttonStyle(TBDButtonStyle(.secondary))
       }
     }
   }

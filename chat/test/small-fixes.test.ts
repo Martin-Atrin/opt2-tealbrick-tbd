@@ -16,7 +16,7 @@ test("TBD's manifest keeps its tools for the panel and the @ and / menus, and na
   const x = summarize(tbdAgentInfo("claude-opus-5-5"));
   assert.equal(x.native, true);
   assert.deepEqual(x.tools, TBD_TOOLS.map((t) => ({ name: t.name, description: t.description })));
-  assert.deepEqual(x.tools.map((t: { name: string }) => t.name), ["Companion timeline", "Listening"]);
+  assert.deepEqual(x.tools.map((t: { name: string }) => t.name), ["Companion timeline", "Listen"]);
   assert.match(x.model, /claude-opus-5-5$/);
 });
 

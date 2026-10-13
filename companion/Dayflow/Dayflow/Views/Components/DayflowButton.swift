@@ -16,22 +16,8 @@ struct DayflowButton: View {
   var fontSize: CGFloat = 16
   var isSubtle: Bool = false
 
-  @State private var isPressed = false
-  @State private var isHovered = false
-  @State private var showPulse = false
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-  // Animation constants following Emil Kowalski principles
-  private let hoverAnimation = TBDMotion.spring
-  private let pressAnimation = TBDMotion.spring
-
   var body: some View {
     Button(action: {
-      // Trigger pulse animation
-      withAnimation(TBDMotion.instant) {
-        isPressed = true
-      }
-
       // Haptic feedback on macOS 11+
       if #available(macOS 11.0, *) {
         NSHapticFeedbackManager.defaultPerformer.perform(
@@ -40,97 +26,17 @@ struct DayflowButton: View {
         )
       }
 
-      // Reset and call action
+      // Call the action after a short press delay
       DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-        withAnimation(pressAnimation) {
-          isPressed = false
-          showPulse = true
-        }
         action()
-
-        // Reset pulse
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-          showPulse = false
-        }
       }
     }) {
       Text(title)
-        .font(.custom("Switzer", size: fontSize))
-        .fontWeight(.semibold)
-        .foregroundColor(isSubtle ? .black.opacity(0.7) : .white)
-        .frame(width: width, height: 56, alignment: .center)
-        .background(
-          ZStack {
-            // Main background
-            if isSubtle {
-              Color.white.opacity(0.9)
-            } else {
-              Color(red: 1, green: 0.42, blue: 0.02)
-            }
-
-            // Pulse effect
-            if showPulse {
-              Group {
-                if isSubtle {
-                  Color.gray.opacity(0.1)
-                } else {
-                  Color(red: 1, green: 0.42, blue: 0.02)
-                    .opacity(0.3)
-                }
-              }
-              .scaleEffect(1.2)
-              .blur(radius: 10)
-              .animation(TBDMotion.standard, value: showPulse)
-            }
-          }
-        )
-        .cornerRadius(TBDTokens.Radius.base)
-        // Enhanced shadows with hover state
-        .shadow(
-          color: .black.opacity(isHovered ? 0.35 : 0.25),
-          radius: isHovered ? 0.5 : 0.25,
-          x: 0,
-          y: isHovered ? 1 : 0.5
-        )
-        .shadow(
-          color: .black.opacity(isHovered ? 0.22 : 0.16),
-          radius: isHovered ? 1 : 0.5,
-          x: 0,
-          y: isHovered ? 2 : 1
-        )
-        .shadow(
-          color: .black.opacity(isHovered ? 0.4 : 0.3),
-          radius: isHovered ? 10 : 6,
-          x: 0,
-          y: isHovered ? 4 : 2
-        )
-        .overlay(
-          RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-            .inset(by: 0.75)
-            .stroke(
-              isSubtle
-                ? Color.black.opacity(isHovered ? 0.15 : 0.1)
-                : .white.opacity(isHovered ? 0.25 : 0.17),
-              lineWidth: 1.5
-            )
-        )
-        .dayflowPressScale(
-          isPressed,
-          enabled: !reduceMotion,
-          pressedScale: 0.97,
-          animation: pressAnimation
-        )
-        .scaleEffect(reduceMotion ? 1.0 : (isHovered ? 1.02 : 1.0))
-        .offset(y: reduceMotion ? 0 : (isHovered ? (isSubtle ? -1 : -2) : 0))
-        .brightness(isHovered ? (isSubtle ? 0.05 : 0.08) : 0)
+        .font(TBDFonts.nunito(fontSize, TBDKit.weightLabel))
+        .frame(width: width, alignment: .center)
     }
-    .buttonStyle(.plain)  // Remove default button styling
+    .buttonStyle(TBDButtonStyle(isSubtle ? .secondary : .primary, size: .large))
     .pointingHandCursor()
-    .onHover { hovering in
-      withAnimation(hoverAnimation) {
-        isHovered = hovering
-      }
-    }
   }
 }
 
@@ -143,6 +49,6 @@ struct DayflowButton_Previews: PreviewProvider {
       DayflowButton(title: String(localized: "Subtle"), action: {}, isSubtle: true)
     }
     .padding(40)
-    .background(Color.gray.opacity(0.1))
+    .background(TBDColor.paper)
   }
 }

@@ -201,6 +201,8 @@ struct SettingsPrimaryButton: View {
   var systemImage: String? = nil
   var isLoading: Bool = false
   var isDisabled: Bool = false
+  /// One primary per screen: a second main-looking action passes `prominent: false` (secondary look, same API).
+  var prominent: Bool = true
   let action: () -> Void
 
   var body: some View {
@@ -209,7 +211,7 @@ struct SettingsPrimaryButton: View {
         if isLoading {
           ProgressView()
             .controlSize(.small)
-            .tint(TBDColor.primaryOn)
+            .tint(prominent ? TBDColor.primaryOn : TBDColor.secondaryOn)
         } else if let systemImage {
           Image(systemName: systemImage)
             .font(TBDFonts.symbol(12))
@@ -217,7 +219,7 @@ struct SettingsPrimaryButton: View {
         Text(title)
       }
     }
-    .buttonStyle(TBDButtonStyle(.primary))
+    .buttonStyle(TBDButtonStyle(prominent ? .primary : .secondary))
     .disabled(isDisabled || isLoading)
     .pointingHandCursor()
   }

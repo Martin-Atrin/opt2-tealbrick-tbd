@@ -16,7 +16,6 @@ struct EditableCategoryCard: View {
   var onSave: () -> Void
   var onDelete: () -> Void
 
-  @Environment(\.dayflowTheme) private var theme
   @FocusState private var focusedField: Field?
 
   var body: some View {
@@ -39,9 +38,8 @@ struct EditableCategoryCard: View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .center, spacing: 12) {
         TextField("", text: $draftName)
-          .font(Font.custom("Switzer", size: 14).weight(.bold))
-          .textFieldStyle(.plain)
-          .foregroundColor(theme.isDark ? .white : .black)
+          .tbdField(focused: focusedField == .name)
+          .font(TBDFonts.nunito(TBDKit.textControl, TBDKit.weightLabel))
           .submitLabel(.next)
           .focused($focusedField, equals: .name)
           .onSubmit {
@@ -54,65 +52,47 @@ struct EditableCategoryCard: View {
           focusedField = nil
           onSave()
         } label: {
-          Image("CategoriesCheckmark")
-            .resizable()
-            .frame(width: 20, height: 20)
+          Image(systemName: "checkmark")
+            .font(TBDFonts.symbol(14, TBDKit.weightLabel))
             .accessibilityLabel("Save category edits")
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TBDButtonStyle(.icon))
 
       }
 
       ZStack(alignment: .topLeading) {
         if draftDetails.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
           Text("Professional, school, or career-focused tasks (coding, design, meetings).")
-            .font(Font.custom("Switzer", size: 12).weight(.medium))
-            .foregroundColor(theme.isDark ? Color.white.opacity(0.35) : Color.black.opacity(0.35))
+            .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+            .foregroundStyle(TBDColor.fieldPlaceholder)
             .padding(.horizontal, 12)
             .padding(.top, 12)
         }
 
         TextEditor(text: $draftDetails)
-          .font(Font.custom("Switzer", size: 12).weight(.medium))
-          .foregroundColor(theme.isDark ? .white : .black)
+          .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+          .foregroundStyle(TBDColor.fieldOn)
           .padding(.horizontal, 10)
           .padding(.top, 10)
           .padding(.bottom, 12)
           .frame(minHeight: 55)
-          .background(theme.isDark ? Color.white.opacity(0.08) : Color.white)
+          .background(TBDColor.fieldFill, in: TBDBrickShape())
           .focused($focusedField, equals: .description)
           .scrollContentBackground(.hidden)
       }
-      .background(
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-          .stroke(
-            theme.isDark ? Color(hex: "4E4E4E") : Color(red: 0.89, green: 0.86, blue: 0.85),
-            lineWidth: 0.5)
-      )
+      .overlay(TBDBrickShape().strokeBorder(TBDColor.fieldEdge, lineWidth: TBDKit.hair))
+      .tbdFocusRing(focusedField == .description, offset: TBDKit.focusOffsetTight)
     }
-    .padding(16)
     .frame(alignment: .leading)
-    .background(theme.isDark ? Color(hex: "3A3A4C") : Color.white)
-    .cornerRadius(TBDTokens.Radius.base)
-    .shadow(
-      color: theme.isDark ? Color.black.opacity(0.3) : Color(red: 0.86, green: 0.8, blue: 0.76),
-      radius: 3, x: 0, y: 0
-    )
-    .overlay(
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-        .inset(by: 0.25)
-        .stroke(
-          theme.isDark ? Color(hex: "4E4E4E") : Color(red: 0.89, green: 0.86, blue: 0.85),
-          lineWidth: 0.5)
-    )
+    .tbdCard(padding: 16)
   }
 
   private var displayView: some View {
     HStack(alignment: .center, spacing: 12) {
       VStack(alignment: .leading, spacing: 4) {
         Text(category.name)
-          .font(Font.custom("Switzer", size: 12).weight(.bold))
-          .foregroundColor(theme.isDark ? .white : .black)
+          .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightLabel))
+          .foregroundStyle(TBDColor.ink)
           .frame(maxWidth: .infinity, alignment: .center)
 
         Text(
@@ -120,10 +100,8 @@ struct EditableCategoryCard: View {
             ? String(localized: "Add a description to help Tealbrick understand your workflow.")
             : category.details
         )
-        .font(Font.custom("Switzer", size: 12).weight(.medium))
-        .foregroundColor(
-          theme.isDark ? Color(hex: "BFBFBF") : Color(red: 0.35, green: 0.35, blue: 0.35)
-        )
+        .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+        .foregroundStyle(TBDColor.muted)
         .frame(maxWidth: .infinity, alignment: .center)
         .lineLimit(2)
       }
@@ -134,47 +112,28 @@ struct EditableCategoryCard: View {
         Button {
           onStartEdit()
         } label: {
-          Image("CategoriesEdit")
-            .resizable()
-            .frame(width: 20, height: 20)
+          Image(systemName: "pencil")
+            .font(TBDFonts.symbol(14, TBDKit.weightNav))
             .accessibilityLabel("Edit category")
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TBDButtonStyle(.icon))
         .pointingHandCursor()
 
         Button {
           onDelete()
         } label: {
-          Image("CategoriesDelete")
-            .resizable()
-            .frame(width: 20, height: 20)
+          Image(systemName: "trash")
+            .font(TBDFonts.symbol(14, TBDKit.weightNav))
             .accessibilityLabel("Delete category")
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TBDButtonStyle(.icon))
         .pointingHandCursor()
       }
     }
     .padding(.horizontal, 20)
     .padding(.vertical, 12)
     .frame(maxWidth: .infinity, alignment: .center)
-    .background(theme.isDark ? Color(hex: "C3C3C3").opacity(0.1) : Color.white)
-    .cornerRadius(TBDTokens.Radius.base)
-    .shadow(color: Color.black.opacity(theme.isDark ? 0 : 0.06), radius: 2, x: 0, y: 0)
-    .overlay(
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-        .inset(by: 0.25)
-        .stroke(
-          theme.isDark ? Color(hex: "4E4E4E") : Color(red: 0.89, green: 0.89, blue: 0.89),
-          lineWidth: theme.isDark ? 1 : 0.5)
-    )
-    .overlay(
-      Group {
-        if theme.isDark {
-          InnerGlow(
-            shape: RoundedRectangle(cornerRadius: TBDTokens.Radius.base), color: Color.white.opacity(0.1), radius: 4)
-        }
-      }
-    )
+    .tbdCard(padding: 0)
     .contentShape(Rectangle())
     .onTapGesture {
       if !category.isSystem {
@@ -190,21 +149,18 @@ struct ColorAssignmentCard: View {
   var showDetails: Bool = true
   var onColorDrop: (String) -> Void
 
-  @Environment(\.dayflowTheme) private var theme
   @State private var isTargeted = false
 
   private func colorSwatch(_ hex: String) -> some View {
-    let color = Color(hex: hex.isEmpty ? "#E5E7EB" : hex)
+    let color: Color = hex.isEmpty ? TBDColor.handSwatch : Color(hex: hex)  // design-guard: allow (user category colour)
     return Rectangle()
-      .foregroundColor(.clear)
+      .foregroundStyle(Color.clear)
       .frame(width: 18, height: 18)
       .background(color)
-      .cornerRadius(TBDTokens.Radius.base)
-      .shadow(color: Color.black.opacity(0.18), radius: 3, x: 0, y: 1)
+      .clipShape(TBDBrickShape())
       .overlay(
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-          .inset(by: 0.75)
-          .stroke(.white, lineWidth: 1.5)
+        TBDBrickShape()
+          .strokeBorder(TBDColor.lineStrong, lineWidth: TBDKit.hair)
       )
   }
 
@@ -215,17 +171,15 @@ struct ColorAssignmentCard: View {
 
         VStack(alignment: .leading, spacing: 4) {
           Text(category.name)
-            .font(Font.custom("Switzer", size: 12).weight(.bold))
-            .foregroundColor(theme.isDark ? .white : .black)
+            .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightLabel))
+            .foregroundStyle(TBDColor.ink)
 
           if showDetails
             && !category.details.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
           {
             Text(category.details)
-              .font(Font.custom("Switzer", size: 12).weight(.medium))
-              .foregroundColor(
-                theme.isDark ? Color(hex: "BFBFBF") : Color(red: 0.35, green: 0.35, blue: 0.35)
-              )
+              .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+              .foregroundStyle(TBDColor.muted)
               .lineLimit(2)
           }
         }
@@ -236,17 +190,11 @@ struct ColorAssignmentCard: View {
     .padding(.horizontal, 20)
     .padding(.vertical, 16)
     .frame(maxWidth: .infinity, alignment: .center)
-    .background(theme.isDark ? Color(hex: "C3C3C3").opacity(0.1) : Color.white)
+    .background(TBDColor.tile, in: TBDBrickShape())
     .overlay(
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-        .stroke(
-          isTargeted
-            ? (theme.isDark ? theme.accent : Color(red: 0.6, green: 0.5, blue: 0.4))
-            : (theme.isDark ? Color(hex: "4E4E4E") : Color(red: 0.89, green: 0.89, blue: 0.89)),
-          lineWidth: isTargeted ? 1.5 : (theme.isDark ? 1 : 0.8))
+      TBDBrickShape()
+        .strokeBorder(isTargeted ? TBDColor.tealInk : TBDColor.line, lineWidth: isTargeted ? 2 : TBDKit.hair)
     )
-    .cornerRadius(TBDTokens.Radius.base)
-    .shadow(color: Color.black.opacity(theme.isDark ? 0 : 0.06), radius: 2, x: 0, y: 1)
     .contentShape(Rectangle())
     .onDrop(of: [UTType.plainText], isTargeted: $isTargeted) { providers in
       guard let provider = providers.first else { return false }

@@ -8,7 +8,7 @@ struct TBDAboutView: View {
     VStack(alignment: .leading, spacing: SettingsStyle.sectionSpacing) {
       SettingsSection(title: String(localized: "TBD"), isFirst: true) {
         VStack(alignment: .leading, spacing: TBDKit.s4) {
-          Text("Chat · Companion · Listening")
+          Text("Chat · Companion · Listen")
             .font(TBDTokens.Typography.body)
             .foregroundStyle(TBDColor.ink)
           Text("Local build · updates are installed manually. No donor update feed is used.")
@@ -43,7 +43,7 @@ struct TBDAboutView: View {
           .foregroundStyle(TBDColor.inkSoft)
       }
       SettingsSection(title: String(localized: "Open-source components")) {
-        Text("Companion includes Dayflow (MIT); Chat started from an MIT-licensed chat client; Listening is a Teal Brick rewrite of MacParakeet's features (GPL-3.0) and uses FluidAudio (Apache-2.0), WhisperKit (MIT) and GRDB (MIT). Licences are bundled with this app. For video links Listening downloads yt-dlp (Unlicense) from its official GitHub release on first use.")
+        Text("Companion includes Dayflow (MIT); Chat started from an MIT-licensed chat client; Listen is a Tealbrick rewrite of MacParakeet's features (GPL-3.0) and uses FluidAudio (Apache-2.0), WhisperKit (MIT) and GRDB (MIT). Licences are bundled with this app. For video links Listen downloads yt-dlp (Unlicense) from its official GitHub release on first use.")
           .font(TBDTokens.Typography.hint)
           .foregroundStyle(TBDColor.inkSoft)
       }

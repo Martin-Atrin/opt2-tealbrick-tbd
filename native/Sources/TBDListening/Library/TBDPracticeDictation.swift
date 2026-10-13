@@ -59,9 +59,9 @@ struct TBDPracticeDictation: View {
                     TBDTag(keyWorked ? "Your key works" : "Waiting for a press", status: keyWorked ? .live : .idle)
                 }
             }
-            Text("Change the key in Settings → Listening → Dictation.").font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
+            Text("Change the key in Settings → Listen → Capture.").font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
             Button("Continue") { phase = .dictation; boxFocused = true }
-                .buttonStyle(TBDButtonStyle(.primary)).disabled(!keyWorked)
+                .buttonStyle(TBDButtonStyle(.secondary)).disabled(!keyWorked)
         }
     }
 

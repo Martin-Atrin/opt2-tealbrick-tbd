@@ -81,15 +81,13 @@ struct ChatCLIDetectionStepView: View {
   let selectedTool: CLITool?
   let onSelectTool: (CLITool) -> Void
 
-  let accentColor = Color(hex: "FF9F6F")
-
   var body: some View {
     VStack(alignment: .leading, spacing: 24) {
       Text(
         "Tealbrick can talk to ChatGPT (via the Codex CLI) or Claude Code. You only need one installed and signed in on this Mac. After installing, run `codex auth` or `claude login` in Terminal to connect it to your account."
       )
-      .font(.custom("Switzer", size: 16))
-      .foregroundColor(Color(hex: "333333"))
+      .font(TBDTokens.Typography.body)
+      .foregroundColor(TBDColor.ink)
 
       HStack(alignment: .top, spacing: 18) {
         ChatCLIToolStatusRow(
@@ -107,15 +105,14 @@ struct ChatCLIDetectionStepView: View {
       Text(
         "Tip: Once both are installed, you can choose which provider Tealbrick uses from Settings → AI Provider."
       )
-      .font(.custom("Switzer", size: 16))
-      .foregroundColor(Color(hex: "333333"))
+      .font(TBDTokens.Typography.body)
+      .foregroundColor(TBDColor.ink)
 
       VStack(alignment: .leading, spacing: 8) {
         VStack(alignment: .leading, spacing: 14) {
           Text("Choose which provider Tealbrick should use")
-            .font(.custom("Switzer", size: 14))
-            .fontWeight(.medium)
-            .foregroundColor(Color(hex: "333333"))
+            .font(TBDTokens.Typography.tag)
+            .foregroundColor(TBDColor.ink)
           HStack(spacing: 12) {
             ForEach(CLITool.allCases, id: \.self) { tool in
               selectionButton(for: tool)
@@ -124,43 +121,28 @@ struct ChatCLIDetectionStepView: View {
         }
         .padding(16)
         .frame(maxWidth: 516)
-        .background(Color.white.opacity(0.6))
-        .overlay(
-          RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-            .stroke(Color(hex: "EDE5E1"), lineWidth: 1)
-        )
+        .background(TBDColor.tile, in: TBDBrickShape())
+        .overlay(TBDBrickShape().strokeBorder(TBDColor.line, lineWidth: TBDKit.hair))
 
-        DayflowSurfaceButton(
-          action: {
-            if !isChecking {
-              onRetry()
+        Button(action: {
+          if !isChecking {
+            onRetry()
+          }
+        }) {
+          HStack(spacing: 4) {
+            if isChecking {
+              ProgressView().scaleEffect(0.6).frame(width: 16, height: 16)
+            } else {
+              Image(systemName: "arrow.clockwise")
+                .font(TBDFonts.symbol(13, .bold))
+                .frame(width: 16, height: 16)
             }
-          },
-          content: {
-            HStack(spacing: 4) {
-              if isChecking {
-                ProgressView().scaleEffect(0.6).frame(width: 16, height: 16)
-              } else {
-                Image(systemName: "arrow.clockwise")
-                  .font(.system(size: 13, weight: .semibold))
-                  .frame(width: 16, height: 16)
-              }
-              Text(isChecking ? String(localized: "Checking…") : String(localized: "Check"))
-                .font(.custom("Switzer", size: 14))
-                .fontWeight(.medium)
-            }
-          },
-          background: Color(hex: "FDCEA4"),
-          foreground: Color(hex: "926244"),
-          borderColor: Color(hex: "F1CEBC"),
-          cornerRadius: TBDTokens.Radius.base,
-          horizontalPadding: 24,
-          verticalPadding: 8,
-          fixedHeight: 41,
-          showOverlayStroke: false,
-          innerGlowColor: Color(hex: "FFECE6")
-        )
+            Text(isChecking ? String(localized: "Checking…") : String(localized: "Check"))
+          }
+        }
+        .buttonStyle(TBDButtonStyle(.secondary))
         .disabled(isChecking)
+        .pointingHandCursor()
       }
     }
   }
@@ -184,29 +166,25 @@ struct ChatCLIDetectionStepView: View {
     }) {
       HStack(spacing: 12) {
         Image(systemName: selectedTool == tool ? "largecircle.fill.circle" : "circle")
-          .font(.system(size: 22, weight: .regular))
+          .font(TBDFonts.symbol(22, .regular))
           .frame(width: 24, height: 24)
-          .foregroundColor(selectedTool == tool ? accentColor : Color(hex: "D0C8C2"))
+          .foregroundColor(selectedTool == tool ? TBDColor.tealInk : TBDColor.lineStrong)
         VStack(alignment: .leading, spacing: 4) {
           Text(tool.shortName)
-            .font(.custom("Switzer", size: 16))
-            .fontWeight(.semibold)
-            .foregroundColor(.black)
+            .font(TBDFonts.nunito(TBDKit.textLabel, TBDKit.weightLabel))
+            .foregroundColor(TBDColor.ink)
           Text(enabled ? String(localized: "Ready to use") : String(localized: "Install to enable"))
-            .font(.custom("Switzer", size: 12))
-            .foregroundColor(Color(hex: "727272"))
+            .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+            .foregroundColor(TBDColor.muted)
         }
       }
       .padding(.horizontal, 14)
       .padding(.vertical, 12)
       .frame(maxWidth: .infinity, alignment: .leading)
-      .background(
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-          .fill(Color.white.opacity(0.8))
-      )
+      .background(selectedTool == tool ? TBDColor.tealWash : TBDColor.tile, in: TBDBrickShape())
       .overlay(
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-          .stroke(Color(hex: "EDE5E1"), lineWidth: 1)
+        TBDBrickShape()
+          .strokeBorder(selectedTool == tool ? TBDColor.tealWashLine : TBDColor.line, lineWidth: TBDKit.hair)
       )
     }
     .buttonStyle(.plain)
@@ -219,8 +197,6 @@ struct ChatCLIToolStatusRow: View {
   let status: CLIDetectionState
   let onInstall: () -> Void
 
-  let accentColor = Color(hex: "FF9F6F")
-
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       // Icon and title row
@@ -231,9 +207,8 @@ struct ChatCLIToolStatusRow: View {
           .frame(width: 32, height: 32)
 
         Text(tool.shortName)
-          .font(.custom("Switzer", size: 16))
-          .fontWeight(.semibold)
-          .foregroundColor(.black)
+          .font(TBDFonts.nunito(TBDKit.textLabel, TBDKit.weightLabel))
+          .foregroundColor(TBDColor.ink)
 
         Spacer(minLength: 53)
 
@@ -242,32 +217,19 @@ struct ChatCLIToolStatusRow: View {
 
       // Install button if needed
       if shouldShowInstallButton {
-        DayflowSurfaceButton(
-          action: onInstall,
-          content: {
-            HStack(spacing: 6) {
-              Image(systemName: "arrow.down.circle.fill").font(.system(size: 11, weight: .semibold))
-              Text(installLabel)
-                .font(.custom("Switzer", size: 12))
-                .fontWeight(.semibold)
-            }
-          },
-          background: .white.opacity(0.85),
-          foreground: accentColor,
-          borderColor: accentColor.opacity(0.35),
-          cornerRadius: TBDTokens.Radius.base,
-          horizontalPadding: 12,
-          verticalPadding: 6,
-          showOverlayStroke: true
-        )
+        Button(action: onInstall) {
+          HStack(spacing: 6) {
+            Image(systemName: "arrow.down.circle.fill").font(TBDFonts.symbol(11, .bold))
+            Text(installLabel)
+          }
+        }
+        .buttonStyle(TBDButtonStyle(.secondary))
+        .pointingHandCursor()
       }
     }
     .padding(14)
-    .background(Color.white.opacity(0.9))
-    .overlay(
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-        .stroke(Color(hex: "EDE5E1"), lineWidth: 1)
-    )
+    .background(TBDColor.tile, in: TBDBrickShape())
+    .overlay(TBDBrickShape().strokeBorder(TBDColor.line, lineWidth: TBDKit.hair))
   }
 
   @ViewBuilder
@@ -276,42 +238,14 @@ struct ChatCLIToolStatusRow: View {
     case .checking, .unknown:
       HStack(spacing: 5) {
         ProgressView().scaleEffect(0.5)
-        Text(status.statusLabel)
-          .font(.custom("Switzer", size: 12))
-          .fontWeight(.semibold)
-          .foregroundColor(Color(hex: "634342"))
+        TBDTag(status.statusLabel, status: .idle)
       }
-      .padding(.horizontal, 8)
-      .padding(.vertical, 4)
-      .background(Color(hex: "634342").opacity(0.08))
-      .cornerRadius(TBDTokens.Radius.xs)
     case .installed:
-      Text(status.statusLabel)
-        .font(.custom("Switzer", size: 12))
-        .fontWeight(.semibold)
-        .foregroundColor(Color(hex: "21A638"))
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(Color(hex: "DEF3E0"))
-        .cornerRadius(TBDTokens.Radius.xs)
+      TBDTag(status.statusLabel, status: .live)
     case .notFound:
-      Text(status.statusLabel)
-        .font(.custom("Switzer", size: 11))
-        .fontWeight(.semibold)
-        .foregroundColor(Color(hex: "E91515"))
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(Color(hex: "FFD1D1"))
-        .cornerRadius(TBDTokens.Radius.xs)
+      TBDTag(status.statusLabel, status: .needsYou)
     case .failed:
-      Text(status.statusLabel)
-        .font(.custom("Switzer", size: 11))
-        .fontWeight(.semibold)
-        .foregroundColor(Color(red: 0.91, green: 0.34, blue: 0.16))
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(Color(red: 0.91, green: 0.34, blue: 0.16).opacity(0.18))
-        .cornerRadius(TBDTokens.Radius.xs)
+      TBDTag(status.statusLabel, status: .needsYou)
     }
   }
 

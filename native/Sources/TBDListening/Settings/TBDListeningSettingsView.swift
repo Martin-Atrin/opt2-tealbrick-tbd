@@ -133,7 +133,7 @@ final class TBDModelsModel: ObservableObject {
     func delete(_ model: TBDModelManager.Model, inUse: Bool) {
         let alert = NSAlert()
         alert.messageText = "Delete \(model.title)?"
-        alert.informativeText = inUse ? "This is a selected engine. Listening cannot use it until you download it again or choose another engine." : "You can download it again later."
+        alert.informativeText = inUse ? "This is a selected engine. Listen cannot use it until you download it again or choose another engine." : "You can download it again later."
         alert.addButton(withTitle: "Delete")
         alert.addButton(withTitle: "Cancel")
         guard alert.runModal() == .alertFirstButtonReturn else { return }
@@ -300,7 +300,7 @@ struct TBDAISettings: View {
     var body: some View {
         let prefs = env.preferences
         VStack(alignment: .leading, spacing: 0) {
-            Text("Listening uses your model routes: “cleanup” for transcript cleanup, “analysis” for summaries and questions, “general” for transforms. Assign them in Settings → Models. Raw transcripts are always kept.")
+            Text("Listen uses your model routes: “cleanup” for transcript cleanup, “analysis” for summaries and questions, “general” for transforms. Assign them in Settings → Models. Raw transcripts are always kept.")
                 .foregroundStyle(TBDTokens.muted).fixedSize(horizontal: false, vertical: true).padding(.bottom, TBDTokens.Space.md)
             TBDSettingsRow("Clean up hotkey dictation", help: "Send dictated text to the cleanup model before pasting.") {
                 Toggle("", isOn: tbdBinding({ prefs.dictationCleanup }, { prefs.dictationCleanup = $0 }, refresh: { tick += 1 })).labelsHidden().toggleStyle(TBDSwitchStyle()).fixedSize()
@@ -318,7 +318,7 @@ struct TBDAISettings: View {
             promptEditor("Cleanup prompt", text: tbdBinding({ prefs.cleanupPrompt }, { prefs.cleanupPrompt = $0 }),
                          reset: { prefs.cleanupPrompt = TBDListeningPreferences.defaultCleanupPrompt; tick += 1 })
             // Summary prompts and Transforms moved to their own Listening pages (prompt library with versions).
-            Text("Summary prompts live on the Listening Prompts page; text Transforms and their hotkeys live on the Transforms page.")
+            Text("Summary prompts live on the Listen Prompts page; text Transforms and their hotkeys live on the Transforms page.")
                 .foregroundStyle(TBDTokens.muted).fixedSize(horizontal: false, vertical: true).padding(.top, TBDTokens.Space.xl)
         }
         .id(tick)
@@ -431,7 +431,7 @@ struct TBDSystemSettings: View {
                 Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([TBDListeningPaths.root]) }
                     .buttonStyle(TBDButtonStyle(.secondary))
                 Spacer()
-                Button("Delete all Listening data…", role: .destructive) { context.retention.deleteAll(context: context); refreshUsage() }
+                Button("Delete all Listen data…", role: .destructive) { context.retention.deleteAll(context: context); refreshUsage() }
                     .buttonStyle(TBDButtonStyle(.destructive))
             }
             .padding(.top, TBDTokens.Space.md)

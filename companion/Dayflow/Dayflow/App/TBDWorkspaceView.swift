@@ -5,7 +5,6 @@ import TBDListening
 
 /// Navigation owns visibility only. Capture services remain owned by the app lifecycle.
 struct TBDWorkspaceView<Companion: View>: View {
-  @Environment(\.dayflowTheme) private var theme
   @Environment(\.colorScheme) private var colorScheme
   @AppStorage(DayflowAppearance.storageKey) private var appearance: DayflowAppearance = .system
   @AppStorage("tbd.portalInvitationDismissed") private var invitationDismissed = false
@@ -20,33 +19,26 @@ struct TBDWorkspaceView<Companion: View>: View {
     self.companion = companion()
   }
 
-  /// Glass brick: slightly rounded rectangle, never a pill.
-  static var brick: RoundedRectangle { RoundedRectangle(cornerRadius: TBDTokens.Radius.sm, style: .continuous) }
-
   private enum Section: String, CaseIterable, Identifiable {
     case chat = "Chat"
     case companion = "Companion"
     case listening = "Listening"
+    /// What the person reads (C142: the aspect is "Listen"); the raw value stays the stored/test identifier.
+    var title: String { self == .listening ? "Listen" : rawValue }
     var id: String { rawValue }
   }
 
   var body: some View {
     VStack(spacing: 0) {
-      // Global navigation is liquid glass shaped as bricks (operator decisions 2026-09-27):
-      // separate, breathable glass rounded-rectangles; content below uses the brick language.
-      TBDGlassGroup(spacing: 12) {
+      // Global navigation: kit side-nav look (tab pairs, 36pt bricks) as a top rail.
+      HStack(spacing: TBDKit.s3) {
         ForEach(Section.allCases.filter { $0 != .chat || account.signedIn }) { section in
           let selected = selection == section
           Button { settingsSection = nil; selection = section } label: {
-            Text(section.rawValue)
-              .font(.custom("Switzer", size: 13).weight(selected ? .semibold : .medium))
-              .foregroundStyle(selected ? TBDTokens.ink : TBDTokens.muted)
-              .padding(.horizontal, 22)
-              .frame(minWidth: 112, minHeight: 34)
-              .tbdGlass(TBDWorkspaceView.brick, selected: selected)
-              .contentShape(TBDWorkspaceView.brick)
+            Text(section.title)
+              .frame(minWidth: 112 - 2 * TBDKit.s3)
           }
-          .buttonStyle(.plain)
+          .buttonStyle(TBDRailTabStyle(current: selected))
           .accessibilityAddTraits(selected ? .isSelected : [])
           .accessibilityIdentifier("tbd.workspace." + section.rawValue.lowercased())
         }
@@ -54,24 +46,23 @@ struct TBDWorkspaceView<Companion: View>: View {
       .frame(maxWidth: .infinity)
       .onAppear { TBDTitleBarAction.install() }
       .overlay(alignment: .trailing) {
-        TBDGlassGroup(spacing: 10) {
+        HStack(spacing: TBDKit.s2) {
           Button {
             settingsSection = settingsSection == nil ? "account" : nil
           } label: {
-            Image(systemName: "gearshape").font(.system(size: 14))
-              .foregroundStyle(TBDTokens.ink).frame(width: 34, height: 34)
-              .tbdGlass(TBDWorkspaceView.brick, selected: settingsSection != nil)
-          }.buttonStyle(.plain).help("Settings").accessibilityLabel("Settings")
+            Image(systemName: "gearshape").font(TBDFonts.symbol(TBDKit.textControl))
+              .frame(minWidth: 36, minHeight: 36)
+          }
+          .buttonStyle(TBDRailTabStyle(current: settingsSection != nil, square: true))
+          .help("Settings").accessibilityLabel("Settings")
           Button {
             appearance = colorScheme == .dark ? .light : .dark
           } label: {
             Image(systemName: colorScheme == .dark ? "sun.max" : "moon")
-              .font(.system(size: 14, weight: .medium))
-              .foregroundStyle(TBDTokens.ink)
-              .frame(width: 34, height: 34)
-              .tbdGlass(TBDWorkspaceView.brick, selected: false)
+              .font(TBDFonts.symbol(TBDKit.textControl))
+              .frame(minWidth: 36, minHeight: 36)
           }
-          .buttonStyle(.plain)
+          .buttonStyle(TBDButtonStyle(.icon))
           .help(colorScheme == .dark ? "Switch to light mode" : "Switch to dark mode")
           .accessibilityLabel(colorScheme == .dark ? "Switch to light mode" : "Switch to dark mode")
           .accessibilityIdentifier("tbd.appearance.toggle")
@@ -80,20 +71,15 @@ struct TBDWorkspaceView<Companion: View>: View {
       }
       .padding(.top, 10)
       .padding(.bottom, 12)
-      .background {
-        // Soft brand light behind the glass so it has something to refract.
-        LinearGradient(colors: [TBDTokens.accent.opacity(0.10), TBDTokens.fill.opacity(0.04), .clear],
-                       startPoint: .top, endPoint: .bottom)
-          .overlay(RadialGradient(colors: [TBDTokens.accent.opacity(0.12), .clear], center: .top, startRadius: 0, endRadius: 360))
-          .allowsHitTesting(false)
-      }
+      .background(TBDColor.paper)
+      .overlay(alignment: .bottom) { Rectangle().fill(TBDColor.line).frame(height: TBDKit.hair) }
       if account.hasCheckedSession && !account.signedIn && !invitationDismissed && settingsSection == nil {
         HStack(spacing: 12) {
-          Text("Connect to Portal to use Chat and remote agents. Companion and Listening work without an account.")
-            .font(.custom("Switzer", size: 12)).foregroundStyle(theme.textSecondary)
+          Text("Connect to Portal to use Chat and remote agents. Companion and Listen work without an account.")
+            .font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
           Spacer()
-          Button("Sign in") { settingsSection = "account" }
-          Button("Not now") { invitationDismissed = true }
+          Button("Sign in") { settingsSection = "account" }.buttonStyle(TBDButtonStyle(.secondary))
+          Button("Not now") { invitationDismissed = true }.buttonStyle(TBDButtonStyle(.quiet))
         }.padding(.horizontal, 20).padding(.vertical, 8)
       }
       ZStack {
@@ -110,9 +96,9 @@ struct TBDWorkspaceView<Companion: View>: View {
           if !chat.status.isEmpty { pending("Chat", detail: chat.status) }
           if !chat.notice.isEmpty {
             Text(chat.notice)
-              .font(.callout).foregroundStyle(theme.textPrimary)
+              .font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.ink)
               .padding(.horizontal, 14).padding(.vertical, 8)
-              .background(.regularMaterial, in: Capsule())
+              .tbdFloating()
               .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
               .padding(.top, 10)
               .allowsHitTesting(false)
@@ -133,13 +119,13 @@ struct TBDWorkspaceView<Companion: View>: View {
           SettingsView(initialSection: section)
             .id(section)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(TBDDesign.canvas)
+            .background(TBDColor.paper)
         }
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     .ignoresSafeArea(.container, edges: .top)
-    .font(.custom("Switzer", size: 14))
+    .font(TBDFonts.nunito(TBDKit.textControl, TBDKit.weightBody))
     .tint(TBDColor.tealInk)
     .onReceive(NotificationCenter.default.publisher(for: Notification.Name("tbdOpenSettings"))) { note in
       settingsSection = note.object as? String ?? "account"
@@ -165,32 +151,42 @@ struct TBDWorkspaceView<Companion: View>: View {
 
   private func pending(_ title: String, detail: String) -> some View {
     VStack(spacing: 12) {
-      Text(title).font(.title2).foregroundStyle(theme.textPrimary)
-      Text(detail).foregroundStyle(theme.textSecondary)
+      Text(title).font(TBDTokens.Typography.title).foregroundStyle(TBDColor.ink)
+      Text(detail).font(TBDTokens.Typography.body).foregroundStyle(TBDColor.muted)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 }
 
-private extension View {
-  /// Liquid Glass on macOS 26+, material glass fallback on earlier systems.
-  /// A specular top edge and soft lift keep the glass legible on the flat canvas.
-  @ViewBuilder
-  func tbdGlass<S: Shape>(_ shape: S, selected: Bool) -> some View {
-    let edge = shape.stroke(
-      LinearGradient(colors: [.white.opacity(0.85), .white.opacity(0.15), .white.opacity(0.35)],
-                     startPoint: .top, endPoint: .bottom),
-      lineWidth: 0.8)
-    if #available(macOS 26.0, *) {
-      self.glassEffect(selected ? .clear.tint(TBDTokens.accent.opacity(0.28)).interactive() : .clear.interactive(), in: shape)
-        .overlay(edge)
-        .shadow(color: TBDTokens.ink.opacity(0.10), radius: 8, y: 3)
-    } else {
-      self.background(.ultraThinMaterial, in: shape)
-        .overlay(shape.fill(selected ? TBDTokens.accent.opacity(0.14) : .white.opacity(0.08)))
-        .overlay(edge)
-        .shadow(color: TBDTokens.ink.opacity(0.10), radius: 8, y: 3)
-    }
+/// Top-rail tab: the kit side-nav item look (36pt brick, tab pairs), centred. Current = ink fill with paper text.
+private struct TBDRailTabStyle: ButtonStyle {
+  let current: Bool
+  var square = false
+  func makeBody(configuration: Configuration) -> some View {
+    TBDRailTabBody(current: current, square: square, configuration: configuration)
+  }
+}
+
+private struct TBDRailTabBody: View {
+  let current: Bool
+  let square: Bool
+  let configuration: ButtonStyleConfiguration
+  @State private var hovered = false
+  @Environment(\.isFocused) private var focused
+  var body: some View {
+    let hover = hovered || configuration.isPressed
+    let fill = current ? (hover ? TBDColor.tabCurrentHoverFill : TBDColor.tabCurrentFill) : (hover ? TBDColor.tabHoverFill : TBDColor.tabFill)
+    let on = current ? (hover ? TBDColor.tabCurrentHoverOn : TBDColor.tabCurrentOn) : (hover ? TBDColor.tabHoverOn : TBDColor.tabOn)
+    configuration.label
+      .font(TBDFonts.nunito(TBDKit.textControl, current ? TBDKit.weightLabel : TBDKit.weightNav))
+      .lineLimit(1)
+      .foregroundStyle(on)
+      .padding(.horizontal, square ? 0 : TBDKit.s3)
+      .frame(minHeight: TBDTokens.Control.minHeight)
+      .background(fill, in: TBDBrickShape())
+      .contentShape(TBDBrickShape())
+      .tbdFocusRing(focused, offset: TBDKit.focusOffsetTight)
+      .onHover { hovered = $0 }
   }
 }
 
@@ -241,19 +237,6 @@ enum TBDTitleBarAction {
     } else {
       restoreFrames[key] = window.frame
       window.setFrame(visible, display: true, animate: true)
-    }
-  }
-}
-
-/// Groups glass shapes so they blend and morph together on macOS 26+.
-private struct TBDGlassGroup<Content: View>: View {
-  let spacing: CGFloat
-  @ViewBuilder let content: () -> Content
-  var body: some View {
-    if #available(macOS 26.0, *) {
-      GlassEffectContainer(spacing: spacing) { HStack(spacing: spacing) { content() } }
-    } else {
-      HStack(spacing: spacing) { content() }
     }
   }
 }

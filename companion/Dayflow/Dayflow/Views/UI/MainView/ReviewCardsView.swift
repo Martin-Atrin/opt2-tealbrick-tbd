@@ -5,7 +5,6 @@ import WebKit
 /// The standalone miniapp owns its data and authentication; no native credentials are injected.
 struct ReviewCardsView: View {
   @AppStorage("tealbrickReviewMiniappURL") private var savedURL = ""
-  @Environment(\.dayflowTheme) private var theme
   @State private var input = ""
   @State private var error: String?
   @State private var reloadID = UUID()
@@ -31,19 +30,19 @@ struct ReviewCardsView: View {
         }
       }
       if let url = Self.validatedURL(savedURL) {
-        if let error { Text(error).foregroundStyle(TBDTokens.alert).textSelection(.enabled) }
+        if let error { Text(error).foregroundStyle(TBDColor.brickInk).textSelection(.enabled) }
         ReviewMiniappWebView(url: url, error: $error)
           .id(reloadID)
           .frame(maxWidth: .infinity, maxHeight: .infinity)
-          .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.base).strokeBorder(TBDTokens.border, lineWidth: TBDTokens.Stroke.hairline))
+          .overlay(TBDBrickShape().strokeBorder(TBDColor.line, lineWidth: TBDKit.hair))
       } else {
         HStack(alignment: .top, spacing: TBDTokens.Space.xl) {
           VStack(alignment: .leading, spacing: TBDTokens.Space.md) {
             TBDLabel("Connect")
             Text("Connect your review miniapp")
-              .font(TBDTokens.Typography.display).tracking(TBDTokens.Typography.displayTracking).foregroundStyle(TBDTokens.ink)
+              .font(TBDTokens.Typography.display).tracking(TBDTokens.Typography.displayTracking).foregroundStyle(TBDColor.ink)
             Text("Paste the address of your Review miniapp. It runs on your own hosting and keeps its own data and sign-in.")
-              .font(TBDTokens.Typography.body).foregroundStyle(TBDTokens.muted).fixedSize(horizontal: false, vertical: true)
+              .font(TBDTokens.Typography.body).foregroundStyle(TBDColor.muted).fixedSize(horizontal: false, vertical: true)
             HStack(spacing: TBDTokens.Space.sm) {
               TextField("https://your-miniapp.example", text: $input)
                 .tbdField()
@@ -51,18 +50,18 @@ struct ReviewCardsView: View {
                 .accessibilityLabel("Review miniapp URL")
               Button("Connect", action: connect).buttonStyle(TBDButtonStyle(.primary))
             }
-            if let error { Text(error).font(TBDTokens.Typography.body).foregroundStyle(TBDTokens.alert) }
+            if let error { Text(error).font(TBDTokens.Typography.body).foregroundStyle(TBDColor.brickInk) }
             Text("HTTPS, or HTTP on localhost. Nothing connects until you choose Connect.")
-              .font(.system(size: 11)).foregroundStyle(TBDTokens.muted)
+              .font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
           }
           .frame(maxWidth: .infinity, alignment: .leading)
           .tbdCard(padding: TBDTokens.Space.xl)
           VStack(alignment: .leading, spacing: TBDTokens.Space.sm) {
             TBDLabel("Don't have one yet?")
             Text("Deploy the Review miniapp from Tealbrick Portal, then paste its address here.")
-              .font(TBDTokens.Typography.body).foregroundStyle(TBDTokens.ink).fixedSize(horizontal: false, vertical: true)
+              .font(TBDTokens.Typography.body).foregroundStyle(TBDColor.ink).fixedSize(horizontal: false, vertical: true)
             Link(destination: URL(string: "https://portal.tealbrick.com")!) {
-              Text("Open Tealbrick Portal →").font(TBDTokens.Typography.control).foregroundStyle(TBDTokens.accent)
+              Text("Open Tealbrick Portal →").font(TBDTokens.Typography.control).foregroundStyle(TBDColor.tealInk)
             }
           }
           .frame(width: 300, alignment: .leading)

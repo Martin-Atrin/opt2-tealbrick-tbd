@@ -16,7 +16,7 @@ struct TargetCategoryProgress: Equatable, Identifiable {
   let duration: TimeInterval
 
   var color: Color {
-    Color(hex: colorHex)
+    Color(hex: colorHex)  // design-guard: allow (user category colour)
   }
 }
 
@@ -31,7 +31,6 @@ struct DayGoalHeader: View {
   let onSetGoals: () -> Void
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  @Environment(\.dayflowTheme) private var theme
 
   @State private var hasInitializedDisplayedProgress = false
   @State private var isAppActive = NSApplication.shared.isActive
@@ -53,26 +52,19 @@ struct DayGoalHeader: View {
   }
 
   private enum Design {
-    static let distraction = Color(hex: "FA8282")
-    static let distractionDark = Color(hex: "FF6849")
-    static let focusText = Color(hex: "628CFF")
-    static let distractionText = Color(hex: "FC675F")
+    static var distraction: Color { TBDColor.brick }
+    static var focusText: Color { TBDColor.tealInk }
+    static var distractionText: Color { TBDColor.brickInk }
     static let focusLegendContentWidth: CGFloat = 211.94
     static let focusLegendItemSpacing: CGFloat = 6
   }
 
   /// "Focus" / "Distraction budget" captions.
-  private var labelColor: Color {
-    theme.isDark ? theme.textSecondary : theme.textTertiary
-  }
+  private var labelColor: Color { TBDColor.muted }
 
-  private var distractionFill: Color {
-    theme.isDark ? Design.distractionDark : Design.distraction
-  }
+  private var distractionFill: Color { Design.distraction }
 
-  private var inactiveTail: Color {
-    theme.targetsTrackFill.opacity(0.72)
-  }
+  private var inactiveTail: Color { TBDColor.plate }
 
   private var distractionUsedRatio: Double {
     guard distractionLimitDuration > 0 else { return 0 }
@@ -124,7 +116,7 @@ struct DayGoalHeader: View {
   var body: some View {
     ZStack(alignment: .topLeading) {
       ZStack(alignment: .topLeading) {
-        theme.targetsFill
+        TBDColor.tile
         activeContent
       }
       .opacity(showsDisabledState ? 0 : 1)
@@ -133,7 +125,7 @@ struct DayGoalHeader: View {
       .accessibilityHidden(showsDisabledState)
 
       ZStack(alignment: .topLeading) {
-        theme.targetsFill
+        TBDColor.tile
         disabledContent
       }
       .opacity(showsDisabledState ? 1 : 0)
@@ -146,9 +138,9 @@ struct DayGoalHeader: View {
     .frame(height: 213)
     .clipped()
     .overlay(alignment: .bottom) {
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-        .fill(theme.targetsBorder)
-        .frame(height: 1)
+      Rectangle()
+        .fill(TBDColor.line)
+        .frame(height: TBDKit.hair)
     }
     .accessibilityElement(children: .contain)
     .onAppear {
@@ -181,8 +173,8 @@ struct DayGoalHeader: View {
   @ViewBuilder
   private var activeContent: some View {
     Text("Today’s targets")
-      .font(.custom("Switzer-Medium", size: 24))
-      .foregroundColor(theme.textPrimary)
+      .font(TBDTokens.Typography.title)
+      .foregroundColor(TBDColor.ink)
       .lineLimit(1)
       .fixedSize()
       .offset(x: 17, y: 18.96)
@@ -197,8 +189,8 @@ struct DayGoalHeader: View {
     .offset(x: 323, y: 22.25)
 
     Text(statusText)
-      .font(.custom("Switzer", size: 11))
-      .foregroundColor(theme.textSecondary)
+      .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+      .foregroundColor(TBDColor.muted)
       .lineLimit(2)
       .frame(width: 310, alignment: .leading)
       .fixedSize(horizontal: false, vertical: true)
@@ -259,8 +251,6 @@ struct DayGoalHeader: View {
         value: distractionSummaryValue,
         suffix: distractionSummarySuffix,
         accent: Design.distractionText,
-        gradientStart: Color(hex: "FF8C85"),
-        gradientEnd: Color(hex: "FC675F"),
         isProminent: isDistractionPastBudget
       )
       .contentTransition(.numericText())
@@ -270,7 +260,7 @@ struct DayGoalHeader: View {
       Spacer(minLength: 12)
 
       Text("Distraction budget")
-        .font(.custom("Switzer", size: 11))
+        .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
         .foregroundColor(labelColor)
         .lineLimit(1)
         .fixedSize()
@@ -283,8 +273,8 @@ struct DayGoalHeader: View {
   @ViewBuilder
   private var disabledContent: some View {
     Text("Set today’s goals")
-      .font(.custom("Switzer-Medium", size: 24))
-      .foregroundColor(theme.textPrimary)
+      .font(TBDTokens.Typography.title)
+      .foregroundColor(TBDColor.ink)
       .lineLimit(1)
       .fixedSize()
       .offset(x: 17, y: 18.96)
@@ -293,8 +283,8 @@ struct DayGoalHeader: View {
       .offset(x: 268, y: 18.96)
 
     Text("Set your goals for today to activate the progress bars below.")
-      .font(.custom("Switzer", size: 11))
-      .foregroundColor(theme.textSecondary)
+      .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+      .foregroundColor(TBDColor.muted)
       .lineLimit(1)
       .fixedSize()
       .offset(x: 17, y: 61.98)
@@ -313,7 +303,7 @@ struct DayGoalHeader: View {
       .frame(width: 236.213, height: 14)
       .offset(x: 34.06, y: 112)
 
-    TargetIconBubble(kind: .focus, tint: theme.textMuted)
+    TargetIconBubble(kind: .focus, tint: TBDColor.muted)
       .frame(width: 36, height: 36)
       .offset(x: 11, y: 94)
 
@@ -332,7 +322,7 @@ struct DayGoalHeader: View {
       .scaleEffect(x: -1, y: 1)
       .offset(x: 80.04, y: 157.62)
 
-    TargetIconBubble(kind: .distraction, tint: theme.textMuted)
+    TargetIconBubble(kind: .distraction, tint: TBDColor.muted)
       .frame(width: 36, height: 36)
       .offset(x: 305.25, y: 137.65)
   }
@@ -340,11 +330,8 @@ struct DayGoalHeader: View {
   private var setGoalsButton: some View {
     Button(action: onSetGoals) {
       Text("Set goals")
-        .font(.custom("Switzer", size: 12).weight(.medium))
         .lineLimit(1)
         .fixedSize()
-        .padding(.horizontal, 12)
-        .frame(height: 30)
     }
     .buttonStyle(TBDButtonStyle(.primary))
     .pointingHandCursorOnHover(reassertOnPressEnd: true)
@@ -354,7 +341,7 @@ struct DayGoalHeader: View {
   private var focusLabels: some View {
     ZStack(alignment: .topLeading) {
       Text("Focus")
-        .font(.custom("Switzer", size: 11))
+        .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
         .foregroundColor(labelColor)
         .lineLimit(1)
         .fixedSize()
@@ -364,8 +351,6 @@ struct DayGoalHeader: View {
         value: focusSummaryValue,
         suffix: focusSummarySuffix,
         accent: Design.focusText,
-        gradientStart: Color(hex: "5B87FF"),
-        gradientEnd: Color(hex: "003EE9"),
         isProminent: isFocusPastTarget
       )
       .contentTransition(.numericText())
@@ -413,10 +398,11 @@ struct DayGoalHeader: View {
   }
 
   private func legendItemWidth(for category: TargetCategoryProgress) -> CGFloat {
-    let font =
-      NSFont(name: "Switzer-Medium", size: 8)
-      ?? NSFont.systemFont(ofSize: 8, weight: .medium)
-    let textWidth = ceil((category.name as NSString).size(withAttributes: [.font: font]).width)
+    // Measure with the kit face at the legend size (13pt bold); a margin covers the variable-font default instance.
+    TBDFonts.register()
+    let base = NSFont(name: TBDFonts.family, size: TBDKit.textHint) ?? NSFont.systemFont(ofSize: TBDKit.textHint)  // design-guard: allow (AppKit text measurement of the kit face)
+    let font = NSFontManager.shared.convert(base, toHaveTrait: .boldFontMask)
+    let textWidth = ceil((category.name as NSString).size(withAttributes: [.font: font]).width * 1.1)
     return 4 + 2 + textWidth + 2
   }
 
@@ -514,7 +500,7 @@ struct DayGoalHeader: View {
       to: distractedDuration
     )
 
-    withAnimation(.timingCurve(0.16, 1, 0.3, 1, duration: 0.18)) {
+    withAnimation(TBDMotion.quick) {
       displayedFocusDuration = focusDuration
     }
   }
@@ -541,7 +527,7 @@ struct DayGoalHeader: View {
         try? await Task.sleep(nanoseconds: UInt64(delayMilliseconds) * 1_000_000)
         if Task.isCancelled { return }
 
-        withAnimation(.timingCurve(0.18, 0.88, 0.2, 1, duration: 0.82)) {
+        withAnimation(TBDMotion.gentle) {
           displayedFocusCategories = displayedFocusCategories.map { current in
             current.id == category.id ? category : current
           }
@@ -569,7 +555,7 @@ struct DayGoalHeader: View {
       }
     }
 
-    withAnimation(.timingCurve(0.16, 1, 0.3, 1, duration: 0.18)) {
+    withAnimation(TBDMotion.quick) {
       displayedDistractedDuration = nextDuration
     }
 
@@ -588,48 +574,26 @@ struct DayGoalHeader: View {
 }
 
 private struct GoalMetricSummaryText: View {
-  @Environment(\.dayflowTheme) private var theme
-  @Environment(\.stylePreviewAfter) private var stylePreviewAfter
-
   let value: String
   let suffix: String
   let accent: Color
-  let gradientStart: Color
-  let gradientEnd: Color
   let isProminent: Bool
 
   var body: some View {
     HStack(alignment: .firstTextBaseline, spacing: 2) {
-      if isProminent {
-        Text(value)
-          .font(.custom(stylePreviewAfter ? "Switzer" : "Switzer", size: 16).weight(.bold))
-          .foregroundStyle(
-            LinearGradient(
-              colors: [gradientStart, gradientEnd],
-              startPoint: .topLeading,
-              endPoint: .bottomTrailing
-            )
-          )
-      } else {
-        Text(value)
-          .font(.custom("Switzer", size: 11))
-          .foregroundColor(accent)
-      }
+      Text(value)
+        .font(isProminent ? TBDTokens.Typography.control : TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+        .foregroundColor(accent)
 
       Text(suffix)
-        .font(
-          .custom(
-            stylePreviewAfter ? "Switzer" : (isProminent ? "Switzer" : "Switzer"), size: 11)
-        )
-        .foregroundColor(theme.isDark ? theme.textSecondary : theme.textTertiary)
+        .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+        .foregroundColor(TBDColor.muted)
     }
     .lineLimit(1)
   }
 }
 
 private struct FocusTargetProgressBar: View {
-  @Environment(\.dayflowTheme) private var theme
-
   let categories: [TargetCategoryProgress]
   let targetDuration: TimeInterval
   let actualDuration: TimeInterval
@@ -652,11 +616,11 @@ private struct FocusTargetProgressBar: View {
 
       ZStack(alignment: .leading) {
         trackShape
-          .fill(theme.targetsTrackFill)
+          .fill(TBDColor.plate)
           .overlay(
             trackShape
               .stroke(
-                isFulfilled ? Color(hex: "91AEFF").opacity(0.9) : theme.targetsTrackBorder,
+                isFulfilled ? TBDColor.teal.opacity(0.9) : TBDColor.line,
                 lineWidth: 0.5
               )
           )
@@ -688,9 +652,7 @@ private struct FocusTargetProgressBar: View {
     return max(targetDuration, segmentTotal)
   }
 
-  private var trackShape: RoundedRectangle {
-    RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-  }
+  private var trackShape: TBDBrickShape { TBDBrickShape() }
 
   private func segmentWidth(for category: TargetCategoryProgress, availableWidth: CGFloat)
     -> CGFloat
@@ -706,7 +668,7 @@ private struct FocusTargetProgressSegment: View {
   let isFulfilled: Bool
 
   var body: some View {
-    RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
+    TBDBrickShape()
       .fill(segmentFill)
   }
 
@@ -730,8 +692,6 @@ private struct DistractionLossSnapshot: Equatable {
 }
 
 private struct DistractionLimitBar: View {
-  @Environment(\.dayflowTheme) private var theme
-
   let usedRatio: Double
   let color: Color
   let loss: DistractionLossSnapshot?
@@ -751,14 +711,14 @@ private struct DistractionLimitBar: View {
       let remainingWidth = max(0, geometry.size.width - startX)
 
       ZStack(alignment: .leading) {
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-          .fill(theme.targetsTrackFill)
+        TBDBrickShape()
+          .fill(TBDColor.plate)
           .overlay(
-            RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-              .stroke(theme.targetsTrackBorder, lineWidth: 0.5)
+            TBDBrickShape()
+              .stroke(TBDColor.line, lineWidth: 0.5)
           )
 
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
+        TBDBrickShape()
           .fill(color)
           .frame(width: remainingWidth, height: fillHeight)
           .offset(x: startX)
@@ -768,12 +728,12 @@ private struct DistractionLimitBar: View {
           let lostEndX = leadingInset + (availableWidth * min(max(loss.endRatio, 0), 1))
           let lostWidth = max(0, lostEndX - lostStartX)
 
-          RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
+          TBDBrickShape()
             .fill(
               LinearGradient(
                 colors: [
-                  Color(hex: "FFBE71").opacity(0.96),
-                  Color(hex: "FF8469").opacity(0.74),
+                  TBDColor.brick.opacity(0.96),
+                  TBDColor.brick.opacity(0.74),
                 ],
                 startPoint: .leading,
                 endPoint: .trailing
@@ -785,8 +745,8 @@ private struct DistractionLimitBar: View {
             .offset(x: lostStartX)
         }
 
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-          .fill(Color(hex: "FF6857").opacity(flashOpacity))
+        TBDBrickShape()
+          .fill(TBDColor.brick.opacity(flashOpacity))
       }
       .frame(height: geometry.size.height)
     }
@@ -810,7 +770,7 @@ private struct DistractionLimitBar: View {
       flashOpacity = 0
     }
 
-    withAnimation(.timingCurve(0.18, 0.78, 0.18, 1, duration: 0.64).delay(0.09)) {
+    withAnimation(TBDMotion.gentle.delay(0.09)) {
       lossOpacity = 0
       lossScale = 0.01
     }
@@ -829,8 +789,6 @@ private struct GoalTrackerImpactShake: GeometryEffect {
 }
 
 private struct InactiveGoalTrack: View {
-  @Environment(\.dayflowTheme) private var theme
-
   let width: CGFloat
   let height: CGFloat
   let fillWidth: CGFloat
@@ -839,12 +797,12 @@ private struct InactiveGoalTrack: View {
 
   var body: some View {
     ZStack(alignment: .topLeading) {
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-        .fill(theme.targetsInactiveTrack)
+      TBDBrickShape()
+        .fill(TBDColor.plate)
         .frame(width: width, height: height)
 
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-        .fill(theme.targetsInactiveFill)
+      TBDBrickShape()
+        .fill(TBDColor.line)
         .frame(width: fillWidth, height: 6)
         .offset(x: fillOffsetX, y: fillOffsetY)
     }
@@ -853,19 +811,17 @@ private struct InactiveGoalTrack: View {
 }
 
 private struct TargetLegendItem: View {
-  @Environment(\.dayflowTheme) private var theme
-
   let category: TargetCategoryProgress
 
   var body: some View {
     HStack(spacing: 2) {
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
+      RoundedRectangle(cornerRadius: TBDKit.radiusSwatch)
         .fill(category.color)
         .frame(width: 4, height: 4)
 
       Text(category.name)
-        .font(.custom("Switzer", size: 8).weight(.medium))
-        .foregroundColor(theme.textPrimary)
+        .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightNav))
+        .foregroundColor(TBDColor.ink)
         .lineLimit(1)
         .fixedSize()
     }
@@ -878,7 +834,6 @@ private struct TargetIconBubble: View {
     case distraction
   }
 
-  @Environment(\.dayflowTheme) private var theme
   @Environment(\.stylePreviewAfter) private var stylePreviewAfter
 
   let kind: Kind
@@ -886,11 +841,11 @@ private struct TargetIconBubble: View {
 
   var body: some View {
     ZStack {
-      Circle()
-        .fill(theme.targetsBubbleFill)
+      TBDBrickShape()
+        .fill(TBDColor.plate)
         .overlay(
-          Circle()
-            .stroke(theme.targetsBubbleBorder, lineWidth: theme.isDark ? 0.75 : 1)
+          TBDBrickShape()
+            .strokeBorder(TBDColor.line, lineWidth: TBDKit.hair)
         )
 
       switch kind {

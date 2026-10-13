@@ -92,14 +92,14 @@ final class TBDRetentionController: ObservableObject {
     func deleteAll(context: TBDListeningContext) {
         if context.isCapturing || context.files.isBusy || context.meetings.finalizingStage != nil {
             let alert = NSAlert()
-            alert.messageText = "Listening is busy"
+            alert.messageText = "Listen is busy"
             alert.informativeText = "Stop recording and wait for transcriptions to finish, then try again."
             alert.runModal()
             return
         }
         let alert = NSAlert()
         alert.alertStyle = .critical
-        alert.messageText = "Delete all Listening data?"
+        alert.messageText = "Delete all Listen data?"
         alert.informativeText = "This permanently deletes every dictation, voice note, meeting, transcript, note, answer and saved audio file. Settings, vocabulary, snippets and speech models stay. This cannot be undone."
         alert.addButton(withTitle: "Delete everything")
         alert.addButton(withTitle: "Cancel")
@@ -113,9 +113,9 @@ final class TBDRetentionController: ObservableObject {
             }
             env.selectedTranscriptionID = nil
             env.changed()
-            onMessage?("All Listening data was deleted")
+            onMessage?("All Listen data was deleted")
         } catch {
-            onMessage?("Could not delete Listening data: \(error.localizedDescription)")
+            onMessage?("Could not delete Listen data: \(error.localizedDescription)")
         }
     }
 }

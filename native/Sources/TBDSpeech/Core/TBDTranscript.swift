@@ -53,7 +53,7 @@ public enum TBDSpeechError: Error, LocalizedError, Equatable {
 
     public var errorDescription: String? {
         switch self {
-        case .modelNotDownloaded(let name): return "\(name) is not downloaded. Download it in Settings → Listening → Engine."
+        case .modelNotDownloaded(let name): return "\(name) is not downloaded. Download it in Settings → Listen → Speech."
         case .engineFailed(let message): return "Transcription failed: \(message)"
         case .audioUnreadable(let message): return "The audio could not be read: \(message)"
         case .microphoneDenied: return "Microphone permission is required."

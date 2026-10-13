@@ -9,7 +9,6 @@ struct CanvasActivityCardStyle {
 }
 
 struct CanvasActivityCard: View {
-  @Environment(\.dayflowTheme) private var theme
   @AppStorage("showTimelineAppIcons") private var showTimelineAppIcons: Bool = true
   @State private var isHovering = false
 
@@ -68,16 +67,16 @@ struct CanvasActivityCard: View {
 
   private var backupIndicator: some View {
     Text("!")
-      .font(Font.custom("Switzer", size: 9).weight(.semibold))
-      .foregroundColor(theme.textSecondary)
+      .font(TBDFonts.nunito(9, TBDKit.weightNav))
+      .foregroundStyle(TBDColor.muted)
       .frame(width: 14, height: 14)
       .background(
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.xs)
-          .fill(theme.chipFill)
+        TBDBrickShape()
+          .fill(TBDColor.tile)
       )
       .overlay(
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.xs)
-          .stroke(theme.chipBorder, lineWidth: 0.75)
+        TBDBrickShape()
+          .strokeBorder(TBDColor.line, lineWidth: TBDKit.hair)
       )
       .help(
         "This card fell back to a lower-quality Gemini model due to rate limiting, so output quality may be lower."
@@ -86,7 +85,7 @@ struct CanvasActivityCard: View {
 
   private var selectionStroke: Color {
     if isSystemCategory {
-      return Color(red: 1, green: 0.16, blue: 0.11)
+      return TBDColor.brick
     }
     return style.accent
   }
@@ -104,27 +103,25 @@ struct CanvasActivityCard: View {
               HStack(alignment: .top, spacing: 8) {
                 Text(displayTitle)
                   .font(
-                    Font.custom("Switzer", size: fontSize)
-                      .weight(fontWeight.fontWeight)
+                    TBDFonts.nunito(fontSize, fontWeight.fontWeight)
                   )
-                  .foregroundColor(style.text)
+                  .foregroundStyle(style.text)
 
                 Spacer()
 
                 Text(time)
                   .font(
-                    Font.custom("Switzer", size: secondaryFontSize)
-                      .weight(.medium)
+                    TBDFonts.nunito(secondaryFontSize, TBDKit.weightNav)
                   )
-                  .foregroundColor(style.time)
+                  .foregroundStyle(style.time)
                   .lineLimit(1)
                   .truncationMode(.tail)
               }
 
               if let statusLine = statusLine {
                 Text(statusLine)
-                  .font(Font.custom("Switzer", size: secondaryFontSize))
-                  .foregroundColor(theme.textSecondary)
+                  .font(TBDFonts.nunito(secondaryFontSize, TBDKit.weightBody))
+                  .foregroundStyle(TBDColor.muted)
                   .lineLimit(1)
                   .truncationMode(.tail)
               }
@@ -137,17 +134,16 @@ struct CanvasActivityCard: View {
                 primaryHost: faviconPrimaryHost,
                 secondaryHost: faviconSecondaryHost,
                 size: faviconSize,
-                backgroundColor: isFailedCard ? theme.cardFailedFill : theme.cardFill
+                backgroundColor: isFailedCard ? TBDColor.brickWash : TBDColor.tile
               )
               .offset(y: faviconVerticalOffset)
             }
 
             Text(title)
               .font(
-                Font.custom("Switzer", size: fontSize)
-                  .weight(fontWeight.fontWeight)
+                TBDFonts.nunito(fontSize, fontWeight.fontWeight)
               )
-              .foregroundColor(style.text)
+              .foregroundStyle(style.text)
 
             Spacer()
 
@@ -158,10 +154,9 @@ struct CanvasActivityCard: View {
 
               Text(time)
                 .font(
-                  Font.custom("Switzer", size: secondaryFontSize)
-                    .weight(.medium)
+                  TBDFonts.nunito(secondaryFontSize, TBDKit.weightNav)
                 )
-                .foregroundColor(style.time)
+                .foregroundStyle(style.time)
                 .lineLimit(1)
                 .truncationMode(.tail)
             }
@@ -177,41 +172,33 @@ struct CanvasActivityCard: View {
         maxHeight: height,
         alignment: isCompactCard ? .leading : .topLeading
       )
-      .background(isFailedCard ? theme.cardFailedFill : theme.cardFill)
-      .background(theme.panelSolid)
-      .clipShape(RoundedRectangle(cornerRadius: TBDTokens.Radius.base))
+      .background(isFailedCard ? TBDColor.brickWash : TBDColor.tile)
+      .clipShape(TBDBrickShape())
       .overlay(
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-          .inset(by: 0.25)
+        TBDBrickShape()
+          .inset(by: TBDKit.hair / 2)
           .stroke(
-            isFailedCard ? Color(red: 1, green: 0.16, blue: 0.11) : theme.cardBorder,
+            isFailedCard ? TBDColor.brick : TBDColor.line,
             style: isFailedCard
-              ? StrokeStyle(lineWidth: 0.5, dash: [2.5, 2.5]) : StrokeStyle(lineWidth: 0.25)
+              ? StrokeStyle(lineWidth: TBDKit.hair, dash: [2.5, 2.5]) : StrokeStyle(lineWidth: TBDKit.hair)
           )
       )
       .overlay(alignment: .leading) {
         if !isFailedCard {
-          RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
+          TBDBrickShape()
             .fill(style.accent)
             .frame(width: 6)
         }
       }
       // Selection halo for the active activity
       .overlay(
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
+        TBDBrickShape()
           .stroke(selectionStroke, lineWidth: 1.5)
           .opacity(isSelected ? 1 : 0)
       )
       .overlay(
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-          .stroke(Color.black.opacity(isHovering ? 0.08 : 0), lineWidth: 1)
-      )
-      // Hovered cards lift onto a hard, zero-blur offset shadow instead of a
-      // soft drop-shadow — flat content otherwise never floats.
-      .background(
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-          .fill(TBDTokens.ink.opacity(isHovering ? TBDTokens.Shadow.brickSm.opacity : 0))
-          .offset(x: TBDTokens.Shadow.brickSm.x, y: TBDTokens.Shadow.brickSm.y)
+        TBDBrickShape()
+          .stroke(TBDColor.ink.opacity(isHovering ? 0.08 : 0), lineWidth: 1)
       )
       .offset(x: isHovering ? -1 : 0, y: isHovering ? -1 : 0)
     }

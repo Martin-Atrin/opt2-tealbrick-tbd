@@ -7,8 +7,6 @@ import SwiftUI
 import TBDDesign
 
 struct CategoryPickerView: View {
-  @Environment(\.dayflowTheme) private var theme
-
   let currentCategory: String
   let categories: [TimelineCategory]
   var onCategorySelected: (TimelineCategory) -> Void
@@ -30,16 +28,8 @@ struct CategoryPickerView: View {
 
         // Divider - using a custom line with specific styling
         Rectangle()
-          .fill(Color.clear)
-          .frame(height: 0)
-          .overlay(
-            Rectangle()
-              .fill(
-                theme.isDark ? Color.white.opacity(0.14) : Color(red: 0.91, green: 0.89, blue: 0.86)
-              )
-              .frame(height: 1)
-          )
-          .padding(.horizontal, 0)
+          .fill(TBDColor.line)
+          .frame(height: TBDKit.hair)
 
         // Helper text section
         VStack(alignment: .leading, spacing: 10) {
@@ -49,32 +39,28 @@ struct CategoryPickerView: View {
               Text(
                 "To help Tealbrick organize your activities more accurately, try adding more details to the descriptions in your categories "
               )
-              .font(Font.custom("Switzer", size: 10).weight(.medium))
-              .foregroundColor(helperTextColor)
+              .font(TBDFonts.nunito(10, TBDKit.weightNav))
+              .foregroundStyle(helperTextColor)
 
               Button(action: onNavigateToEditor) {
                 Text("here")
-                  .font(Font.custom("Switzer", size: 10).weight(.medium))
-                  .foregroundColor(
-                    theme.isDark ? theme.accentText : Color(red: 1.0, green: 0.4, blue: 0.0)
-                  )
+                  .font(TBDFonts.nunito(10, TBDKit.weightNav))
+                  .foregroundStyle(TBDColor.tealInk)
                   .underline()
               }
               .buttonStyle(.plain)
               .pointingHandCursor()
 
               Text(".")
-                .font(Font.custom("Switzer", size: 10).weight(.medium))
-                .foregroundColor(helperTextColor)
+                .font(TBDFonts.nunito(10, TBDKit.weightNav))
+                .foregroundStyle(helperTextColor)
             }
             .padding(.leading, 2.188)
 
             // Lightbulb icon overlaid
             Image(systemName: "lightbulb.fill")
-              .font(.system(size: 7))
-              .foregroundColor(
-                theme.isDark ? theme.textMuted : Color(red: 0.49, green: 0.47, blue: 0.46)
-              )
+              .font(TBDFonts.symbol(7, TBDKit.weightBody))
+              .foregroundStyle(TBDColor.muted)
               .offset(x: 0, y: 2)
           }
         }
@@ -83,93 +69,20 @@ struct CategoryPickerView: View {
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(
-      ZStack {
-        if theme.isDark {
-          theme.popoverFill
-            .background(TBDTokens.paper)
-        } else {
-          // Backdrop blur effect - rgba(250,244,241,0.86) with blur
-          Color(red: 0.98, green: 0.96, blue: 0.95).opacity(0.86)
-            .background(TBDTokens.paper)
-        }
-      }
-      .overlay(
-        UnevenRoundedRectangle(
-          cornerRadii: .init(
-            topLeading: 0,
-            bottomLeading: 0,
-            bottomTrailing: 0,
-            topTrailing: 6
-          )
-        )
-        .stroke(
-          theme.isDark ? theme.popoverBorder : Color(red: 0.91, green: 0.88, blue: 0.87),
-          lineWidth: 1
-        )
-      )
-    )
-    .clipShape(
-      UnevenRoundedRectangle(
-        cornerRadii: .init(
-          topLeading: 0,
-          bottomLeading: 0,
-          bottomTrailing: 0,
-          topTrailing: 6
-        )
-      )
-    )
+    .tbdFloating()
     .overlay(alignment: .topTrailing) {
-      // Edit/Check button in top right corner
+      // Done button in the top right corner (kit icon button, 36pt hit area)
       Button(action: {}) {
         Image(systemName: "checkmark")
-          .font(.system(size: 8))
-          .foregroundColor(theme.isDark ? .white : Color(red: 0.2, green: 0.2, blue: 0.2))
-          .frame(width: 8, height: 8)
+          .font(TBDFonts.symbol(11, TBDKit.weightLabel))
       }
-      .buttonStyle(.plain)
-      .padding(6)
-      .background(
-        Group {
-          if theme.isDark {
-            Color.white.opacity(0.14)
-              .background(TBDTokens.paper)
-          } else {
-            Color(red: 0.98, green: 0.98, blue: 0.98).opacity(0.8)
-              .background(TBDTokens.paper)
-          }
-        }
-      )
-      .clipShape(
-        UnevenRoundedRectangle(
-          cornerRadii: .init(
-            topLeading: 0,
-            bottomLeading: 6,
-            bottomTrailing: 0,
-            topTrailing: 6
-          )
-        )
-      )
-      .overlay(
-        UnevenRoundedRectangle(
-          cornerRadii: .init(
-            topLeading: 0,
-            bottomLeading: 6,
-            bottomTrailing: 0,
-            topTrailing: 6
-          )
-        )
-        .stroke(
-          theme.isDark ? theme.popoverBorder : Color(red: 0.89, green: 0.89, blue: 0.89),
-          lineWidth: 1
-        )
-      )
-      .offset(x: -8, y: 8)
+      .buttonStyle(TBDButtonStyle(.icon))
+      .accessibilityLabel("Done")
     }
   }
 
   private var helperTextColor: Color {
-    theme.isDark ? theme.textTertiary : Color(red: 0.39, green: 0.35, blue: 0.33)
+    TBDColor.muted
   }
 
   private func isCategorySelected(_ category: TimelineCategory) -> Bool {
@@ -182,8 +95,6 @@ struct CategoryPickerView: View {
 }
 
 struct CategoryPill: View {
-  @Environment(\.dayflowTheme) private var theme
-
   let category: TimelineCategory
   let isSelected: Bool
   let onTap: () -> Void
@@ -198,30 +109,22 @@ struct CategoryPill: View {
 
         // Category name - no line limit, text can wrap if needed
         Text(category.name)
-          .font(Font.custom("Switzer", size: 10).weight(.medium))
-          .foregroundColor(isSelected ? theme.controlText : theme.chipText)
+          .font(TBDFonts.nunito(10, TBDKit.weightNav))
+          .foregroundStyle(isSelected ? TBDColor.tealInk : TBDColor.ink)
           .fixedSize(horizontal: false, vertical: true)
           .lineLimit(nil)
       }
-      .padding(.horizontal, 6)
+      .padding(.horizontal, 8)
       .padding(.vertical, 4)
-      .background(pillBackground)
-      .cornerRadius(TBDTokens.Radius.base)
-      .overlay(
-        Group {
-          if category.isIdle && !isSelected {
-            // Dotted border for Idle category
-            RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-              .inset(by: 0.375)
-              .stroke(style: StrokeStyle(lineWidth: 0.75, dash: [2, 2]))
-              .foregroundColor(pillBorder)
-          } else {
-            RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-              .inset(by: 0.375)
-              .stroke(pillBorder, lineWidth: 0.75)
-          }
+      .background(isSelected ? TBDColor.tealWash : TBDColor.tile, in: Capsule())
+      .tbdPillEdge(isSelected ? TBDColor.tealWashLine : (category.isIdle ? Color.clear : TBDColor.line))
+      .overlay {
+        if category.isIdle && !isSelected {
+          // Dashed edge for the Idle category
+          Capsule().strokeBorder(
+            TBDColor.lineStrong, style: StrokeStyle(lineWidth: TBDKit.hair, dash: [4, 3]))
         }
-      )
+      }
     }
     .buttonStyle(.plain)
     .pointingHandCursor()
@@ -231,14 +134,6 @@ struct CategoryPill: View {
     if let nsColor = NSColor(hex: category.colorHex) {
       return Color(nsColor: nsColor)
     }
-    return Color.gray
-  }
-
-  private var pillBackground: Color {
-    isSelected ? theme.controlFill : theme.chipFill
-  }
-
-  private var pillBorder: Color {
-    isSelected ? theme.controlBorder : theme.chipBorder
+    return TBDColor.toneStone
   }
 }

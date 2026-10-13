@@ -71,7 +71,6 @@ struct CanvasTimelineDataView: View {
   let cardHoverScale: CGFloat
   let cardPressedScale: CGFloat
 
-  @Environment(\.dayflowTheme) private var theme
   @State private var selectedCardId: String? = nil
   @State private var positionedActivities: [CanvasPositionedActivity] = []
   @State private var recordingProjection: TimelineRecordingProjectionWindow?
@@ -266,7 +265,7 @@ struct CanvasTimelineDataView: View {
       ForEach(0..<(CanvasConfig.endHour - CanvasConfig.startHour), id: \.self) { _ in
         VStack(spacing: 0) {
           DashedHorizontalLine()
-            .stroke(theme.hourLine, style: StrokeStyle(lineWidth: 0.75, dash: [2, 2]))
+            .stroke(TBDColor.line, style: StrokeStyle(lineWidth: 0.75, dash: [2, 2]))
             .frame(height: 0.75)
           Spacer()
         }
@@ -277,13 +276,13 @@ struct CanvasTimelineDataView: View {
 
   /// Hour labels for hours that haven't happened yet (today only) are dimmed.
   private func hourLabelColor(for hour: Int) -> Color {
-    guard timelineIsToday(selectedDate) else { return theme.hourLabel }
+    guard timelineIsToday(selectedDate) else { return TBDColor.inkSoft }
     let now = Calendar.current.component(.hour, from: Date())
     let nowIndex =
       now >= CanvasConfig.startHour
       ? now - CanvasConfig.startHour : (24 - CanvasConfig.startHour) + now
     let hourIndex = hour - CanvasConfig.startHour
-    return hourIndex > nowIndex ? theme.hourLabelFuture : theme.hourLabel
+    return hourIndex > nowIndex ? TBDColor.muted : TBDColor.inkSoft
   }
 
   private var timeColumn: some View {
@@ -291,8 +290,8 @@ struct CanvasTimelineDataView: View {
       ForEach(CanvasConfig.startHour..<CanvasConfig.endHour, id: \.self) { hour in
         let hourIndex = hour - CanvasConfig.startHour
         Text(formatHour(hour))
-          .font(.custom("Switzer", size: timeLabelFontSize))
-          .foregroundColor(hourLabelColor(for: hour))
+          .font(TBDFonts.nunito(timeLabelFontSize, TBDKit.weightBody))
+          .foregroundStyle(hourLabelColor(for: hour))
           .padding(.trailing, 5)
           .padding(.top, 2)
           .frame(width: CanvasConfig.timeColumnWidth, alignment: .trailing)
@@ -416,13 +415,8 @@ struct CanvasTimelineDataView: View {
         timelineStatusCard(
           height: projectionHeight,
           yPosition: calculateYPosition(for: projection.start) + 1,
-          gradient: theme.generatingGradient,
-          gradientOpacity: 1.0,
-          baseColor: theme.panelSolid,
-          strokeColor: .clear,
-          strokeWidth: 0,
-          shadowColor: .clear,
-          shadowRadius: 0
+          fill: TBDColor.statusLiveFill,
+          strokeColor: TBDColor.statusLiveEdge
         ) {
           if !isCompactProjection {
             generatingStatusText
@@ -433,13 +427,8 @@ struct CanvasTimelineDataView: View {
         timelineStatusCard(
           height: projectionHeight,
           yPosition: calculateYPosition(for: projection.start) + 1,
-          gradient: theme.pausedCardGradient,
-          gradientOpacity: 1.0,
-          baseColor: theme.panelSolid,
-          strokeColor: theme.cardBorder.opacity(0.6),
-          strokeWidth: 0.5,
-          shadowColor: .clear,
-          shadowRadius: 0,
+          fill: TBDColor.statusIdleFill,
+          strokeColor: TBDColor.statusIdleEdge,
           onTap: handlePausedStatusCardTap
         ) {
           pausedStatusText
@@ -449,13 +438,8 @@ struct CanvasTimelineDataView: View {
         timelineStatusCard(
           height: projectionHeight,
           yPosition: calculateYPosition(for: projection.start) + 1,
-          gradient: theme.pausedCardGradient,
-          gradientOpacity: 1.0,
-          baseColor: theme.panelSolid,
-          strokeColor: theme.cardBorder.opacity(0.6),
-          strokeWidth: 0.5,
-          shadowColor: .clear,
-          shadowRadius: 0,
+          fill: TBDColor.statusIdleFill,
+          strokeColor: TBDColor.statusIdleEdge,
           onTap: handlePausedStatusCardTap
         ) {
           stoppedStatusText
@@ -468,13 +452,8 @@ struct CanvasTimelineDataView: View {
   private func timelineStatusCard<Content: View>(
     height: CGFloat,
     yPosition: CGFloat,
-    gradient: LinearGradient,
-    gradientOpacity: Double,
-    baseColor: Color,
+    fill: Color,
     strokeColor: Color,
-    strokeWidth: CGFloat,
-    shadowColor: Color,
-    shadowRadius: CGFloat,
     onTap: (() -> Void)? = nil,
     @ViewBuilder content: () -> Content
   ) -> some View {
@@ -489,20 +468,11 @@ struct CanvasTimelineDataView: View {
       maxHeight: height,
       alignment: .leading
     )
-    .background(
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-        .fill(baseColor)
-        .overlay(
-          RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-            .fill(gradient)
-            .opacity(gradientOpacity)
-        )
-    )
-    .clipShape(RoundedRectangle(cornerRadius: TBDTokens.Radius.base))
+    .background(TBDBrickShape().fill(fill))
+    .clipShape(TBDBrickShape())
     .overlay(
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-        .inset(by: 0.375)
-        .stroke(strokeColor, lineWidth: strokeWidth)
+      TBDBrickShape()
+        .strokeBorder(strokeColor, lineWidth: TBDKit.hair)
     )
     .padding(.horizontal, 6)
     .frame(maxWidth: .infinity, alignment: .leading)
@@ -524,12 +494,11 @@ struct CanvasTimelineDataView: View {
       Text("Generating your next card")
     }
     .font(
-      Font.custom("Switzer", size: 12)
-        .weight(.semibold)
+      TBDFonts.nunito(12, TBDKit.weightNav)
     )
     .lineSpacing(2.4)
     .tracking(0)
-    .foregroundColor(.white)
+    .foregroundStyle(TBDColor.statusLiveOn)
     .lineLimit(1)
     .truncationMode(.tail)
   }
@@ -553,17 +522,16 @@ struct CanvasTimelineDataView: View {
   private func statusText(iconName: String, message: String) -> some View {
     HStack(spacing: 10) {
       Image(systemName: iconName)
-        .font(.system(size: 11, weight: .semibold))
-        .foregroundColor(theme.pausedCardText)
+        .font(TBDFonts.symbol(11, TBDKit.weightNav))
+        .foregroundStyle(TBDColor.statusIdleOn)
       Text(message)
     }
     .font(
-      Font.custom("Switzer", size: 12)
-        .weight(.regular)
+      TBDFonts.nunito(12, TBDKit.weightBody)
     )
     .lineSpacing(2.4)
     .tracking(0)
-    .foregroundColor(theme.pausedCardText)
+    .foregroundStyle(TBDColor.statusIdleOn)
     .lineLimit(1)
     .truncationMode(.tail)
   }
@@ -589,9 +557,10 @@ struct CanvasTimelineDataView: View {
   private var timelineSpinnerConfig: TimelineSpinnerConfig {
     var config = TimelineSpinnerConfig.reference
     config.gap = 1.0
-    config.colorDim = .init(0.263, 0.365, 0.592)  // #435D97
-    config.colorMid = .init(0.722, 0.518, 0.737)  // #B884BC
-    config.colorHot = .init(0.965, 0.745, 0.455)  // #F6BE74
+    // Kit teal ramp (teal-deep, teal, teal-ink dark).
+    config.colorDim = .init(0.043, 0.396, 0.388)
+    config.colorMid = .init(0.043, 0.584, 0.580)
+    config.colorHot = .init(0.435, 0.827, 0.812)
     return config
   }
 
@@ -812,11 +781,11 @@ struct CanvasTimelineDataView: View {
     let fallback = categories.first ?? CategoryPersistence.defaultCategories.first!
     let category = matched ?? fallback
 
-    let baseNSColor = NSColor(hex: category.colorHex) ?? NSColor(hex: "#4F80EB") ?? .systemBlue
+    let baseNSColor = NSColor(hex: category.colorHex) ?? NSColor(TBDColor.toneTeal)
 
     return CanvasActivityCardStyle(
-      text: theme.cardTitle,
-      time: theme.cardTime,
+      text: TBDColor.ink,
+      time: TBDColor.muted,
       accent: Color(nsColor: baseNSColor),
       isIdle: category.isIdle
     )
@@ -854,7 +823,7 @@ extension CanvasTimelineDataView {
       )
       .overlay(
         Rectangle()
-          .fill(Color.red.opacity(0.001))
+          .fill(Color.clear)
           .frame(width: 10, height: 20)
           .position(x: 5, y: anchorY)
           .id("nowAnchor"),

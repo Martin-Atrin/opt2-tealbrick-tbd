@@ -33,9 +33,6 @@ struct ScreenRecordingPermissionView: View {
     case needsAction  // requested or settings opened, awaiting quit & reopen / toggle
   }
 
-  private let brownAccent = Color(hex: "492304")
-  private let privacyTextColor = Color(hex: "89380E")
-
   var body: some View {
     GeometryReader { geo in
       ZStack(alignment: .bottomTrailing) {
@@ -99,48 +96,42 @@ struct ScreenRecordingPermissionView: View {
     HStack(alignment: .center, spacing: metrics.gap) {
       // Left side — text and controls
       VStack(alignment: .leading, spacing: 10) {
-        Text("Last step!")
-          .font(.custom("Switzer-Bold", size: 16))
-          .foregroundColor(Color(hex: "F96E00"))
+        TBDKicker(String(localized: "Last step!"))
 
         Text("Permission")
-          .font(.custom("Switzer-Medium", size: 28))
-          .foregroundColor(.black)
+          .font(TBDTokens.Typography.display)
+          .tracking(TBDTokens.Typography.displayTracking)
+          .foregroundColor(TBDColor.ink)
 
         Text("Tealbrick can help understand your day.")
-          .font(.custom("Switzer-Medium", size: 14))
-          .foregroundColor(Color(hex: "5B5B5B"))
+          .font(TBDTokens.Typography.tag)
+          .foregroundColor(TBDColor.muted)
           .fixedSize(horizontal: false, vertical: true)
 
         // Privacy info box
         VStack(alignment: .leading, spacing: 10) {
           HStack(alignment: .top, spacing: 8) {
             Image(systemName: "shield.fill")
-              .font(.system(size: 14))
-              .foregroundColor(privacyTextColor)
+              .font(TBDFonts.symbol(14, .regular))
+              .foregroundColor(TBDColor.tealInk)
             Text("Tealbrick is built to be private and secure.")
-              .font(.custom("Switzer-Bold", size: 14))
-              .foregroundColor(privacyTextColor)
+              .font(TBDTokens.Typography.control)
+              .foregroundColor(TBDColor.ink)
               .fixedSize(horizontal: false, vertical: true)
           }
 
           Text(
             "Tealbrick stores all recordings locally on your Mac, and can process everything privately on your device using local AI models."
           )
-          .font(.custom("Switzer-Medium", size: 14))
-          .foregroundColor(privacyTextColor)
+          .font(TBDTokens.Typography.tag)
+          .foregroundColor(TBDColor.inkSoft)
 
           Text("You are always in control — you can pause or turn off Tealbrick whenever you like.")
-            .font(.custom("Switzer-Medium", size: 14))
-            .foregroundColor(privacyTextColor)
+            .font(TBDTokens.Typography.tag)
+            .foregroundColor(TBDColor.inkSoft)
         }
-        .padding(16)
-        .frame(maxWidth: 351, alignment: .leading)
-        .background(Color.white.opacity(0.3))
-        .overlay(
-          RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-            .stroke(Color(red: 0.8, green: 0.278, blue: 0).opacity(0.15), lineWidth: TBDTokens.Stroke.hairline)
-        )
+        .frame(maxWidth: 351 - 32, alignment: .leading)
+        .tbdPanelTint(padding: 16)
 
         // State-based messaging
         Group {
@@ -148,13 +139,11 @@ struct ScreenRecordingPermissionView: View {
           case .notRequested:
             EmptyView()
           case .granted:
-            Text("✓ Permission granted! Click Next to continue.")
-              .font(.custom("Switzer", size: 14))
-              .foregroundColor(.green)
+            TBDNotice(String(localized: "✓ Permission granted! Click Next to continue."), tone: .live)
           case .needsAction:
-            Text("Turn on Screen Recording for Tealbrick, then quit and reopen the app to finish.")
-              .font(.custom("Switzer", size: 14))
-              .foregroundColor(.orange)
+            TBDNotice(
+              String(localized: "Turn on Screen Recording for Tealbrick, then quit and reopen the app to finish."),
+              tone: .needsYou)
           }
         }
 
@@ -173,44 +162,22 @@ struct ScreenRecordingPermissionView: View {
                   isCheckingPermission
                     ? String(localized: "Checking...") : String(localized: "Open System Settings")
                 )
-                .font(.custom("Switzer-Semibold", size: 12))
-                .tracking(-0.48)
-                .foregroundColor(brownAccent)
               }
-              .padding(.horizontal, 12)
-              .frame(height: 36)
             }
-            .buttonStyle(.plain)
-            .background(RoundedRectangle(cornerRadius: TBDTokens.Radius.base).fill(Color(hex: "FFC9A8")))
+            .buttonStyle(TBDButtonStyle(.secondary))
             .disabled(isCheckingPermission)
           case .needsAction:
             HStack {
               HStack(spacing: 12) {
                 Button(action: openSystemSettings) {
                   Text("Open System Settings")
-                    .font(.custom("Switzer-Semibold", size: 12))
-                    .tracking(-0.48)
-                    .foregroundColor(brownAccent)
-                    .padding(.horizontal, 12)
-                    .frame(height: 36)
                 }
-                .buttonStyle(.plain)
-                .background(RoundedRectangle(cornerRadius: TBDTokens.Radius.base).fill(Color(hex: "FFC9A8")))
+                .buttonStyle(TBDButtonStyle(.secondary))
 
                 Button(action: quitAndReopen) {
                   Text("Quit and Reopen")
-                    .font(.custom("Switzer-Semibold", size: 12))
-                    .tracking(-0.48)
-                    .foregroundColor(brownAccent)
-                    .padding(.horizontal, 12)
-                    .frame(height: 36)
                 }
-                .buttonStyle(.plain)
-                .background(RoundedRectangle(cornerRadius: TBDTokens.Radius.base).fill(Color.white.opacity(0.69)))
-                .overlay(
-                  RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-                    .strokeBorder(Color(hex: "D9D9D9"), lineWidth: TBDTokens.Stroke.hairline)
-                )
+                .buttonStyle(TBDButtonStyle(.quiet))
               }
             }
           case .granted:
@@ -231,11 +198,9 @@ struct ScreenRecordingPermissionView: View {
           .resizable()
           .aspectRatio(contentMode: .fit)
           .frame(width: metrics.imageWidth, height: metrics.imageHeight)
-          .background(Color(hex: "FCFCFC"))
-          .overlay(
-            RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-              .strokeBorder(Color(hex: "F0F0F0"), lineWidth: TBDTokens.Stroke.hairline)
-          )
+          .background(TBDColor.tile)
+          .clipShape(TBDBrickShape())
+          .overlay(TBDBrickShape().strokeBorder(TBDColor.line, lineWidth: TBDKit.hair))
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
@@ -246,41 +211,23 @@ struct ScreenRecordingPermissionView: View {
 
     // Navigation buttons — bottom right
     HStack(spacing: 15) {
-      DayflowSurfaceButton(
-        action: onBack,
-        content: { Text("Back").font(.custom("Switzer-Medium", size: 14)).tracking(-0.48) },
-        background: .white,
-        foreground: Color(hex: "B6B6B6"),
-        borderColor: Color(hex: "B6B6B6"),
-        cornerRadius: TBDTokens.Radius.base,
-        horizontalPadding: 32,
-        verticalPadding: 0,
-        fixedHeight: 44,
-        showShadow: false
-      )
-      DayflowSurfaceButton(
-        action: {
-          if permissionState == .granted { onNext() }
-        },
-        content: {
-          HStack(spacing: 6) {
-            Text("Next").font(.custom("Switzer-Medium", size: 14)).tracking(-0.48)
-            Image(systemName: "chevron.right").font(.system(size: 12, weight: .medium))
-          }
-          .padding(.leading, 4)
-        },
-        background: permissionState == .granted
-          ? TBDTokens.fill
-          : TBDTokens.fill.opacity(0.3),
-        foreground: TBDTokens.onPrimary,
-        borderColor: TBDTokens.fill,
-        cornerRadius: TBDTokens.Radius.base,
-        horizontalPadding: 32,
-        verticalPadding: 0,
-        fixedHeight: 44,
-        showOverlayStroke: false
-      )
+      Button(action: onBack) {
+        Text("Back")
+      }
+      .buttonStyle(TBDButtonStyle(.secondary, size: .large))
+      .pointingHandCursor()
+
+      Button(action: {
+        if permissionState == .granted { onNext() }
+      }) {
+        HStack(spacing: 6) {
+          Text("Next")
+          Image(systemName: "chevron.right").font(TBDFonts.symbol(12, .bold))
+        }
+      }
+      .buttonStyle(TBDButtonStyle(.primary, size: .large))
       .disabled(permissionState != .granted)
+      .pointingHandCursor(enabled: permissionState == .granted)
     }
     .padding(.trailing, 60)
     .padding(.bottom, 40)

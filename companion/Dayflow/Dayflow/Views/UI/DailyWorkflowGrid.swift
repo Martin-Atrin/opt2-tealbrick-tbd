@@ -5,8 +5,6 @@ import TBDDesign
 import UserNotifications
 
 struct DailyWorkflowGrid: View {
-  @Environment(\.dayflowTheme) private var theme
-
   let rows: [DailyWorkflowGridRow]
   let timelineWindow: DailyWorkflowTimelineWindow
   let distractionMarkers: [DailyWorkflowDistractionMarker]
@@ -48,7 +46,7 @@ struct DailyWorkflowGrid: View {
 
       let distractionRowHeight: CGFloat = 10 * layoutScale
       let distractionRowSpacing: CGFloat = 6 * layoutScale
-      let distractionCornerRadius: CGFloat = max(1, 2 * layoutScale)
+      let distractionCornerRadius: CGFloat = TBDKit.radiusSwatch
       let showDistractions = showDistractionRow && !distractionMarkers.isEmpty
       let distractionLabelWidth =
         showDistractions
@@ -69,9 +67,7 @@ struct DailyWorkflowGrid: View {
       let cellSize = baselineCellSize
       let columnSpacing = baselineGap
       let rowSpacing = baselineGap
-      let cellCornerRadius = max(1.2, 2.5 * layoutScale)
-      let categoryLabelFontSize: CGFloat = 12 * layoutScale
-      let axisLabelFontSize: CGFloat = 10 * layoutScale
+      let cellCornerRadius = TBDKit.radiusSwatch
       let totalGap = columnSpacing * CGFloat(slotCount - 1)
       let gridWidth = (cellSize * CGFloat(slotCount)) + totalGap
       let axisWidth = gridWidth
@@ -81,14 +77,14 @@ struct DailyWorkflowGrid: View {
           VStack(alignment: .trailing, spacing: rowSpacing) {
             ForEach(renderRows) { row in
               Text(row.name)
-                .font(.custom("Switzer-Regular", size: categoryLabelFontSize))
-                .foregroundStyle(theme.textSecondary)
+                .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+                .foregroundStyle(TBDColor.muted)
                 .frame(width: effectiveLabelWidth, height: cellSize, alignment: .trailing)
             }
             if showDistractions {
               Text("Distractions")
-                .font(.custom("Switzer-Regular", size: categoryLabelFontSize))
-                .foregroundStyle(theme.textSecondary)
+                .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+                .foregroundStyle(TBDColor.muted)
                 .frame(
                   width: effectiveLabelWidth, height: distractionRowHeight, alignment: .trailing
                 )
@@ -108,7 +104,7 @@ struct DailyWorkflowGrid: View {
                         Rectangle()
                           .foregroundStyle(.clear)
                           .background(fillColor(for: row, slotIndex: slotIndex))
-                          .cornerRadius(cellCornerRadius)
+                          .clipShape(RoundedRectangle(cornerRadius: cellCornerRadius, style: .continuous))
                           .frame(width: cellSize, height: cellSize)
                           .onHover { hovering in
                             handleCellHover(hovering, cellKey: cellKey)
@@ -130,10 +126,10 @@ struct DailyWorkflowGrid: View {
 
                   ZStack(alignment: .topLeading) {
                     RoundedRectangle(cornerRadius: distractionCornerRadius)
-                      .fill(theme.dailyDistractionTrack)
+                      .fill(TBDColor.plate)
                       .overlay(
                         RoundedRectangle(cornerRadius: distractionCornerRadius)
-                          .stroke(theme.dailyDistractionTrackBorder, lineWidth: 0.5)
+                          .stroke(TBDColor.line, lineWidth: 0.5)
                       )
                       .frame(width: gridWidth, height: distractionRowHeight)
 
@@ -149,9 +145,9 @@ struct DailyWorkflowGrid: View {
                       HStack(spacing: 0) {
                         Color.clear.frame(width: leadingPad, height: distractionRowHeight)
                         Rectangle()
-                          .fill(CompanionPalette.accent)
+                          .fill(TBDColor.brick)
                           .opacity(hoveredDistractionId == marker.id ? 1.0 : 0.85)
-                          .cornerRadius(distractionCornerRadius)
+                          .clipShape(RoundedRectangle(cornerRadius: distractionCornerRadius, style: .continuous))
                           .frame(width: markerWidth, height: distractionRowHeight)
                           .contentShape(Rectangle())
                           .onHover { hovering in
@@ -177,7 +173,7 @@ struct DailyWorkflowGrid: View {
 
               VStack(alignment: .leading, spacing: axisLabelSpacing) {
                 Rectangle()
-                  .fill(theme.dailyGridBorder)
+                  .fill(TBDColor.line)
                   .frame(width: axisWidth, height: max(0.7, 0.9 * layoutScale))
 
                 if hourTicks.count > 1 {
@@ -189,9 +185,8 @@ struct DailyWorkflowGrid: View {
                     ForEach(Array(hourTicks.enumerated()), id: \.offset) { index, hour in
                       let tickX = CGFloat(index) * intervalWidth
                       Text(formatAxisHourLabel(fromAbsoluteHour: hour))
-                        .font(.custom("Switzer-Regular", size: axisLabelFontSize))
-                        .kerning(-0.08 * layoutScale)
-                        .foregroundStyle(theme.textSecondary)
+                        .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+                        .foregroundStyle(TBDColor.muted)
                         .frame(
                           width: labelWidth,
                           alignment: axisLabelAlignment(
@@ -213,9 +208,8 @@ struct DailyWorkflowGrid: View {
                   .frame(width: axisWidth, alignment: .leading)
                 } else if let onlyTick = hourTicks.first {
                   Text(formatAxisHourLabel(fromAbsoluteHour: onlyTick))
-                    .font(.custom("Switzer-Regular", size: axisLabelFontSize))
-                    .kerning(-0.08 * layoutScale)
-                    .foregroundStyle(theme.textSecondary)
+                    .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+                    .foregroundStyle(TBDColor.muted)
                     .frame(width: axisWidth, alignment: .leading)
                 }
               }
@@ -249,7 +243,7 @@ struct DailyWorkflowGrid: View {
     let axisTopSpacing: CGFloat = 10 * layoutScale
     let axisLineHeight: CGFloat = max(0.7, 0.9 * layoutScale)
     let axisLabelSpacing: CGFloat = 5 * layoutScale
-    let axisLabelHeight: CGFloat = 14 * layoutScale
+    let axisLabelHeight: CGFloat = 18 * layoutScale
     let bottomBuffer: CGFloat = 6 * layoutScale
     return topInset + rowsHeight + distractionHeight + axisTopSpacing + axisLineHeight
       + axisLabelSpacing + axisLabelHeight + bottomBuffer
@@ -257,14 +251,14 @@ struct DailyWorkflowGrid: View {
 
   private func fillColor(for row: DailyWorkflowGridRow, slotIndex: Int) -> Color {
     guard slotIndex < row.slotOccupancies.count else {
-      return theme.dailyEmptyCell
+      return TBDColor.plate
     }
     let occupancy = min(max(row.slotOccupancies[slotIndex], 0), 1)
-    guard occupancy > 0 else { return theme.dailyEmptyCell }
+    guard occupancy > 0 else { return TBDColor.plate }
 
     // Partial occupancy stays dimmer; full occupancy reaches full intensity.
     let alpha = 0.3 + (occupancy * 0.7)
-    return Color(hex: row.colorHex).opacity(alpha)
+    return Color(hex: row.colorHex).opacity(alpha)  // design-guard: allow (user category colour)
   }
 
   private func axisLabelAlignment(tickIndex: Int, tickCount: Int) -> Alignment {
@@ -365,15 +359,14 @@ struct DailyWorkflowHoverBoundsPreferenceKey: PreferenceKey {
 func gridLabelColumnWidth(
   for rows: [DailyWorkflowGridRow], layoutScale: CGFloat
 ) -> CGFloat {
-  let fontSize = 12 * layoutScale
-  let font =
-    NSFont(name: "Switzer-Regular", size: fontSize)
-    ?? NSFont.systemFont(ofSize: fontSize, weight: .regular)
+  // Measure with the kit face at the label size (13pt); a margin covers the variable-font default instance.
+  TBDFonts.register()
+  let font = NSFont(name: TBDFonts.family, size: TBDKit.textHint) ?? NSFont.systemFont(ofSize: TBDKit.textHint)  // design-guard: allow (AppKit text measurement of the kit face)
   let measuredMax = rows.reduce(CGFloat.zero) { currentMax, row in
     let width = (row.name as NSString).size(withAttributes: [.font: font]).width
     return max(currentMax, width)
   }
-  return ceil(measuredMax + 1)
+  return ceil(measuredMax * 1.1 + 2)
 }
 
 func workflowTooltip(
@@ -391,8 +384,6 @@ func workflowTooltip(
 }
 
 struct DailyWorkflowTooltip: View {
-  @Environment(\.dayflowTheme) private var theme
-
   let durationMinutes: Double
   let title: String
   let accentColor: Color
@@ -401,24 +392,16 @@ struct DailyWorkflowTooltip: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 4 * layoutScale) {
       Text(formatDurationValue(durationMinutes))
-        .font(.custom("Switzer-Semibold", size: 12 * layoutScale))
+        .font(TBDTokens.Typography.label)
         .foregroundStyle(accentColor)
       Text(title)
-        .font(.custom("Switzer-Regular", size: 12 * layoutScale))
-        .foregroundStyle(theme.textPrimary)
+        .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+        .foregroundStyle(TBDColor.ink)
         .fixedSize(horizontal: false, vertical: true)
     }
     .padding(8 * layoutScale)
     .frame(width: 200 * layoutScale, alignment: .leading)
-    .background(
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base, style: .continuous)
-        .fill(theme.popoverFill)
-        .overlay(
-          RoundedRectangle(cornerRadius: TBDTokens.Radius.base, style: .continuous)
-            .stroke(theme.popoverBorder, lineWidth: 1)
-        )
-        .shadow(color: Color.black.opacity(0.12), radius: 2, x: 0, y: 2)
-    )
+    .tbdFloating()
     .allowsHitTesting(false)
   }
 }
@@ -431,22 +414,16 @@ struct DailyStatChip: View {
   var body: some View {
     HStack(spacing: 4) {
       Text(title)
-        .font(.custom("Switzer-Regular", size: 10 * scale))
-        .foregroundStyle(CompanionPalette.accent)
+        .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+        .foregroundStyle(TBDColor.tealInk)
       Text(value)
-        .font(.custom("Switzer-Semibold", size: 10 * scale))
-        .foregroundStyle(CompanionPalette.accent)
+        .font(TBDTokens.Typography.label)
+        .foregroundStyle(TBDColor.tealInk)
     }
     .padding(.horizontal, 12 * scale)
     .padding(.vertical, 6 * scale)
-    .background(
-      Capsule(style: .continuous)
-        .fill(CompanionPalette.soft)
-    )
-    .overlay(
-      Capsule(style: .continuous)
-        .stroke(CompanionPalette.border, lineWidth: max(0.6, 0.8 * scale))
-    )
+    .background(TBDColor.tealWash, in: Capsule(style: .continuous))
+    .tbdPillEdge(TBDColor.tealWashLine)
   }
 }
 
@@ -459,9 +436,9 @@ struct DailyModeToggle: View {
   let activeMode: ActiveMode
   let scale: CGFloat
 
-  private var cornerRadius: CGFloat { 8 * scale }
-  private var borderWidth: CGFloat { max(0.7, 1 * scale) }
-  private var borderColor: Color { CompanionPalette.border }
+  private var cornerRadius: CGFloat { TBDKit.radiusBrick }
+  private var borderWidth: CGFloat { TBDKit.hair }
+  private var borderColor: Color { TBDColor.lineStrong }
 
   var body: some View {
     HStack(spacing: 0) {
@@ -482,24 +459,26 @@ struct DailyModeToggle: View {
     )
   }
 
+  private func edgeRadius(_ on: Bool) -> CGFloat { on ? TBDKit.radiusBrick : 0 }
+
   @ViewBuilder
   private func segment(text: String, isActive: Bool, isLeading: Bool) -> some View {
-    let fill = isActive ? CompanionPalette.fill : CompanionPalette.surface
+    let fill = isActive ? TBDColor.tabCurrentFill : TBDColor.tabFill
 
     Text(text)
-      .font(.custom("Switzer-Regular", size: 14 * scale))
+      .font(TBDTokens.Typography.hint)
       .lineLimit(1)
-      .foregroundStyle(isActive ? Color.white : CompanionPalette.accent)
+      .foregroundStyle(isActive ? TBDColor.tabCurrentOn : TBDColor.tabOn)
       .padding(.horizontal, 12 * scale)
       .padding(.vertical, 8 * scale)
       .frame(minHeight: 33 * scale)
       .background(
         UnevenRoundedRectangle(
           cornerRadii: .init(
-            topLeading: isLeading ? cornerRadius : 0,
-            bottomLeading: isLeading ? cornerRadius : 0,
-            bottomTrailing: isLeading ? 0 : cornerRadius,
-            topTrailing: isLeading ? 0 : cornerRadius
+            topLeading: edgeRadius(isLeading),
+            bottomLeading: edgeRadius(isLeading),
+            bottomTrailing: edgeRadius(!isLeading),
+            topTrailing: edgeRadius(!isLeading)
           ),
           style: .continuous
         )

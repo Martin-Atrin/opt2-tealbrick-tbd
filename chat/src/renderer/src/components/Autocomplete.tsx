@@ -41,7 +41,7 @@ export function Autocomplete({
   const glyph = (s: Suggestion): ReactNode => {
     // An agent row should look like the agent, not like a generic entry — same
     // avatar and colour as its row in the sidebar.
-    if (s.type === "Agent") return <Avatar name={s.title} accent={s.accent ?? "#7c6cf0"} size={16} />;
+    if (s.type === "Agent") return <Avatar name={s.title} accent={s.accent ?? "var(--tb-tone-moss)"} size={16} />;
     if (s.icon) return <span style={{ fontSize: 15 }}>{s.icon}</span>;
     if (s.type === "Skill") return <Icon name="package" size={15} />;
     if (s.type === "Routine") return <Icon name="clock" size={15} />;

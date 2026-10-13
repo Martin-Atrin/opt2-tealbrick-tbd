@@ -8,8 +8,9 @@ struct TBDMeetingButton: View {
     var body: some View {
         switch meetings.phase {
         case .idle:
+            // Header action on every page: secondary, so each page keeps its own single primary.
             Button { meetings.begin(title: nil) } label: { Label("Record meeting", systemImage: "record.circle") }
-                .buttonStyle(TBDButtonStyle(.primary))
+                .buttonStyle(TBDButtonStyle(.secondary))
         case .starting, .processing:
             Button {} label: { Label(meetings.statusText, systemImage: "hourglass") }.buttonStyle(TBDButtonStyle(.secondary)).disabled(true)
         case .recording, .paused:

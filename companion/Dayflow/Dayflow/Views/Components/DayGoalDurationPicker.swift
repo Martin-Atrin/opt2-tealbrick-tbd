@@ -3,8 +3,6 @@ import SwiftUI
 import TBDDesign
 
 struct GoalDurationPicker: View {
-  @Environment(\.dayflowTheme) private var theme
-
   @Binding var minutes: Int
 
   private var hoursBinding: Binding<Int> {
@@ -48,18 +46,13 @@ struct GoalDurationPicker: View {
       )
     }
     .padding(EdgeInsets(top: 7, leading: 9, bottom: 10, trailing: 11))
-    .background(theme.sheetInnerBoxFill)
-    .clipShape(RoundedRectangle(cornerRadius: TBDTokens.Radius.base))
-    .overlay(
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-        .stroke(theme.sheetInnerBoxBorder, lineWidth: 1)
-    )
+    .background(TBDColor.paper, in: TBDBrickShape())
+    .overlay(TBDBrickShape().strokeBorder(TBDColor.line, lineWidth: TBDKit.hair))
   }
 }
 
 private struct GoalNumberColumn: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  @Environment(\.dayflowTheme) private var theme
 
   @Binding var value: Int
   let range: ClosedRange<Int>
@@ -77,18 +70,18 @@ private struct GoalNumberColumn: View {
   var body: some View {
     ZStack(alignment: .topLeading) {
       VStack(spacing: 6) {
-        wheelRow(offset: -2, size: 21, color: theme.sheetWheelDimText)
-        wheelRow(offset: -1, size: 23, color: theme.sheetWheelDimText)
-        wheelRow(offset: 0, size: 25, color: theme.textPrimary)
-        wheelRow(offset: 1, size: 23, color: theme.sheetWheelDimText)
-        wheelRow(offset: 2, size: 21, color: theme.sheetWheelDimText)
+        wheelRow(offset: -2, size: 21, color: TBDColor.muted)
+        wheelRow(offset: -1, size: 23, color: TBDColor.muted)
+        wheelRow(offset: 0, size: 25, color: TBDColor.ink)
+        wheelRow(offset: 1, size: 23, color: TBDColor.muted)
+        wheelRow(offset: 2, size: 21, color: TBDColor.muted)
       }
       .frame(width: numberStackWidth)
       .offset(x: numberStackLeft, y: numberStackTop + wheelOffset)
 
       Text(label)
-        .font(.custom("Switzer", size: 14))
-        .foregroundColor(theme.textPrimary)
+        .font(TBDTokens.Typography.hint)
+        .foregroundColor(TBDColor.ink)
         .lineLimit(1)
         .frame(width: labelWidth, alignment: .leading)
         .offset(x: labelLeft, y: 72)
@@ -111,12 +104,8 @@ private struct GoalNumberColumn: View {
       .frame(width: 83, height: 170)
     }
     .frame(width: 83, height: 170)
-    .background(theme.sheetWheelGradient)
-    .clipShape(RoundedRectangle(cornerRadius: TBDTokens.Radius.base))
-    .overlay(
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-        .stroke(theme.sheetWheelBorder, lineWidth: 1)
-    )
+    .background(TBDColor.tile, in: TBDBrickShape())
+    .overlay(TBDBrickShape().strokeBorder(TBDColor.line, lineWidth: TBDKit.hair))
     .contentShape(Rectangle())
     .simultaneousGesture(numberDragGesture)
     .background(
@@ -145,7 +134,7 @@ private struct GoalNumberColumn: View {
 
   private func wheelText(_ value: Int, size: CGFloat, color: Color) -> some View {
     Text(formattedValue(value))
-      .font(.custom("Switzer", size: size))
+      .font(size >= 25 ? TBDTokens.Typography.display : TBDFonts.nunito(TBDKit.textTitle, TBDKit.weightBody))
       .foregroundColor(color)
       .lineLimit(1)
       .minimumScaleFactor(0.85)

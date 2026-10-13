@@ -9,8 +9,6 @@ import SwiftUI
 ///   Menu → Paused:  chips exit, pill 250→84 (bounce 0.2), content morph, status text in
 ///   Paused → Idle:  status out, pill 84→73 (bounce 0.35), content morph back
 struct PausePillView: View {
-  @Environment(\.dayflowTheme) private var theme
-  @Environment(\.stylePreviewAfter) private var stylePreviewAfter
   @ObservedObject private var appState = AppState.shared
   @ObservedObject private var pauseManager = PauseManager.shared
 
@@ -67,7 +65,7 @@ struct PausePillView: View {
   }
 
   private var pillLabelFont: Font {
-    .custom("Switzer-Medium", size: 12)
+    TBDFonts.nunito(TBDKit.textHint, TBDKit.weightNav)
   }
 
   private var statusSpacing: CGFloat { 10 }
@@ -95,8 +93,7 @@ struct PausePillView: View {
       if isStatusPresented {
         Text(statusText)
           .font(pillLabelFont)
-          .foregroundColor(theme.accent)
-          .tracking(-0.36)
+          .foregroundStyle(TBDColor.tealInk)
           .monospacedDigit()
           .lineLimit(1)
           .fixedSize()
@@ -124,15 +121,11 @@ struct PausePillView: View {
 
   private var pill: some View {
     ZStack(alignment: .leading) {
-      // Idle/menu use the flat control fill; paused keeps its accent.
+      // Idle/menu use the tile; paused uses the kit primary (ink) fill.
       // No glass/inner-glow chrome — brick surfaces are flat.
       ZStack {
-        theme.controlFill.opacity(phase == .paused ? 0 : 1)
-        if stylePreviewAfter {
-          theme.primaryButtonFill.opacity(phase == .paused ? 1 : 0)
-        } else {
-          Grad.paused.opacity(phase == .paused ? 1 : 0)
-        }
+        TBDColor.tile.opacity(phase == .paused ? 0 : 1)
+        TBDColor.primaryFill.opacity(phase == .paused ? 1 : 0)
       }
       .allowsHitTesting(false)
       .animation(TBDMotion.gentle, value: phase)
@@ -157,19 +150,16 @@ struct PausePillView: View {
           .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
       }
 
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
+      TBDBrickShape()
         .strokeBorder(
-          phase == .paused
-            ? (stylePreviewAfter
-              ? theme.primaryButtonBorder : CompanionPalette.soft)
-            : theme.controlBorder,
-          lineWidth: phase == .paused && stylePreviewAfter ? 1 : 0.75
+          phase == .paused ? TBDColor.primaryFill : TBDColor.lineStrong,
+          lineWidth: TBDKit.hair
         )
         .allowsHitTesting(false)
         .animation(TBDMotion.gentle, value: phase)
     }
     .frame(width: pillWidth, height: 32)
-    .clipShape(RoundedRectangle(cornerRadius: TBDTokens.Radius.base))
+    .clipShape(TBDBrickShape())
     .contentShape(Rectangle())
     .onTapGesture(perform: handlePillTap)
     .simultaneousGesture(
@@ -185,10 +175,10 @@ struct PausePillView: View {
 
   private var primaryContent: some View {
     HStack(spacing: 4) {
-      PillPauseIcon(color: theme.controlText)
+      PillPauseIcon(color: TBDColor.ink)
       Text("Pause")
         .font(pillLabelFont)
-        .foregroundColor(theme.controlText)
+        .foregroundStyle(TBDColor.ink)
         .lineLimit(1)
         .fixedSize(horizontal: true, vertical: false)
     }
@@ -209,10 +199,10 @@ struct PausePillView: View {
 
   private var resumeContent: some View {
     HStack(spacing: 4) {
-      PillPlayIcon().offset(x: 0.5)
+      PillPlayIcon(color: TBDColor.primaryOn).offset(x: 0.5)
       Text("Resume")
         .font(pillLabelFont)
-        .foregroundColor(.white)
+        .foregroundStyle(TBDColor.primaryOn)
         .lineLimit(1)
         .fixedSize(horizontal: true, vertical: false)
     }
@@ -233,16 +223,17 @@ struct PausePillView: View {
       startPause(chip.duration)
     } label: {
       ZStack {
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base).fill(theme.chipFill)
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base).fill(theme.chipBorder.opacity(hovered ? 0.35 : 0))
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base).strokeBorder(theme.chipBorder.opacity(0.8), lineWidth: 1)
+        TBDBrickShape().fill(hovered ? TBDColor.tealWash : TBDColor.plate)
+        TBDBrickShape().strokeBorder(hovered ? TBDColor.tealWashLine : TBDColor.line, lineWidth: TBDKit.hair)
         Text(chip.label)
           .font(
             chip.isInf
-              ? .system(size: 11, weight: .medium)
-              : .system(size: 8, weight: .semibold)
+              ? TBDFonts.symbol(11, TBDKit.weightNav)
+              : TBDFonts.nunito(9, TBDKit.weightNav)
           )
-          .foregroundColor(hovered ? .white : theme.textPrimary)
+          .lineLimit(1)
+          .minimumScaleFactor(0.8)
+          .foregroundStyle(TBDColor.ink)
       }
       .frame(width: 42, height: 20)
       .contentShape(Rectangle())
@@ -595,6 +586,8 @@ private struct PillPauseIcon: View {
 }
 
 private struct PillPlayIcon: View {
+  let color: Color
+
   var body: some View {
     Canvas { ctx, _ in
       var p = Path()
@@ -602,25 +595,10 @@ private struct PillPlayIcon: View {
       p.addLine(to: CGPoint(x: 4, y: 9.5))
       p.addLine(to: CGPoint(x: 9.5, y: 6))
       p.closeSubpath()
-      ctx.fill(p, with: .color(.white))
+      ctx.fill(p, with: .color(color))
     }
     .frame(width: 12, height: 12)
   }
-}
-
-// MARK: - Gradients (exact from React CSS tokens)
-
-private enum Grad {
-  static let paused = LinearGradient(
-    stops: [
-      .init(color: Color(red: 1, green: 0.714, blue: 0.608), location: 0),
-      .init(color: Color(red: 1, green: 0.569, blue: 0.278), location: 0.495),
-      .init(color: Color(red: 1, green: 0.553, blue: 0.251), location: 0.760),
-      .init(color: Color(red: 1, green: 0.643, blue: 0.510), location: 1),
-    ],
-    startPoint: .top, endPoint: .bottom
-  )
-
 }
 
 // MARK: - Preview
@@ -630,5 +608,5 @@ private enum Grad {
     PausePillView()
   }
   .frame(width: 400, height: 200)
-  .background(Color(red: 0.992, green: 0.973, blue: 0.945))  // #FDF8F1
+  .background(TBDColor.paper)
 }

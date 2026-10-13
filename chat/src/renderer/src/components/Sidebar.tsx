@@ -224,7 +224,7 @@ export function Sidebar(): ReactNode {
       <div className="sidebar__foot">
         <PendingHolds />
         <button className="foot-row account-rail-button" title="Account and workspace" aria-label="Account and workspace" onClick={() => setAccountMenu((v) => !v)}>
-          <Avatar name={account?.email ?? "?"} accent="#1b3a34" size={28} />
+          <Avatar name={account?.email ?? "?"} accent="var(--tb-teal-deep)" size={28} />
         </button>
 
         {accountMenu ? (

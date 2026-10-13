@@ -3,8 +3,6 @@ import SwiftUI
 import TBDDesign
 
 struct CategoryPickerOverlay: View {
-  @Environment(\.dayflowTheme) private var theme
-
   let categories: [TimelineCategory]
   let currentCategoryName: String
   var onSelect: (TimelineCategory) -> Void
@@ -41,20 +39,19 @@ struct CategoryPickerOverlay: View {
           } label: {
             CategoryPickerPill(
               category: category,
-              isSelected: isSelected(category),
-              isDark: theme.isDark
+              isSelected: isSelected(category)
             )
           }
           .buttonStyle(.plain)
           .pointingHandCursor()
         }
       }
-      .padding(.trailing, 32)
+      .padding(.trailing, 40)
       .frame(maxWidth: .infinity, alignment: .leading)
 
       Rectangle()
-        .fill(theme.isDark ? Color.white.opacity(0.14) : Color(red: 0.91, green: 0.89, blue: 0.86))
-        .frame(height: 1)
+        .fill(TBDColor.line)
+        .frame(height: TBDKit.hair)
 
       helperContent
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -62,17 +59,7 @@ struct CategoryPickerOverlay: View {
     .padding(.horizontal, 12)
     .padding(.vertical, 12)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(backgroundView)
-    .clipShape(
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-    )
-    .overlay(
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-        .stroke(
-          theme.isDark ? theme.popoverBorder : Color(red: 0.91, green: 0.88, blue: 0.87),
-          lineWidth: 1
-        )
-    )
+    .tbdFloating()
     .overlay(alignment: .topTrailing) {
       dismissButton
     }
@@ -81,44 +68,17 @@ struct CategoryPickerOverlay: View {
   private var dismissButton: some View {
     Button(action: onDismiss) {
       Image(systemName: "checkmark")
-        .font(.system(size: 11, weight: .bold))
-        .foregroundColor(theme.isDark ? .white : Color(red: 0.39, green: 0.35, blue: 0.33))
-        .frame(width: 26, height: 26)
-        .background(
-          theme.isDark ? Color.white.opacity(0.28) : Color.white.opacity(0.9)
-        )
-        .clipShape(
-          UnevenRoundedRectangle(
-            cornerRadii: .init(
-              topLeading: 0,
-              bottomLeading: 8,
-              bottomTrailing: 0,
-              topTrailing: 6
-            )
-          )
-        )
+        .font(TBDFonts.symbol(11, TBDKit.weightLabel))
     }
-    .buttonStyle(.plain)
+    .buttonStyle(TBDButtonStyle(.icon))
     .pointingHandCursor()
     .accessibilityLabel("Done")
   }
 
-  private var backgroundView: some View {
-    Group {
-      if theme.isDark {
-        Color(hex: "424755")
-          .background(TBDTokens.paper)
-      } else {
-        Color(red: 0.98, green: 0.96, blue: 0.95).opacity(0.86)
-          .background(TBDTokens.paper)
-      }
-    }
-  }
-
   private var helperContent: some View {
-    let baseFont = Font.custom("Switzer", size: 12)
-    let baseColor = theme.isDark ? theme.textTertiary : Color(red: 0.39, green: 0.35, blue: 0.33)
-    let linkColor = theme.isDark ? theme.accentText : Color(red: 1.0, green: 0.4, blue: 0.0)
+    let baseFont = TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody)
+    let baseColor = TBDColor.muted
+    let linkColor = TBDColor.tealInk
     let linkURL = URL(string: "dayflow://category-editor")!
 
     var intro = AttributedString(
@@ -164,50 +124,12 @@ struct CategoryPickerOverlay: View {
 private struct CategoryPickerPill: View {
   let category: TimelineCategory
   let isSelected: Bool
-  var isDark: Bool = false
 
   private var categoryColor: Color {
     if let nsColor = NSColor(hex: category.colorHex) {
       return Color(nsColor: nsColor)
     }
-    return Color.gray
-  }
-
-  private var background: some View {
-    Group {
-      if isDark {
-        if isSelected {
-          Color(red: 226 / 255, green: 160 / 255, blue: 121 / 255).opacity(0.4)
-        } else {
-          Color.white.opacity(0.14)
-        }
-      } else if isSelected {
-        LinearGradient(
-          colors: [
-            Color(red: 1.0, green: 0.99, blue: 0.97),
-            Color(red: 1.0, green: 0.91, blue: 0.83),
-          ],
-          startPoint: .leading,
-          endPoint: .trailing
-        )
-      } else {
-        Color.white.opacity(0.76)
-      }
-    }
-  }
-
-  private var borderColor: Color {
-    if isDark {
-      return isSelected ? Color(hex: "875C46") : Color.white.opacity(0.18)
-    }
-    if isSelected {
-      return Color(red: 0.98, green: 0.73, blue: 0.50)
-    }
-    return Color(red: 0.88, green: 0.88, blue: 0.88)
-  }
-
-  private var textColor: Color {
-    isDark ? .white : Color(red: 0.2, green: 0.2, blue: 0.2)
+    return TBDColor.toneStone
   }
 
   var body: some View {
@@ -218,29 +140,21 @@ private struct CategoryPickerPill: View {
 
       Text(category.name)
         .font(
-          Font.custom("Switzer", size: 13)
-            .weight(.medium)
+          TBDFonts.nunito(TBDKit.textHint, TBDKit.weightNav)
         )
-        .foregroundColor(textColor)
+        .foregroundStyle(isSelected ? TBDColor.tealInk : TBDColor.ink)
         .lineLimit(1)
     }
-    .padding(.horizontal, 6)
+    .padding(.horizontal, 10)
     .padding(.vertical, 5)
-    .background(background)
-    .overlay(
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-        .inset(by: 0.25)
-        .stroke(style: strokeStyle)
-        .foregroundColor(borderColor)
-    )
-    .cornerRadius(TBDTokens.Radius.base)
-  }
-
-  private var strokeStyle: StrokeStyle {
-    if category.isIdle && !isSelected {
-      return StrokeStyle(lineWidth: 0.75, dash: [2, 2])
+    .background(isSelected ? TBDColor.tealWash : TBDColor.tile, in: Capsule())
+    .tbdPillEdge(isSelected ? TBDColor.tealWashLine : (category.isIdle ? Color.clear : TBDColor.line))
+    .overlay {
+      if category.isIdle && !isSelected {
+        Capsule().strokeBorder(
+          TBDColor.lineStrong, style: StrokeStyle(lineWidth: TBDKit.hair, dash: [4, 3]))
+      }
     }
-    return StrokeStyle(lineWidth: 0.5)
   }
 }
 

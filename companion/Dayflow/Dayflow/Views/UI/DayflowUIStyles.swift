@@ -9,25 +9,27 @@ import SwiftUI
 import TBDDesign
 
 extension View {
-  /// Brick surface (TBD/docs/design-language.md): square with a 1pt rule.
+  /// Brick surface: tile fill and a hairline ring on the 6pt brick.
   /// `cornerRadius` is kept for source compatibility and ignored.
   func dayflowStyle(
     cornerRadius: CGFloat = 0,
-    backgroundColor: Color = .white
+    backgroundColor: Color? = nil
   ) -> some View {
     self
-      .background(backgroundColor == .white ? TBDTokens.paper : backgroundColor)
-      .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.base).strokeBorder(TBDTokens.border, lineWidth: TBDTokens.Stroke.hairline))
+      .background(backgroundColor ?? TBDColor.tile, in: TBDBrickShape())
+      .overlay(TBDBrickShape().strokeBorder(TBDColor.line, lineWidth: TBDKit.hair))
   }
 
-  /// Brick icon surface: square with a 1pt rule (was a circle).
-  func dayflowCircleStyle(backgroundColor: Color = .white) -> some View {
+  /// Brick icon surface: tile fill and a hairline ring on the 6pt brick.
+  func dayflowCircleStyle(backgroundColor: Color? = nil) -> some View {
     self
-      .background(backgroundColor == .white ? TBDTokens.paper : backgroundColor)
-      .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.base).strokeBorder(TBDTokens.border, lineWidth: TBDTokens.Stroke.hairline))
+      .background(backgroundColor ?? TBDColor.tile, in: TBDBrickShape())
+      .overlay(TBDBrickShape().strokeBorder(TBDColor.line, lineWidth: TBDKit.hair))
   }
 }
 
+/// Icon button on the kit's icon style (36pt brick). `pressedScale` and `pressAnimation`
+/// are kept for source compatibility; the kit style owns the press feedback.
 struct DayflowCircleButton<Content: View>: View {
   let action: () -> Void
   let size: CGSize
@@ -52,21 +54,11 @@ struct DayflowCircleButton<Content: View>: View {
 
   var body: some View {
     Button(action: action) {
-      ZStack {
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-          .fill(TBDTokens.paper)
-          .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.base).strokeBorder(TBDTokens.border, lineWidth: TBDTokens.Stroke.hairline))
-
-        content()
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
-      }
-      .frame(width: size.width, height: size.height)
-      .contentShape(Rectangle())
+      content()
+        .frame(minWidth: max(size.width, 36), minHeight: max(size.height, 36))
+        .contentShape(Rectangle())
     }
-    .buttonStyle(
-      DayflowPressScaleButtonStyle(pressedScale: pressedScale, animation: pressAnimation)
-    )
-    .contentShape(Rectangle())
+    .buttonStyle(TBDButtonStyle(.icon))
     .pointingHandCursorOnHover(reassertOnPressEnd: true)
   }
 }
@@ -81,8 +73,8 @@ struct DayflowPillButton: View {
 
   init(
     text: String,
-    font: Font = .custom("Switzer-Medium", size: 18),
-    foregroundColor: Color = Color(red: 0.2, green: 0.2, blue: 0.2),
+    font: Font = TBDFonts.nunito(TBDKit.textLede, TBDKit.weightNav),
+    foregroundColor: Color = TBDColor.ink,
     horizontalPadding: CGFloat = 11.77829,
     height: CGFloat = 30.4514,
     fixedWidth: CGFloat? = nil
@@ -98,7 +90,7 @@ struct DayflowPillButton: View {
   var body: some View {
     Text(text)
       .font(font)
-      .foregroundColor(foregroundColor)
+      .foregroundStyle(foregroundColor)
       .lineLimit(1)
       .minimumScaleFactor(0.8)
       .if(fixedWidth != nil) { view in

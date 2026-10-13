@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import TBDDesign
 
 struct TimelineReviewSummarySnapshot {
   let hasData: Bool
@@ -30,8 +31,6 @@ struct TimelineReviewSummarySnapshot {
 }
 
 struct TimelineReviewSummaryCard: View {
-  @Environment(\.dayflowTheme) private var theme
-
   let summary: TimelineReviewSummarySnapshot
   let cardsToReviewCount: Int
   var onReviewTap: (() -> Void)? = nil
@@ -41,21 +40,17 @@ struct TimelineReviewSummaryCard: View {
     static let headerSpacing: CGFloat = 2
     static let contentSpacing: CGFloat = 16
 
-    static let linkColor = Color(hex: "F96E00")
+    static var linkColor: Color { TBDColor.link }
 
     static let barHeight: CGFloat = 39
-    static let barCornerRadius: CGFloat = 4
-    static let barStrokeWidth: CGFloat = 1
+    static let barStrokeWidth: CGFloat = TBDKit.hair
     static let barSpacing: CGFloat = 4
-    static let barShadowRadius: CGFloat = 4
-    static let barShadowY: CGFloat = 2
 
     static let legendSpacing: CGFloat = 28
     static let legendRowSpacing: CGFloat = 2
     static let legendIconWidth: CGFloat = 10.667
     static let legendIconHeight: CGFloat = 8
-    static let legendIconCornerRadius: CGFloat = 3
-    static let legendStrokeWidth: CGFloat = 1.25
+    static let legendStrokeWidth: CGFloat = TBDKit.hair
   }
 
   private struct ReviewMetric: Identifiable {
@@ -67,9 +62,8 @@ struct TimelineReviewSummaryCard: View {
   }
 
   private struct ReviewMetricStyle {
-    let barGradient: LinearGradient
+    let barFill: Color
     let barStroke: Color
-    let barShadow: Color
     let legendFill: Color
     let legendStroke: Color
   }
@@ -89,11 +83,11 @@ struct TimelineReviewSummaryCard: View {
   private var header: some View {
     VStack(alignment: .leading, spacing: Design.headerSpacing) {
       Text("Your review")
-        .font(.custom("Switzer-Medium", size: 20))
-        .foregroundColor(theme.textPrimary)
+        .font(TBDTokens.Typography.title)
+        .foregroundColor(TBDColor.ink)
 
       subtitle
-        .font(.custom("Switzer", size: 11))
+        .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
         .lineSpacing(2)
         .onTapGesture {
           guard cardsToReviewCount > 0 else { return }
@@ -117,7 +111,7 @@ struct TimelineReviewSummaryCard: View {
       ? String(localized: "Last reviewed at \(formattedLastReviewedAt).")
       : String(localized: "No reviews yet.")
     var composed = Text(baseText)
-      .foregroundColor(theme.textSecondary)
+      .foregroundColor(TBDColor.muted)
 
     guard cardsToReviewCount > 0 else {
       return composed
@@ -140,16 +134,13 @@ struct TimelineReviewSummaryCard: View {
 
       HStack(spacing: spacing) {
         ForEach(metrics) { metric in
-          RoundedRectangle(cornerRadius: Design.barCornerRadius, style: .continuous)
-            .fill(metric.style.barGradient)
+          TBDBrickShape()
+            .fill(metric.style.barFill)
             .frame(width: availableWidth * metric.ratio, height: Design.barHeight)
             .overlay(
-              RoundedRectangle(cornerRadius: Design.barCornerRadius, style: .continuous)
-                .stroke(metric.style.barStroke, lineWidth: Design.barStrokeWidth)
+              TBDBrickShape()
+                .strokeBorder(metric.style.barStroke, lineWidth: Design.barStrokeWidth)
             )
-            .shadow(
-              color: metric.style.barShadow, radius: Design.barShadowRadius, x: 0,
-              y: Design.barShadowY)
         }
       }
       .frame(width: proxy.size.width, height: Design.barHeight, alignment: .leading)
@@ -163,23 +154,23 @@ struct TimelineReviewSummaryCard: View {
       ForEach(metrics) { metric in
         VStack(alignment: .leading, spacing: Design.legendRowSpacing) {
           HStack(spacing: 4) {
-            RoundedRectangle(cornerRadius: Design.legendIconCornerRadius, style: .continuous)
+            RoundedRectangle(cornerRadius: TBDKit.radiusSwatch, style: .continuous)
               .fill(metric.style.legendFill)
               .frame(width: Design.legendIconWidth, height: Design.legendIconHeight)
               .overlay(
-                RoundedRectangle(cornerRadius: Design.legendIconCornerRadius, style: .continuous)
-                  .stroke(metric.style.legendStroke, lineWidth: Design.legendStrokeWidth)
+                RoundedRectangle(cornerRadius: TBDKit.radiusSwatch, style: .continuous)
+                  .strokeBorder(metric.style.legendStroke, lineWidth: Design.legendStrokeWidth)
               )
 
             Text(metric.label)
-              .font(.custom("Switzer", size: 10))
-              .foregroundColor(theme.textSecondary)
+              .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+              .foregroundColor(TBDColor.muted)
           }
 
           if summary.hasData {
             Text(metric.durationText)
-              .font(.custom("Switzer", size: 12).weight(.semibold))
-              .foregroundColor(theme.textPrimary)
+              .font(TBDTokens.Typography.label)
+              .foregroundColor(TBDColor.ink)
               .padding(.leading, 14)
           }
         }
@@ -196,10 +187,9 @@ struct TimelineReviewSummaryCard: View {
       ratio: max(CGFloat(summary.distractedRatio), 0),
       durationText: durationText(summary.distractedDuration),
       style: metricStyle(
-        baseColor: Color(hex: "FF8772"),
-        shadow: Color(red: 148 / 255, green: 87 / 255, blue: 77 / 255).opacity(0.25),
-        legendFill: Color(hex: "FF8772").opacity(0.4),
-        legendStroke: Color(hex: "FF8772"),
+        baseColor: TBDColor.toneBrick,
+        legendFill: TBDColor.toneBrick.opacity(0.4),
+        legendStroke: TBDColor.toneBrick,
         placeholder: placeholder
       )
     )
@@ -210,10 +200,9 @@ struct TimelineReviewSummaryCard: View {
       ratio: max(CGFloat(summary.neutralRatio), 0),
       durationText: durationText(summary.neutralDuration),
       style: metricStyle(
-        baseColor: theme.targetsTrackFill,
-        shadow: Color(red: 225 / 255, green: 210 / 255, blue: 203 / 255).opacity(0.25),
-        legendFill: theme.targetsTrackFill.opacity(0.4),
-        legendStroke: theme.targetsTrackBorder,
+        baseColor: TBDColor.toneStone,
+        legendFill: TBDColor.toneStone.opacity(0.4),
+        legendStroke: TBDColor.toneStone,
         placeholder: placeholder
       )
     )
@@ -224,10 +213,9 @@ struct TimelineReviewSummaryCard: View {
       ratio: max(CGFloat(summary.productiveRatio), 0),
       durationText: durationText(summary.productiveDuration),
       style: metricStyle(
-        baseColor: Color(hex: "42D0BB"),
-        shadow: Color(red: 77 / 255, green: 156 / 255, blue: 145 / 255).opacity(0.25),
-        legendFill: Color(hex: "42D0BB").opacity(0.4),
-        legendStroke: Color(hex: "42D0BB"),
+        baseColor: TBDColor.toneTeal,
+        legendFill: TBDColor.toneTeal.opacity(0.4),
+        legendStroke: TBDColor.toneTeal,
         placeholder: placeholder
       )
     )
@@ -237,30 +225,15 @@ struct TimelineReviewSummaryCard: View {
 
   private func metricStyle(
     baseColor: Color,
-    shadow: Color,
     legendFill: Color,
     legendStroke: Color,
     placeholder: Bool
   ) -> ReviewMetricStyle {
-    let barColor = placeholder ? theme.targetsTrackFill : baseColor
-    let barShadow: Color
-    if theme.isDark {
-      barShadow = Color.black.opacity(0.35)
-    } else if placeholder {
-      barShadow = Color(red: 225 / 255, green: 210 / 255, blue: 203 / 255).opacity(0.25)
-    } else {
-      barShadow = shadow
-    }
-    let gradient = LinearGradient(
-      colors: [barColor.opacity(0.5), barColor],
-      startPoint: .topLeading,
-      endPoint: .bottomTrailing
-    )
+    let barColor = placeholder ? TBDColor.plate : baseColor
 
     return ReviewMetricStyle(
-      barGradient: gradient,
-      barStroke: barColor,
-      barShadow: barShadow,
+      barFill: barColor,
+      barStroke: placeholder ? TBDColor.line : barColor,
       legendFill: legendFill,
       legendStroke: legendStroke
     )
@@ -320,5 +293,5 @@ struct TimelineReviewSummaryCard: View {
     .frame(width: 322)
   }
   .padding(24)
-  .background(Color(red: 0.98, green: 0.97, blue: 0.96))
+  .background(TBDColor.paper)
 }

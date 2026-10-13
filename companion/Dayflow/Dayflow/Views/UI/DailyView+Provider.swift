@@ -43,7 +43,7 @@ extension DailyView {
       isShowingProviderPicker.toggle()
     } label: {
       Image(systemName: "gearshape.fill")
-        .font(.system(size: 13 * scale, weight: .semibold))
+        .font(TBDFonts.symbol(13 * scale, .bold))
     }
     .buttonStyle(TBDButtonStyle(.secondary))
     .disabled(standupRegenerateState == .regenerating)
@@ -65,12 +65,12 @@ extension DailyView {
       HStack(alignment: .firstTextBaseline) {
         VStack(alignment: .leading, spacing: 2 * scale) {
           Text("Daily recap provider")
-            .font(.custom("Switzer-Medium", size: 22 * scale))
-            .foregroundStyle(theme.textPrimary)
+            .font(TBDTokens.Typography.title)
+            .foregroundStyle(TBDColor.ink)
 
           Text("Choose how Daily generates this recap, or turn generation off.")
-            .font(.custom("Switzer-Regular", size: 12 * scale))
-            .foregroundStyle(theme.textSecondary)
+            .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+            .foregroundStyle(TBDColor.muted)
         }
 
         Spacer(minLength: 0)
@@ -78,7 +78,7 @@ extension DailyView {
         if isRefreshingProviderAvailability {
           ProgressView()
             .controlSize(.small)
-            .tint(theme.accent)
+            .tint(TBDColor.tealInk)
         }
       }
 
@@ -95,32 +95,29 @@ extension DailyView {
             HStack(alignment: .top, spacing: 10 * scale) {
               VStack(alignment: .leading, spacing: 2 * scale) {
                 Text(provider.displayName)
-                  .font(.custom("Switzer-Semibold", size: 13 * scale))
-                  .foregroundStyle(theme.textPrimary)
+                  .font(TBDTokens.Typography.label)
+                  .foregroundStyle(TBDColor.ink)
 
                 Text(availability.detail)
-                  .font(.custom("Switzer-Regular", size: 12 * scale))
-                  .foregroundStyle(availability.isAvailable ? theme.textSecondary : theme.textMuted)
+                  .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+                  .foregroundStyle(TBDColor.muted)
                   .multilineTextAlignment(.leading)
               }
 
               Spacer(minLength: 0)
 
               Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                .font(.system(size: 14 * scale, weight: .semibold))
-                .foregroundStyle(isSelected ? theme.accent : theme.textMuted)
+                .font(TBDFonts.symbol(14 * scale, .bold))
+                .foregroundStyle(isSelected ? TBDColor.tealInk : TBDColor.muted)
             }
             .padding(.horizontal, 12 * scale)
             .padding(.vertical, 10 * scale)
-            .background(isSelected ? theme.controlFill : theme.chipFill)
+            .background(isSelected ? TBDColor.tealWash : TBDColor.tile, in: TBDBrickShape())
             .overlay(
-              RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-                .stroke(
-                  isSelected ? theme.controlBorder : theme.chipBorder,
-                  lineWidth: max(1, 1.2 * scale)
-                )
+              TBDBrickShape()
+                .strokeBorder(isSelected ? TBDColor.tealWashLine : TBDColor.line, lineWidth: TBDKit.hair)
             )
-            .contentShape(Rectangle())
+            .contentShape(TBDBrickShape())
           }
           .buttonStyle(.plain)
           .disabled(!availability.isAvailable)

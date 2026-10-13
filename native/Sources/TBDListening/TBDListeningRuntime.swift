@@ -33,7 +33,7 @@ public final class TBDListeningRuntime: ObservableObject {
     }
 
     public func content() -> AnyView {
-        guard let context else { return AnyView(Text("Listening is starting…").foregroundStyle(TBDTokens.muted)) }
+        guard let context else { return AnyView(Text("Listen is starting…").foregroundStyle(TBDTokens.muted)) }
         return AnyView(TBDListeningView(context: context).environmentObject(context.env))
     }
 
@@ -85,13 +85,13 @@ public final class TBDListeningRuntime: ObservableObject {
 
     /// Actions: "dictation", "meeting", "transcribeFile", "transcribeURL", "transform", "openLibrary".
     public func menuAction(_ action: TBDListeningAction) {
-        guard let context else { captureMessage = "Listening is still initializing"; return }
+        guard let context else { captureMessage = "Listen is still starting"; return }
         context.perform(action)
     }
 
     public func toggleVoiceNote() async {
         guard !captureBusy else { return }
-        guard let context else { captureMessage = "Listening is still initializing"; return }
+        guard let context else { captureMessage = "Listen is still starting"; return }
         captureBusy = true; captureMessage = ""
         defer { captureBusy = false }
         do {
@@ -111,7 +111,7 @@ public final class TBDListeningRuntime: ObservableObject {
 
     /// Chat dictation: "start" → NSNull, "level" → Float, "cancel" → NSNull, "stop" → ["text", "rawText", "warning"].
     public func chatAudio(_ operation: String) async throws -> Any {
-        guard let context else { throw TBDVoiceCapture.error(1, "Listening is still initializing") }
+        guard let context else { throw TBDVoiceCapture.error(1, "Listen is still starting") }
         return try await context.voice.chat(operation)
     }
 

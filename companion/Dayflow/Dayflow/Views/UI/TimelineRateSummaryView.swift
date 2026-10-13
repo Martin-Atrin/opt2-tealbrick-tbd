@@ -24,13 +24,9 @@ struct ThumbRatingButtons: View {
   var isEnabled: Bool = true
   var onRate: (TimelineRatingDirection) -> Void
 
-  @Environment(\.dayflowTheme) private var theme
-  @Environment(\.stylePreviewAfter) private var stylePreviewAfter
-
-  private var usesDarkChrome: Bool { stylePreviewAfter && theme.isDark }
-
   var body: some View {
-    HStack(spacing: 0) {
+    // 22pt glyph boxes with a 36pt hit area each (7pt hit margin, 14pt pitch gap).
+    HStack(spacing: 14) {
       rateButton(for: .up)
       rateButton(for: .down)
     }
@@ -44,25 +40,21 @@ struct ThumbRatingButtons: View {
       onRate(direction)
     }) {
       Image("ThumbsUp")
-        .renderingMode(usesDarkChrome ? .template : .original)
+        .renderingMode(.template)
         .resizable()
         .scaledToFit()
         .frame(width: 14, height: 14)
         .scaleEffect(x: direction == .down ? -1 : 1, y: direction == .down ? -1 : 1)
-        .foregroundColor(usesDarkChrome ? Color.white.opacity(0.75) : nil)
+        .foregroundStyle(isSelected ? TBDColor.tealInk : TBDColor.muted)
         .padding(4)
         .frame(width: 22, height: 22)
         .background(
-          RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-            .fill(
-              isSelected
-                ? (usesDarkChrome ? Color.white.opacity(0.2) : Color.white)
-                : Color.clear
-            )
+          TBDBrickShape()
+            .fill(isSelected ? TBDColor.tealWash : Color.clear)
         )
+        .contentShape(Rectangle().inset(by: -7))
     }
     .buttonStyle(.plain)
-    .contentShape(Rectangle())
     .pointingHandCursorOnHover(enabled: isEnabled, reassertOnPressEnd: true)
     .accessibilityLabel(direction == .up ? Text("Thumbs up") : Text("Thumbs down"))
   }
@@ -76,14 +68,9 @@ struct TimelineRateSummaryView: View {
   var onRate: ((TimelineRatingDirection) -> Void)? = nil
   var onDelete: (() -> Void)? = nil
 
-  @Environment(\.dayflowTheme) private var theme
-  @Environment(\.stylePreviewAfter) private var stylePreviewAfter
-
   @State private var selectedDirection: TimelineRatingDirection? = nil
   @State private var deleteButtonState: TimelineDeleteButtonState = .idle
   @State private var deleteResetTask: Task<Void, Never>? = nil
-
-  private var usesDarkChrome: Bool { stylePreviewAfter && theme.isDark }
 
   private var canDelete: Bool {
     isEnabled && onDelete != nil && deleteButtonState != .deleting
@@ -93,13 +80,8 @@ struct TimelineRateSummaryView: View {
     HStack(alignment: .center, spacing: 0) {
       HStack(spacing: 8) {
         Text(title)
-          .font(Font.custom("Switzer", size: 12).weight(.medium))
-          .foregroundColor(
-            (usesDarkChrome
-              ? Color.white.opacity(0.9)
-              : Color(red: 0.49, green: 0.47, blue: 0.46))
-              .opacity(isEnabled ? 0.95 : 0.45)
-          )
+          .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightNav))
+          .foregroundStyle(TBDColor.muted)
 
         ThumbRatingButtons(selectedDirection: selectedDirection, isEnabled: isEnabled) {
           direction in
@@ -119,19 +101,10 @@ struct TimelineRateSummaryView: View {
     .padding(.horizontal, 12)
     .padding(.vertical, 3)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(
-      usesDarkChrome ? Color(hex: "494B5B") : Color(red: 0.98, green: 0.98, blue: 0.98)
-    )
-    .overlay(
-      Rectangle()
-        .inset(by: 0.5)
-        .stroke(
-          usesDarkChrome
-            ? Color.white.opacity(0.08)
-            : Color(red: 0.93, green: 0.93, blue: 0.93),
-          lineWidth: 1
-        )
-    )
+    .background(TBDColor.tile)
+    .overlay(alignment: .top) {
+      Rectangle().fill(TBDColor.line).frame(height: TBDKit.hair)
+    }
     .opacity(isEnabled ? 1 : 0.6)
     .onChange(of: activityID) {
       selectedDirection = nil
@@ -145,10 +118,8 @@ struct TimelineRateSummaryView: View {
 
   private var deleteButton: some View {
     let transition = AnyTransition.opacity.combined(with: .scale(scale: 0.5))
-    let idleText = usesDarkChrome ? theme.accentText : Color(hex: "C05C54")
-    let idleIconTextOpacity = 0.9
-    let confirmBackground = Color(hex: "DF6055")
-    let confirmStroke = Color(hex: "CB4E43")
+    let idleText = TBDColor.dangerInk
+    let confirmBackground = TBDColor.dangerConfirmFill
     let isConfirmVisualState = deleteButtonState != .idle
 
     return Button(action: handleDeleteTap) {
@@ -156,36 +127,24 @@ struct TimelineRateSummaryView: View {
         if deleteButtonState == .deleting {
           ProgressView()
             .scaleEffect(0.55)
-            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+            .progressViewStyle(CircularProgressViewStyle(tint: TBDColor.dangerConfirmOn))
             .transition(transition)
         } else if deleteButtonState == .confirming {
           Text("Confirm")
-            .font(Font.custom("Switzer", size: 12).weight(.medium))
+            .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightNav))
             .transition(transition)
         } else {
           Text("Delete")
-            .font(Font.custom("Switzer", size: 12).weight(.medium))
+            .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightNav))
             .transition(transition)
         }
       }
       .padding(.horizontal, isConfirmVisualState ? 9 : 0)
       .frame(height: 18)
-      .foregroundColor(
-        isConfirmVisualState
-          ? .white
-          : idleText.opacity(idleIconTextOpacity)
-      )
+      .foregroundStyle(isConfirmVisualState ? TBDColor.dangerConfirmOn : idleText)
       .background(
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.xs, style: .continuous)
+        TBDBrickShape()
           .fill(isConfirmVisualState ? confirmBackground : Color.clear)
-      )
-      .overlay(
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.xs, style: .continuous)
-          .inset(by: 0.38)
-          .stroke(
-            isConfirmVisualState ? confirmStroke : .clear,
-            lineWidth: 0.75
-          )
       )
       // Keep the visual compact while expanding the click target.
       .contentShape(Rectangle().inset(by: -6))

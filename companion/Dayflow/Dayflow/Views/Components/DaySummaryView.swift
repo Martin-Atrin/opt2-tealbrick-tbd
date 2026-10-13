@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import TBDDesign
 
 private let dayGoalReviewShownTimelineDayKey = "dayGoalReviewShownTimelineDay"
 
@@ -26,7 +27,6 @@ struct DaySummaryLoadToken: Equatable, Sendable {
 }
 
 struct DaySummaryView: View {
-  @Environment(\.dayflowTheme) private var theme
 
   let selectedDate: Date
   let categories: [TimelineCategory]
@@ -462,8 +462,8 @@ struct DaySummaryView: View {
     VStack(alignment: .leading, spacing: Design.donutSectionSpacing) {
       VStack(alignment: .leading, spacing: Design.headerSpacing) {
         Text("Your day so far")
-          .font(.custom("Switzer-Medium", size: 24))
-          .foregroundColor(theme.textPrimary)
+          .font(TBDTokens.Typography.title)
+          .foregroundColor(TBDColor.ink)
       }
 
       if isLoading && hasCompletedInitialLoad == false {
@@ -485,12 +485,12 @@ struct DaySummaryView: View {
   private var emptyChartPlaceholder: some View {
     VStack(spacing: 12) {
       Circle()
-        .stroke(theme.targetsTrackFill, lineWidth: 20)
+        .stroke(TBDColor.plate, lineWidth: 20)
         .frame(width: 140, height: 140)
 
       Text("No activity data yet")
-        .font(.custom("Switzer", size: 12))
-        .foregroundColor(theme.textSecondary)
+        .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+        .foregroundColor(TBDColor.muted)
     }
     .padding(.vertical, 20)
   }
@@ -548,8 +548,8 @@ struct DaySummaryView: View {
 
   private var sectionDivider: some View {
     Rectangle()
-      .fill(theme.rightPanelDivider)
-      .frame(height: 1)
+      .fill(TBDColor.line)
+      .frame(height: TBDKit.hair)
       .frame(maxWidth: .infinity)
   }
 
@@ -929,5 +929,5 @@ struct DaySummaryView: View {
     onReviewTap: {}
   )
   .frame(width: 358, height: 700)
-  .background(Color(red: 0.98, green: 0.97, blue: 0.96))
+  .background(TBDColor.paper)
 }

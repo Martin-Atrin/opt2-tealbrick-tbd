@@ -127,7 +127,7 @@ struct Models: AsyncParsableCommand {
             let model = try Models.parse(id)
             let manager = Models.manager()
             if let engine = model.engine, engine == appPreferences.liveEngine || engine == appPreferences.finalEngine {
-                status("Note: \(engine.displayName) is a selected engine; Listening cannot use it until it is downloaded again.")
+                status("Note: \(engine.displayName) is a selected engine; Listen cannot use it until it is downloaded again.")
             }
             try manager.delete(model)
             let info = Models.info(model, manager: manager)

@@ -51,8 +51,7 @@ struct SetupSidebarItem: View {
   let onTap: () -> Void
 
   @State private var isHovered = false
-
-  private let textColor = Color(hex: "634342")
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
     Button(action: onTap) {
@@ -60,8 +59,8 @@ struct SetupSidebarItem: View {
         if isSelected {
           HStack(alignment: .center, spacing: 8) {
             Image(systemName: "chevron.right")
-              .font(.system(size: 15, weight: .medium))
-              .foregroundColor(textColor)
+              .font(TBDFonts.symbol(15, .bold))
+              .foregroundColor(TBDColor.ink)
               .frame(width: 20, height: 20)
 
             itemLabel
@@ -75,8 +74,8 @@ struct SetupSidebarItem: View {
         } else if isCompleted {
           HStack(alignment: .center, spacing: 8) {
             Image(systemName: "checkmark.circle.fill")
-              .font(.system(size: 15, weight: .medium))
-              .foregroundColor(Color(hex: "21A638"))
+              .font(TBDFonts.symbol(15, .bold))
+              .foregroundColor(TBDColor.tealInk)
               .frame(width: 16, height: 16)
 
             itemLabel
@@ -85,18 +84,17 @@ struct SetupSidebarItem: View {
         } else {
           // Upcoming step: bare label aligned with the other labels (10+20+8 / 14+16+8 = 38)
           itemLabel
-            .opacity(0.5)
             .padding(.leading, 38)
         }
       }
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .contentShape(Rectangle())
+      .frame(maxWidth: .infinity, minHeight: TBDTokens.Control.minHeight, alignment: .leading)
+      .background(isHovered && !isSelected ? TBDColor.plate : Color.clear, in: TBDBrickShape())
+      .contentShape(TBDBrickShape())
     }
     .buttonStyle(.plain)
     .pointingHandCursor()
-    .offset(x: isHovered && !isSelected ? -1 : 0)
-    .animation(TBDMotion.spring, value: isSelected)
-    .animation(TBDMotion.quick, value: isHovered)
+    .animation(TBDMotion.animation(TBDMotion.spring, reduce: reduceMotion), value: isSelected)
+    .animation(TBDMotion.animation(TBDMotion.quick, reduce: reduceMotion), value: isHovered)
     .onHover { hovering in
       isHovered = hovering
     }
@@ -104,18 +102,13 @@ struct SetupSidebarItem: View {
 
   private var itemLabel: some View {
     Text(title)
-      .font(.custom("Switzer", size: 16))
-      .fontWeight(.medium)
-      .foregroundColor(textColor)
+      .font(TBDFonts.nunito(TBDKit.textLabel, isSelected ? TBDKit.weightLabel : TBDKit.weightNav))
+      .foregroundColor(isSelected || isCompleted ? TBDColor.ink : TBDColor.muted)
   }
 
   private var selectedBackground: some View {
-    // Brick selection: square tint plus a left ink bar, no rounded pill or shadow.
-    let shape = RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-    return
-      shape
-      .fill(Color(hex: "FFFAF8"))
-      .overlay(alignment: .leading) { RoundedRectangle(cornerRadius: TBDTokens.Radius.base).fill(textColor).frame(width: TBDTokens.Stroke.bar) }
+    // Selection: a soft brick in teal wash (the kit rail selection).
+    TBDRailSelection()
       .matchedGeometryEffect(id: "selection", in: namespace)
   }
 }

@@ -9,8 +9,6 @@ import SwiftUI
 import TBDDesign
 
 struct DayCategorySelectionEditor: View {
-  @Environment(\.dayflowTheme) private var theme
-
   let categories: [TimelineCategory]
   let selectedCategoryIDs: Set<UUID>
   let helperText: String
@@ -22,8 +20,6 @@ struct DayCategorySelectionEditor: View {
     static let rowSpacing: CGFloat = 4
     static let horizontalPadding: CGFloat = 10
     static let verticalPadding: CGFloat = 10
-    static let helperTextSize: CGFloat = 11
-    static let cornerRadius: CGFloat = 6
   }
 
   var body: some View {
@@ -38,12 +34,12 @@ struct DayCategorySelectionEditor: View {
           }
         }
       }
-      .padding(.trailing, 32)
+      .padding(.trailing, 40)
       .frame(maxWidth: .infinity, alignment: .leading)
 
       Rectangle()
-        .fill(theme.rightPanelDivider)
-        .frame(height: 1)
+        .fill(TBDColor.line)
+        .frame(height: TBDKit.hair)
 
       helperRow
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -51,52 +47,31 @@ struct DayCategorySelectionEditor: View {
     .padding(.horizontal, Design.horizontalPadding)
     .padding(.vertical, Design.verticalPadding)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(backgroundView)
-    .clipShape(RoundedRectangle(cornerRadius: Design.cornerRadius))
-    .overlay(
-      RoundedRectangle(cornerRadius: Design.cornerRadius)
-        .stroke(theme.popoverBorder, lineWidth: 1)
-    )
+    .tbdFloating()
     .overlay(alignment: .topTrailing) {
       Button(action: onDone) {
         Image(systemName: "checkmark")
-          .font(.system(size: 11, weight: .bold))
-          .foregroundColor(theme.textPrimary)
-          .frame(width: 26, height: 26)
-          .background(theme.chipFill)
-          .clipShape(
-            UnevenRoundedRectangle(
-              cornerRadii: .init(
-                topLeading: 0,
-                bottomLeading: 8,
-                bottomTrailing: 0,
-                topTrailing: Design.cornerRadius
-              )
-            )
-          )
+          .font(TBDFonts.symbol(TBDKit.textHint, .bold))
+          .frame(minWidth: 36, minHeight: 36)
+          .contentShape(Rectangle())
       }
-      .buttonStyle(.plain)
+      .buttonStyle(TBDButtonStyle(.icon))
       .pointingHandCursorOnHover(reassertOnPressEnd: true)
     }
-    .shadow(color: Color.black.opacity(0.08), radius: 18, x: 0, y: 10)
   }
 
   private var helperRow: some View {
     HStack(alignment: .center, spacing: 6) {
       Image(systemName: "lightbulb")
-        .font(.system(size: 11))
-        .foregroundColor(theme.textSecondary.opacity(0.7))
+        .font(TBDFonts.symbol(TBDKit.textHint, .regular))
+        .foregroundColor(TBDColor.muted)
 
       Text(helperText)
-        .font(.custom("Switzer", size: Design.helperTextSize))
-        .foregroundColor(theme.textSecondary)
+        .font(TBDTokens.Typography.hint)
+        .foregroundColor(TBDColor.muted)
     }
   }
 
-  private var backgroundView: some View {
-    theme.popoverFill
-      .background(TBDTokens.paper)
-  }
 }
 
 private struct DayCategoryFlowLayout: Layout {

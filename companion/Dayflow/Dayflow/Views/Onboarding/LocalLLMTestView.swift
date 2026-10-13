@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import SwiftUI
+import TBDDesign
 
 enum LocalLLMTestConstants {
   static let blankImageDataURL = LocalLLMTestImageFactory.blankImageDataURL(
@@ -45,7 +46,7 @@ enum LocalLLMTestImageFactory {
     NSGraphicsContext.saveGraphicsState()
     if let context = NSGraphicsContext(bitmapImageRep: bitmap) {
       NSGraphicsContext.current = context
-      NSColor.white.setFill()
+      NSColor.white.setFill()  // design-guard: allow (blank white test image sent to the model, media data)
       rect.fill()
       context.flushGraphics()
     }
@@ -100,8 +101,6 @@ struct LocalLLMTestView: View {
     self.onTestComplete = onTestComplete
   }
 
-  let accentColor = Color(red: 0.25, green: 0.17, blue: 0)
-  let successAccentColor = Color(red: 0.34, green: 1, blue: 0.45)
   var trimmedAPIKey: String {
     apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
   }
@@ -113,39 +112,16 @@ struct LocalLLMTestView: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
       if showInputs {
-        VStack(alignment: .leading, spacing: 6) {
-          Text("Base URL")
-            .font(.custom("Switzer", size: 12))
-            .fontWeight(.semibold)
-            .foregroundColor(SettingsStyle.secondary)
-          TextField(basePlaceholder ?? engine.defaultBaseURL, text: $baseURL)
-            .textFieldStyle(.roundedBorder)
-        }
+        TBDField("Base URL", text: $baseURL, prompt: basePlaceholder ?? engine.defaultBaseURL)
 
-        VStack(alignment: .leading, spacing: 6) {
-          Text("Model ID")
-            .font(.custom("Switzer", size: 12))
-            .fontWeight(.semibold)
-            .foregroundColor(SettingsStyle.secondary)
-          TextField(
-            modelPlaceholder ?? LocalModelPreferences.defaultModelId(for: engine), text: $modelId
-          )
-          .textFieldStyle(.roundedBorder)
-        }
+        TBDField(
+          "Model ID", text: $modelId,
+          prompt: modelPlaceholder ?? LocalModelPreferences.defaultModelId(for: engine))
 
         if engine == .custom {
-          VStack(alignment: .leading, spacing: 6) {
-            Text("API key (optional)")
-              .font(.custom("Switzer", size: 12))
-              .fontWeight(.semibold)
-              .foregroundColor(SettingsStyle.secondary)
-            SecureField("sk-live-...", text: $apiKey)
-              .textFieldStyle(.roundedBorder)
-              .disableAutocorrection(true)
-            Text(credentialStorageDescription)
-              .font(.custom("Switzer", size: 11))
-              .foregroundColor(SettingsStyle.meta)
-          }
+          TBDField(
+            "API key (optional)", text: $apiKey, prompt: "sk-live-...", secure: true,
+            hint: credentialStorageDescription)
         }
       }
 
@@ -164,8 +140,8 @@ struct LocalLLMTestView: View {
           Text(
             "If you get stuck here, you can go back and choose the ‘Bring your own key’ option — it only takes a minute to set up."
           )
-          .font(.custom("Switzer", size: 12))
-          .foregroundColor(SettingsStyle.secondary)
+          .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+          .foregroundColor(TBDColor.muted)
           .fixedSize(horizontal: false, vertical: true)
         }
       }

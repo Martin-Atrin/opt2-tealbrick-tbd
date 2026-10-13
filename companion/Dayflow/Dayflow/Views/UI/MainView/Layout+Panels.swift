@@ -76,17 +76,17 @@ extension MainView {
     }
     .padding(0)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .clipShape(RoundedRectangle(cornerRadius: TBDTokens.Radius.base))
+    .clipShape(TBDBrickShape())
     .background { mainPanelBackground }
   }
 
   private var mainPanelBackground: some View {
     // Flat panel: brick content never floats, so no shadow here.
-    let shape = RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
+    let shape = TBDBrickShape()
     return
       shape
-      .fill(theme.panelFill)
-      .overlay(shape.strokeBorder(theme.panelBorder, lineWidth: 1))
+      .fill(TBDColor.tile)
+      .overlay(shape.strokeBorder(TBDColor.line, lineWidth: TBDKit.hair))
   }
 
   private func timelinePanel(geo: GeometryProxy) -> some View {
@@ -253,7 +253,7 @@ extension MainView {
   // square corners, hairline border) rather than a flush column. Flat
   // content, so no shadow.
   private func timelineRightColumn(geo: GeometryProxy) -> some View {
-    let shape = RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
+    let shape = TBDBrickShape()
     let inset: CGFloat = 5
 
     return ZStack(alignment: .topLeading) {
@@ -270,8 +270,8 @@ extension MainView {
     .background {
       if timelineInspectorWidth > 0 {
         shape
-          .fill(theme.rightPanelFill)
-          .overlay(shape.strokeBorder(theme.rightPanelBorder, lineWidth: 0.75))
+          .fill(TBDColor.tile)
+          .overlay(shape.strokeBorder(TBDColor.line, lineWidth: TBDKit.hair))
       }
     }
     .contentShape(shape)
@@ -405,16 +405,16 @@ extension MainView {
   }
 
   private var weeklyHoursText: some View {
-    let textColor = theme.textTertiary
+    let textColor = TBDColor.muted
     let parts = timelineTrackedMinutesParts
 
     return
       (Text(parts.bold)
-      .font(Font.custom("Switzer", size: stylePreviewAfter ? 14 : 10).weight(.bold))
-      .foregroundColor(textColor)
+      .font(TBDFonts.nunito(TBDKit.textControl, TBDKit.weightLabel))
+      .foregroundStyle(textColor)
       + Text(parts.rest)
-      .font(Font.custom("Switzer", size: stylePreviewAfter ? 14 : 10).weight(.regular))
-      .foregroundColor(textColor))
+      .font(TBDFonts.nunito(TBDKit.textControl, TBDKit.weightBody))
+      .foregroundStyle(textColor))
       .background(
         GeometryReader { proxy in
           Color.clear.preference(
@@ -426,10 +426,6 @@ extension MainView {
   }
 
   private var copyTimelineButton: some View {
-    let background = theme.secondaryButtonFill
-    let stroke = theme.secondaryButtonBorder
-    let textColor = theme.secondaryButtonText
-
     // Slide up + fade: no text scaling (scaling distorts letterforms)
     let enterTransition = AnyTransition.opacity
       .combined(with: .move(edge: .bottom))
@@ -441,14 +437,14 @@ extension MainView {
         if copyTimelineState == .copying {
           ProgressView()
             .scaleEffect(0.6)
-            .progressViewStyle(CircularProgressViewStyle(tint: textColor))
+            .progressViewStyle(CircularProgressViewStyle(tint: TBDColor.muted))
             .transition(.asymmetric(insertion: enterTransition, removal: exitTransition))
         } else if copyTimelineState == .copied {
           HStack(spacing: 4) {
             Image(systemName: "checkmark")
-              .font(.system(size: 11.5, weight: .medium))
+              .font(TBDFonts.symbol(11.5, TBDKit.weightNav))
             Text("Copied")
-              .font(Font.custom("Switzer", size: stylePreviewAfter ? 14 : 11.5).weight(.medium))
+              .font(TBDTokens.Typography.tag)
           }
           .transition(.asymmetric(insertion: enterTransition, removal: exitTransition))
         } else {
@@ -460,26 +456,16 @@ extension MainView {
               .scaledToFit()
               .frame(width: 11.5, height: 11.5)
             Text("Copy timeline")
-              .font(Font.custom("Switzer", size: stylePreviewAfter ? 14 : 11.5).weight(.medium))
+              .font(TBDTokens.Typography.tag)
           }
           .transition(.asymmetric(insertion: enterTransition, removal: exitTransition))
         }
       }
       .animation(TBDMotion.spring, value: copyTimelineState)
       .fixedSize(horizontal: true, vertical: false)
-      .padding(.horizontal, 8)
-      .frame(minWidth: stylePreviewAfter ? 122 : 104)
-      .frame(height: stylePreviewAfter ? 26 : 23)
-      .foregroundColor(textColor)
-      .background(background)
-      .clipShape(RoundedRectangle(cornerRadius: TBDTokens.Radius.base))
-      .overlay(
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-          .strokeBorder(stroke, lineWidth: 1)
-      )
-      .contentShape(Rectangle())
+      .frame(minWidth: 122)
     }
-    .buttonStyle(.plain)
+    .buttonStyle(TBDButtonStyle(.quiet))
     .disabled(copyTimelineState == .copying)
     .pointingHandCursorOnHover(
       enabled: copyTimelineState != .copying,

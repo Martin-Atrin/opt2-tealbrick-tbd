@@ -169,6 +169,7 @@ struct SettingsDataTabView: View {
               ? String(localized: "Reprocessing…") : String(localized: "Reprocess day"),
             systemImage: viewModel.isReprocessingDay ? nil : "arrow.clockwise",
             isLoading: viewModel.isReprocessingDay,
+            prominent: false,
             action: { viewModel.showReprocessDayConfirm = true }
           )
 

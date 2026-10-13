@@ -196,7 +196,7 @@ struct SettingsAccountSection: View {
           TBDNotice(account.error, tone: .needsYou)
         }
         Rectangle().fill(TBDColor.line).frame(height: TBDKit.hair)
-        Text("Portal sign-in enables Chat and remote agents. Companion and Listening work without an account. macOS permissions are managed separately in Access.")
+        Text("Portal sign-in enables Chat and remote agents. Companion and Listen work without an account. macOS permissions are managed separately in Access.")
           .font(TBDTokens.Typography.hint)
           .foregroundStyle(TBDColor.muted)
       }

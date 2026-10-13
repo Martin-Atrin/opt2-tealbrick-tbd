@@ -11,17 +11,18 @@ import TBDDesign
 struct ConfettiBurstView: View {
   let trigger: Int
 
+  // Kit tones (teal, moss, wood, brick, stone) in place of the old rainbow.
   private let colors: [Color] = [
-    Color(hex: "FF6B6B"),
-    Color(hex: "FFD93D"),
-    Color(hex: "6BCB77"),
-    Color(hex: "4D96FF"),
-    Color(hex: "9B5DE5"),
-    Color(hex: "FF8FAB"),
-    Color(hex: "00C2FF"),
-    Color(hex: "FFA41B"),
-    Color(hex: "F72585"),
-    Color(hex: "7AE582"),
+    TBDColor.toneTeal,
+    TBDColor.toneBrick,
+    TBDColor.toneMoss,
+    TBDColor.toneWood,
+    TBDColor.tealInk,
+    TBDColor.toneStone,
+    TBDColor.brick,
+    TBDColor.teal,
+    TBDColor.toneWoodInk,
+    TBDColor.toneMossInk,
   ]
   private let confettiCount = 60
 
@@ -46,7 +47,7 @@ private struct ConfettiPiece: View {
   @State private var opacity: Double = 0
 
   var body: some View {
-    RoundedRectangle(cornerRadius: 2)
+    RoundedRectangle(cornerRadius: TBDKit.radiusSwatch)
       .fill(color)
       .frame(width: 6, height: 10)
       .rotationEffect(.degrees(rotation))

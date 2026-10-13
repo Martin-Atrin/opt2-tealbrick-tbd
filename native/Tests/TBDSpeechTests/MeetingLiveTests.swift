@@ -391,8 +391,8 @@ final class MeetingPillRulesTests: XCTestCase {
 
     func testTheRecordingFaceIsTheWidestAndHiddenHasNoSize() {
         XCTAssertEqual(TBDMeetingPillRules.size(for: .hidden), .zero)
-        XCTAssertEqual(TBDMeetingPillRules.size(for: .recording), CGSize(width: 330, height: 40))
-        XCTAssertEqual(TBDMeetingPillRules.size(for: .paused), CGSize(width: 330, height: 40))
+        XCTAssertEqual(TBDMeetingPillRules.size(for: .recording), CGSize(width: 354, height: 40))
+        XCTAssertEqual(TBDMeetingPillRules.size(for: .paused), CGSize(width: 354, height: 40))
         XCTAssertEqual(TBDMeetingPillRules.size(for: .starting), CGSize(width: 150, height: 40))
         XCTAssertEqual(TBDMeetingPillRules.size(for: .saving), CGSize(width: 150, height: 40))
         XCTAssertEqual(TBDMeetingPillRules.size(for: .saved), CGSize(width: 120, height: 40))
@@ -492,9 +492,9 @@ final class SystemAudioFallbackNoticeTests: XCTestCase {
     }
 
     func testThePillGrowsATextRowWhileTheNoticeShows() {
-        XCTAssertEqual(TBDMeetingPillRules.size(for: .recording, hasNotice: true), CGSize(width: 330, height: 62))
-        XCTAssertEqual(TBDMeetingPillRules.size(for: .paused, hasNotice: true), CGSize(width: 330, height: 62))
-        XCTAssertEqual(TBDMeetingPillRules.size(for: .recording, hasNotice: false), CGSize(width: 330, height: 40))
+        XCTAssertEqual(TBDMeetingPillRules.size(for: .recording, hasNotice: true), CGSize(width: 354, height: 62))
+        XCTAssertEqual(TBDMeetingPillRules.size(for: .paused, hasNotice: true), CGSize(width: 354, height: 62))
+        XCTAssertEqual(TBDMeetingPillRules.size(for: .recording, hasNotice: false), CGSize(width: 354, height: 40))
         XCTAssertEqual(TBDMeetingPillRules.size(for: .saved, hasNotice: true), CGSize(width: 120, height: 40))
     }
 

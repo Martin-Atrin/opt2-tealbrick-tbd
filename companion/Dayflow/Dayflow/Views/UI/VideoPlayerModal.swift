@@ -94,7 +94,7 @@ struct VideoExpansionOverlay: View {
     if isVisible {
       ZStack {
         // Scrim/backdrop
-        Color.black
+        TBDColor.overlayFill
           .opacity(scrimOpacity)
           .ignoresSafeArea()
           .onTapGesture {
@@ -153,7 +153,7 @@ struct VideoExpansionOverlay: View {
         let vh = fitsWidth ? h : (geo.size.width / a)
 
         ZStack {
-          Color.white
+          TBDColor.tile
           HStack(spacing: 0) {
             Spacer(minLength: 0)
             videoPlayerView(width: vw, height: vh)
@@ -172,13 +172,8 @@ struct VideoExpansionOverlay: View {
         .offset(y: scrubberOffset)
     }
     .frame(width: targetWidth, height: targetHeight)
-    // Brick modal: square, hard zero-blur offset shadow instead of a soft blur.
-    .background(RoundedRectangle(cornerRadius: TBDTokens.Radius.base).fill(Color.white))
-    .background(
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-        .fill(Color.black.opacity(TBDTokens.Shadow.brickLg.opacity))
-        .offset(x: TBDTokens.Shadow.brickLg.x, y: TBDTokens.Shadow.brickLg.y)
-    )
+    // Brick modal: tile, hair ring and the one float shadow.
+    .tbdFloating()
   }
 
   private var headerView: some View {
@@ -186,31 +181,31 @@ struct VideoExpansionOverlay: View {
       VStack(alignment: .leading, spacing: 4) {
         if let title = expansionState.title {
           Text(title)
-            .font(.title3)
-            .fontWeight(.semibold)
+            .font(TBDTokens.Typography.title)
+            .foregroundStyle(TBDColor.ink)
         }
         if let startTime = expansionState.startTime, let endTime = expansionState.endTime {
           Text(
             "\(videoPlayerTimeFormatter.string(from: startTime)) to \(videoPlayerTimeFormatter.string(from: endTime))"
           )
-          .font(.caption)
-          .foregroundColor(Color(red: 0.4, green: 0.4, blue: 0.4))
+          .font(TBDTokens.Typography.hint)
+          .foregroundStyle(TBDColor.muted)
         }
       }
       Spacer()
       Button(action: { closeModal() }) {
-        Image(systemName: "xmark.circle.fill")
-          .font(.system(size: 20))
-          .foregroundColor(Color.black.opacity(0.5))
+        Image(systemName: "xmark")
+          .font(TBDFonts.symbol(14, TBDKit.weightNav))
       }
-      .buttonStyle(ScaleButtonStyle())
+      .buttonStyle(TBDButtonStyle(.icon))
+      .accessibilityLabel(Text("Close"))
     }
     .padding(.horizontal, 16)
     .padding(.vertical, 10)
-    .background(Color.white)
-    .overlay(
-      Rectangle().stroke(Color.gray.opacity(0.25), lineWidth: 1)
-    )
+    .background(TBDColor.tile)
+    .overlay(alignment: .bottom) {
+      Rectangle().fill(TBDColor.line).frame(height: TBDKit.hair)
+    }
   }
 
   @ViewBuilder
@@ -221,20 +216,20 @@ struct VideoExpansionOverlay: View {
           .disabled(true)
       } else {
         ProgressView()
-          .progressViewStyle(CircularProgressViewStyle(tint: .gray))
+          .progressViewStyle(CircularProgressViewStyle(tint: TBDColor.muted))
       }
 
       // Play button overlay
       if !viewModel.isPlaying {
         Button(action: { viewModel.togglePlayPause() }) {
           ZStack {
-            RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-              .strokeBorder(Color.white.opacity(0.9), lineWidth: 2)
+            TBDBrickShape()
+              .strokeBorder(TBDColor.overlayOn.opacity(0.9), lineWidth: 2)
               .frame(width: 64, height: 64)
-              .background(RoundedRectangle(cornerRadius: TBDTokens.Radius.base).fill(Color.black.opacity(0.35)))
+              .background(TBDBrickShape().fill(TBDColor.overlayFill.opacity(0.6)))
             Image(systemName: "play.fill")
-              .foregroundColor(.white)
-              .font(.system(size: 24, weight: .bold))
+              .foregroundStyle(TBDColor.overlayOn)
+              .font(TBDFonts.symbol(24, TBDKit.weightLabel))
           }
         }
         .buttonStyle(ScaleButtonStyle())
@@ -247,12 +242,12 @@ struct VideoExpansionOverlay: View {
       if expansionState.isHoveringVideo {
         Button(action: { viewModel.cycleSpeed() }) {
           Text("\(Int(viewModel.playbackSpeed * 20))x")
-            .font(.custom("Switzer", size: 16).weight(.semibold))
-            .foregroundColor(.white)
+            .font(TBDFonts.nunito(TBDKit.textBody, TBDKit.weightNav))
+            .foregroundStyle(TBDColor.overlayOn)
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
-            .background(Color.black.opacity(0.85))
-            .cornerRadius(TBDTokens.Radius.base)
+            .background(TBDColor.overlayFill.opacity(0.9))
+            .clipShape(TBDBrickShape())
         }
         .buttonStyle(ScaleButtonStyle())
         .padding(12)
@@ -287,7 +282,7 @@ struct VideoExpansionOverlay: View {
         .padding(.bottom, 12)
       }
     }
-    .background(Color.white)
+    .background(TBDColor.tile)
   }
 
   // Animation helpers
@@ -437,15 +432,15 @@ enum ActivityType {
   var color: Color {
     switch self {
     case .brainstorming, .coding:
-      return Color.orange
+      return TBDColor.toneWood
     case .browsing:
-      return Color.red
+      return TBDColor.toneBrick
     case .email, .meeting:
-      return Color.blue
+      return TBDColor.toneTeal
     case .breaks:
-      return Color.yellow
+      return TBDColor.toneMoss
     case .other:
-      return Color.gray
+      return TBDColor.toneStone
     }
   }
 }
@@ -565,28 +560,28 @@ class VideoPlayerViewModel: ObservableObject {
     segments = [
       VideoSegment(
         title: String(localized: "Brainstorming with Chat GPT"), startTime: 0, endTime: 420,
-        color: .orange,
+        color: TBDColor.toneWood,
         activityType: .brainstorming),
       VideoSegment(
-        title: String(localized: "Browsing TripAdvisor"), startTime: 420, endTime: 660, color: .red,
+        title: String(localized: "Browsing TripAdvisor"), startTime: 420, endTime: 660, color: TBDColor.toneBrick,
         activityType: .browsing),
       VideoSegment(
-        title: String(localized: "Comparing flights"), startTime: 660, endTime: 780, color: .blue,
+        title: String(localized: "Comparing flights"), startTime: 660, endTime: 780, color: TBDColor.toneTeal,
         activityType: .other("travel")),
       VideoSegment(
-        title: String(localized: "Break"), startTime: 780, endTime: 840, color: .yellow,
+        title: String(localized: "Break"), startTime: 780, endTime: 840, color: TBDColor.toneMoss,
         activityType: .breaks),
       VideoSegment(
-        title: String(localized: "Email responses"), startTime: 840, endTime: 1020, color: .blue,
+        title: String(localized: "Email responses"), startTime: 840, endTime: 1020, color: TBDColor.toneTeal,
         activityType: .email),
       VideoSegment(
-        title: String(localized: "Coding session"), startTime: 1020, endTime: 1680, color: .orange,
+        title: String(localized: "Coding session"), startTime: 1020, endTime: 1680, color: TBDColor.toneWood,
         activityType: .coding),
       VideoSegment(
-        title: String(localized: "Research"), startTime: 1680, endTime: 1980, color: .orange,
+        title: String(localized: "Research"), startTime: 1680, endTime: 1980, color: TBDColor.toneWood,
         activityType: .brainstorming),
       VideoSegment(
-        title: String(localized: "Planning"), startTime: 1980, endTime: duration, color: .blue,
+        title: String(localized: "Planning"), startTime: 1980, endTime: duration, color: TBDColor.toneTeal,
         activityType: .other("planning")),
     ]
   }
@@ -614,31 +609,31 @@ struct VideoPlayerModal: View {
           VStack(alignment: .leading, spacing: 4) {
             if let title = title {
               Text(title)
-                .font(.title3)
-                .fontWeight(.semibold)
+                .font(TBDTokens.Typography.title)
+                .foregroundStyle(TBDColor.ink)
             }
             if let startTime = startTime, let endTime = endTime {
               Text(
                 "\(videoPlayerTimeFormatter.string(from: startTime)) to \(videoPlayerTimeFormatter.string(from: endTime))"
               )
-              .font(.caption)
-              .foregroundColor(Color(red: 0.4, green: 0.4, blue: 0.4))
+              .font(TBDTokens.Typography.hint)
+              .foregroundStyle(TBDColor.muted)
             }
           }
           Spacer()
           Button(action: { dismiss() }) {
-            Image(systemName: "xmark.circle.fill")
-              .font(.system(size: 20))
-              .foregroundColor(Color.black.opacity(0.5))
+            Image(systemName: "xmark")
+              .font(TBDFonts.symbol(14, TBDKit.weightNav))
           }
-          .buttonStyle(ScaleButtonStyle())
+          .buttonStyle(TBDButtonStyle(.icon))
+          .accessibilityLabel(Text("Close"))
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
-        .background(Color.white)
-        .overlay(
-          Rectangle().stroke(Color.gray.opacity(0.25), lineWidth: 1)
-        )
+        .background(TBDColor.tile)
+        .overlay(alignment: .bottom) {
+          Rectangle().fill(TBDColor.line).frame(height: TBDKit.hair)
+        }
       }
 
       // Video area + overlays sized by aspect (fill available height)
@@ -651,7 +646,7 @@ struct VideoPlayerModal: View {
         let vh = fitsWidth ? h : (geo.size.width / a)
 
         ZStack {
-          Color.white
+          TBDColor.tile
           HStack(spacing: 0) {
             Spacer(minLength: 0)
             ZStack {
@@ -660,20 +655,20 @@ struct VideoPlayerModal: View {
                   .disabled(true)
               } else {
                 ProgressView()
-                  .progressViewStyle(CircularProgressViewStyle(tint: .gray))
+                  .progressViewStyle(CircularProgressViewStyle(tint: TBDColor.muted))
               }
 
               // Center play/pause overlay with animated entrance (Emil Kowalski: purposeful transitions)
               if !viewModel.isPlaying {
                 Button(action: { viewModel.togglePlayPause() }) {
                   ZStack {
-                    RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-                      .strokeBorder(Color.white.opacity(0.9), lineWidth: 2)
+                    TBDBrickShape()
+                      .strokeBorder(TBDColor.overlayOn.opacity(0.9), lineWidth: 2)
                       .frame(width: 64, height: 64)
-                      .background(RoundedRectangle(cornerRadius: TBDTokens.Radius.base).fill(Color.black.opacity(0.35)))
+                      .background(TBDBrickShape().fill(TBDColor.overlayFill.opacity(0.6)))
                     Image(systemName: "play.fill")
-                      .foregroundColor(.white)
-                      .font(.system(size: 24, weight: .bold))
+                      .foregroundStyle(TBDColor.overlayOn)
+                      .font(TBDFonts.symbol(24, TBDKit.weightLabel))
                   }
                 }
                 .buttonStyle(ScaleButtonStyle())
@@ -692,12 +687,12 @@ struct VideoPlayerModal: View {
               if isHoveringVideo {
                 Button(action: { viewModel.cycleSpeed() }) {
                   Text("\(Int(viewModel.playbackSpeed * 20))x")
-                    .font(.custom("Switzer", size: 16).weight(.semibold))
-                    .foregroundColor(.white)
+                    .font(TBDFonts.nunito(TBDKit.textBody, TBDKit.weightNav))
+                    .foregroundStyle(TBDColor.overlayOn)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(Color.black.opacity(0.85))
-                    .cornerRadius(TBDTokens.Radius.base)
+                    .background(TBDColor.overlayFill.opacity(0.9))
+                    .clipShape(TBDBrickShape())
                 }
                 .buttonStyle(ScaleButtonStyle())
                 .padding(12)
@@ -740,7 +735,7 @@ struct VideoPlayerModal: View {
           .padding(.bottom, 12)
         }
       }
-      .background(Color.white)  // underneath video area edge
+      .background(TBDColor.tile)  // underneath video area edge
     }
     // Size modal to 90% of the presenting window if available
     .frame(

@@ -222,7 +222,7 @@ final class LegacyImportTests: XCTestCase {
         let outcome = TBDLegacyImport.runAtStart(into: db, legacyURL: legacyURL)
         XCTAssertFalse(outcome.changed)
         let message = try XCTUnwrap(outcome.message)
-        XCTAssertTrue(message.hasPrefix("Could not import Listening data from the earlier TBD version: "), message)
+        XCTAssertTrue(message.hasPrefix("Could not import Listen data from the earlier TBD version: "), message)
         XCTAssertTrue(message.hasSuffix(" TBD tries again at next start."), message)
         XCTAssertEqual(try counts(db).values.reduce(0, +), 0)   // no marker: the next start tries again
         XCTAssertEqual(try Data(contentsOf: legacyURL), Data("this is not a database, just text".utf8))

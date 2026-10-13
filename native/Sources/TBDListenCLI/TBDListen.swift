@@ -7,7 +7,7 @@ import TBDSpeech
 struct TBDListen: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "tbd-listen",
-        abstract: "Transcribe audio and query the TBD Listening library.",
+        abstract: "Transcribe audio and query the TBD Listen library.",
         version: TBDSpeechVersion.string,
         subcommands: [Transcribe.self, History.self, Search.self, Show.self, Meetings.self, Export.self, Delete.self, Stats.self,
                       Engines.self, Models.self, Vocabulary.self, Snippets.self, Podcasts.self, Config.self, YtDlp.self]
@@ -20,7 +20,7 @@ let appPreferences = TBDListeningPreferences(defaults: UserDefaults(suiteName: "
 func openLibrary(readOnly: Bool = true) throws -> TBDListeningDatabase {
     if !readOnly { return try TBDListeningDatabase() }
     do { return try TBDListeningDatabase(readOnly: true) } catch {
-        throw ValidationError("No Listening library at \(TBDListeningPaths.database.path). Use TBD once or run `tbd-listen transcribe`.")
+        throw ValidationError("No Listen library at \(TBDListeningPaths.database.path). Use TBD once or run `tbd-listen transcribe`.")
     }
 }
 

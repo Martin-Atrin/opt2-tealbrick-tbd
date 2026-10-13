@@ -2,8 +2,6 @@ import TBDDesign
 import SwiftUI
 
 struct GoalReviewCard: View {
-  @Environment(\.dayflowTheme) private var theme
-
   let kind: DayGoalCategoryKind
   let title: String
   let subtitle: String
@@ -12,7 +10,7 @@ struct GoalReviewCard: View {
   let categories: [DayGoalCategoryResult]
 
   private var accent: Color {
-    kind == .focus ? theme.sheetFocusHeader : theme.sheetDistractionHeader
+    kind == .focus ? TBDColor.teal : TBDColor.brick
   }
 
   private var iconName: String {
@@ -40,8 +38,8 @@ struct GoalReviewCard: View {
           Text(title)
           Text(subtitle)
         }
-        .font(.custom("Switzer", size: 15))
-        .foregroundColor(theme.textPrimary)
+        .font(TBDTokens.Typography.body)
+        .foregroundColor(TBDColor.ink)
 
         Spacer()
 
@@ -55,10 +53,10 @@ struct GoalReviewCard: View {
 
         GeometryReader { geometry in
           ZStack(alignment: kind == .focus ? .leading : .trailing) {
-            RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-              .fill(theme.targetsTrackFill)
+            TBDBrickShape()
+              .fill(TBDColor.plate)
 
-            RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
+            TBDBrickShape()
               .fill(accent)
               .frame(width: barWidth(availableWidth: geometry.size.width), height: 8)
           }
@@ -78,24 +76,14 @@ struct GoalReviewCard: View {
     .padding(.horizontal, 24)
     .padding(.vertical, kind == .focus ? 18 : 18)
     .frame(width: 388, height: kind == .focus ? 236 : 123, alignment: .topLeading)
-    .background(theme.sheetCardFill)
-    .clipShape(RoundedRectangle(cornerRadius: TBDTokens.Radius.base))
-    .overlay(
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-        .stroke(theme.sheetCardBorder, lineWidth: 1)
-    )
+    .background(TBDColor.tile, in: TBDBrickShape())
+    .overlay(TBDBrickShape().strokeBorder(TBDColor.line, lineWidth: TBDKit.hair))
   }
 
   private var resultBadge: some View {
-    Text(succeeded ? String(localized: "NAILED IT") : String(localized: "MISSED"))
-      .font(.custom("Switzer", size: 10).weight(.heavy))
-      .foregroundColor(succeeded ? Color(hex: "4AB43F") : Color(hex: "FA8282"))
-      .padding(.horizontal, 15)
-      .frame(height: 30)
-      .background(succeeded ? Color(hex: "F1FFE3") : Color(hex: "FFF0F0"))
-      .clipShape(RoundedRectangle(cornerRadius: TBDTokens.Radius.base))
-      .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.base).stroke(Color.white, lineWidth: 0.5))
-      .rotationEffect(.degrees(7.5))
+    TBDTag(
+      succeeded ? String(localized: "NAILED IT") : String(localized: "MISSED"),
+      status: succeeded ? .live : .needsYou)
   }
 
   private func barWidth(availableWidth: CGFloat) -> CGFloat {
@@ -108,33 +96,31 @@ struct GoalReviewCard: View {
 }
 
 private struct GoalCategoryBreakdown: View {
-  @Environment(\.dayflowTheme) private var theme
-
   let categories: [DayGoalCategoryResult]
 
   var body: some View {
     VStack(alignment: .leading, spacing: 7) {
       if categories.isEmpty {
         Text("No focus categories tracked")
-          .font(.custom("Switzer", size: 12))
-          .foregroundColor(theme.textSecondary)
+          .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+          .foregroundColor(TBDColor.muted)
           .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
       } else {
         ForEach(categories.prefix(4)) { category in
           HStack(spacing: 9) {
             Text(category.name)
-              .font(.custom("Switzer", size: 12))
-              .foregroundColor(theme.textPrimary)
+              .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+              .foregroundColor(TBDColor.ink)
               .lineLimit(1)
               .frame(width: 74, alignment: .leading)
 
-            RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
+            TBDBrickShape()
               .fill(category.color)
               .frame(width: barWidth(for: category), height: 6)
 
             Text(formatDuration(category.duration))
-              .font(.custom("Switzer", size: 8))
-              .foregroundColor(theme.textPrimary)
+              .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+              .foregroundColor(TBDColor.ink)
               .lineLimit(1)
 
             Spacer(minLength: 0)
@@ -144,12 +130,8 @@ private struct GoalCategoryBreakdown: View {
     }
     .padding(.horizontal, 12)
     .padding(.vertical, 12)
-    .background(theme.sheetInnerBoxFill)
-    .clipShape(RoundedRectangle(cornerRadius: TBDTokens.Radius.base))
-    .overlay(
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-        .stroke(theme.sheetInnerBoxBorder, lineWidth: 1)
-    )
+    .background(TBDColor.paper, in: TBDBrickShape())
+    .overlay(TBDBrickShape().strokeBorder(TBDColor.line, lineWidth: TBDKit.hair))
   }
 
   private func barWidth(for category: DayGoalCategoryResult) -> CGFloat {
@@ -172,15 +154,13 @@ private struct GoalCategoryBreakdown: View {
 }
 
 private struct GoalIconBubble: View {
-  @Environment(\.dayflowTheme) private var theme
-
   let kind: DayGoalCategoryKind
 
   var body: some View {
     ZStack {
-      Circle()
-        .fill(theme.targetsBubbleFill)
-        .overlay(Circle().stroke(accent, lineWidth: 1))
+      TBDBrickShape()
+        .fill(TBDColor.plate)
+        .overlay(TBDBrickShape().strokeBorder(accent, lineWidth: TBDKit.hair))
 
       Image(kind == .focus ? "DayGoalFocus" : "DayGoalDistraction")
         .resizable()
@@ -191,6 +171,6 @@ private struct GoalIconBubble: View {
   }
 
   private var accent: Color {
-    kind == .focus ? theme.sheetFocusHeader : theme.sheetDistractionHeader
+    kind == .focus ? TBDColor.teal : TBDColor.brick
   }
 }

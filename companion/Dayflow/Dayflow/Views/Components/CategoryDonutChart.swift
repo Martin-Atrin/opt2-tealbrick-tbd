@@ -7,6 +7,7 @@
 
 import Charts
 import SwiftUI
+import TBDDesign
 
 // MARK: - Data Model
 
@@ -40,7 +41,7 @@ struct CategoryTimeData: Identifiable {
     if let nsColor = NSColor(hex: colorHex) {
       return Color(nsColor: nsColor)
     }
-    return Color.gray
+    return TBDColor.toneStone
   }
 
   var formattedDuration: String {
@@ -61,9 +62,6 @@ struct CategoryTimeData: Identifiable {
 // MARK: - Main View
 
 struct CategoryDonutChart: View {
-  @Environment(\.dayflowTheme) private var theme
-  @Environment(\.stylePreviewAfter) private var stylePreviewAfter
-
   let data: [CategoryTimeData]
   let size: CGFloat
 
@@ -94,66 +92,22 @@ struct CategoryDonutChart: View {
   // MARK: - Donut Chart
 
   private var donutChart: some View {
-    // Figma: 205pt donut, ~25pt ring, 2pt track showing outside and 3pt inside the ring.
+    // Flat kit donut: plate track, flat sectors in the category colours, tile hole.
     let chartSize = size - 4
     let innerRadiusRatio: CGFloat = 0.75
-    let outerRadius = chartSize / 2
-    let glowSpread: CGFloat = 4
+    let innerGap: CGFloat = 6
 
     return ZStack {
-      // Background circle with light grey fill and shadow
       Circle()
-        .fill(theme.donutRingBackground)
+        .fill(TBDColor.plate)
+        .overlay(Circle().strokeBorder(TBDColor.line, lineWidth: TBDKit.hair))
         .frame(width: size, height: size)
-        .shadow(color: theme.donutShadow, radius: 5, x: 0, y: 0)
 
-      if stylePreviewAfter {
-        // Sector fills: category color at 80% opacity (per mock)
-        sectorChart(fillOpacity: 0.8, ringOuterRadius: outerRadius)
-          .frame(width: chartSize, height: chartSize)
-
-        // Inner glow: a 4px full-color band just inside each sector's perimeter,
-        // built by punching a shrunken copy out of a full-color copy, then blurring.
-        ZStack {
-          sectorChart(fillOpacity: 1, ringOuterRadius: outerRadius)
-          sectorChart(fillOpacity: 1, ringOuterRadius: outerRadius, shrunkBy: glowSpread)
-            .blendMode(.destinationOut)
-        }
-        .compositingGroup()
-        .blur(radius: glowSpread)
-        .mask(sectorChart(fillOpacity: 1, ringOuterRadius: outerRadius))
+      sectorChart()
         .frame(width: chartSize, height: chartSize)
-        .allowsHitTesting(false)  // Don't block interactions
-      } else {
-        // "Before": shipped rendering — full-opacity sectors with a white
-        // radial sheen fading toward the outer edge.
-        sectorChart(fillOpacity: 1, ringOuterRadius: outerRadius)
-          .frame(width: chartSize, height: chartSize)
 
-        Circle()
-          .fill(
-            RadialGradient(
-              stops: [
-                .init(color: .white.opacity(0.35), location: innerRadiusRatio),
-                .init(color: .white.opacity(0), location: 1.0),
-              ],
-              center: .center,
-              startRadius: 0,
-              endRadius: outerRadius
-            )
-          )
-          .frame(width: chartSize, height: chartSize)
-          .allowsHitTesting(false)  // Don't block interactions
-      }
-
-      // White circle in center - slightly smaller than donut hole to show grey gap on inner edge.
-      // In dark mode ("After") the hole is punched out instead so the panel
-      // background shows through.
-      let innerGap: CGFloat = 6
-      let punchOutHole = stylePreviewAfter && theme.isDark
       Circle()
-        .fill(punchOutHole ? Color.black : theme.donutCenterFill)
-        .blendMode(punchOutHole ? .destinationOut : .normal)
+        .fill(TBDColor.tile)
         .frame(
           width: chartSize * innerRadiusRatio - innerGap,
           height: chartSize * innerRadiusRatio - innerGap)
@@ -161,43 +115,38 @@ struct CategoryDonutChart: View {
       // Center content
       centerContent
     }
-    .compositingGroup()
     .frame(width: size, height: size)
   }
 
-  /// One copy of the donut's sector geometry. `shrunkBy` insets every edge
-  /// (inner, outer, and angular) so the difference with the full-size copy
-  /// forms the inner-glow band.
-  private func sectorChart(
-    fillOpacity: Double, ringOuterRadius: CGFloat, shrunkBy spread: CGFloat = 0
-  ) -> some View {
+  /// The donut's sector geometry.
+  private func sectorChart() -> some View {
     Chart(data) { item in
       SectorMark(
         angle: .value("Duration", item.duration),
-        innerRadius: spread > 0 ? .fixed(ringOuterRadius * 0.75 + spread) : .ratio(0.75),
-        outerRadius: spread > 0 ? .inset(spread) : .automatic,
-        angularInset: 1.5 + spread
+        innerRadius: .ratio(0.75),
+        outerRadius: .automatic,
+        angularInset: 1.5
       )
-      .cornerRadius(max(6 - spread, 0))
-      .foregroundStyle(item.color.opacity(fillOpacity))
+      .cornerRadius(TBDKit.radiusBrick)
+      .foregroundStyle(item.color)
     }
     .chartLegend(.hidden)
   }
 
   private var centerContent: some View {
     VStack(spacing: 4) {
-      Text("TOTAL")
-        .font(.custom("Switzer", size: 12).weight(.bold))
-        .foregroundColor(Color(hex: "B1B1B1"))
+      Text("Total")
+        .font(TBDFonts.nunito(12, TBDKit.weightLabel))
+        .foregroundStyle(TBDColor.muted)
 
       VStack(spacing: 0) {
         let total = formattedTotal
         Text("\(total.hours) hours")
-          .font(.custom("Switzer-Medium", size: 16))
-          .foregroundColor(theme.textPrimary)
+          .font(TBDFonts.nunito(TBDKit.textBody, TBDKit.weightNav))
+          .foregroundStyle(TBDColor.ink)
         Text("\(total.minutes) minutes")
-          .font(.custom("Switzer-Medium", size: 16))
-          .foregroundColor(theme.textPrimary)
+          .font(TBDFonts.nunito(TBDKit.textBody, TBDKit.weightNav))
+          .foregroundStyle(TBDColor.ink)
       }
     }
   }
@@ -218,19 +167,19 @@ struct CategoryDonutChart: View {
     VStack(alignment: .leading, spacing: 2) {
       // Color indicator + name row
       HStack(spacing: 4) {
-        // Colored rectangle with border
-        RoundedRectangle(cornerRadius: 2)
-          .fill(item.color.opacity(theme.legendSwatchOpacity))
+        // Colored swatch with border
+        RoundedRectangle(cornerRadius: TBDKit.radiusSwatch)
+          .fill(item.color)
           .overlay(
-            RoundedRectangle(cornerRadius: 2)
-              .stroke(item.color, lineWidth: 1.25)
+            RoundedRectangle(cornerRadius: TBDKit.radiusSwatch)
+              .strokeBorder(TBDColor.lineStrong, lineWidth: 1)
           )
           .frame(width: 10.667, height: 8)
 
         // Category name
         Text(item.name)
-          .font(.custom("Switzer", size: 10))
-          .foregroundColor(theme.textSecondary)
+          .font(TBDFonts.nunito(10, TBDKit.weightBody))
+          .foregroundStyle(TBDColor.inkSoft)
           .lineLimit(1)
           .truncationMode(.tail)
           .frame(width: 70, alignment: .leading)
@@ -238,8 +187,8 @@ struct CategoryDonutChart: View {
 
       // Duration
       Text(item.formattedDuration)
-        .font(.custom("Switzer", size: 12).weight(.semibold))
-        .foregroundColor(theme.textPrimary)
+        .font(TBDFonts.nunito(12, TBDKit.weightNav))
+        .foregroundStyle(TBDColor.ink)
         .padding(.leading, 14)  // Align with text above
     }
     .frame(width: 84.667, alignment: .leading)
@@ -261,11 +210,11 @@ struct CategoryDonutChart: View {
 
   CategoryDonutChart(data: previewData)
     .padding(40)
-    .background(Color(red: 0.98, green: 0.97, blue: 0.96))
+    .background(TBDColor.paper)
 }
 
 #Preview("Empty State") {
   CategoryDonutChart(data: [])
     .padding(40)
-    .background(Color(red: 0.98, green: 0.97, blue: 0.96))
+    .background(TBDColor.paper)
 }

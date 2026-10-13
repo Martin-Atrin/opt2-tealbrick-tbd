@@ -256,8 +256,8 @@ struct WeekTimelineGridView: View {
       ForEach(weekRange.days) { day in
         HStack(spacing: WeekTimelineConfig.weekdayInlineSpacing) {
           Text(day.weekdayLabel)
-            .font(.custom("Switzer", size: 12).weight(.medium))
-            .foregroundColor(theme.textPrimary)
+            .font(TBDFonts.nunito(12, TBDKit.weightNav))
+            .foregroundStyle(TBDColor.ink)
 
           dayNumberBadge(for: day)
         }
@@ -272,18 +272,18 @@ struct WeekTimelineGridView: View {
 
     if isToday {
       Text(day.dayNumber)
-        .font(.custom("Switzer", size: 12).weight(.semibold))
-        .foregroundColor(.white)
+        .font(TBDFonts.nunito(12, TBDKit.weightNav))
+        .foregroundStyle(TBDColor.primaryOn)
         .frame(width: 18, height: 18)
         .background(
-          // Selection is a tint, not a blob — square fill, no rounded pill.
-          RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-            .fill(theme.accent)
+          // Today: ink brick with paper numeral.
+          TBDBrickShape()
+            .fill(TBDColor.primaryFill)
         )
     } else {
       Text(day.dayNumber)
-        .font(.custom("Switzer", size: 12).weight(.medium))
-        .foregroundColor(theme.textPrimary)
+        .font(TBDFonts.nunito(12, TBDKit.weightNav))
+        .foregroundStyle(TBDColor.ink)
     }
   }
 
@@ -333,7 +333,7 @@ struct WeekTimelineGridView: View {
         ForEach(0..<(WeekTimelineConfig.endHour - WeekTimelineConfig.startHour), id: \.self) { _ in
           VStack(spacing: 0) {
             Rectangle()
-              .fill(theme.hourLine)
+              .fill(TBDColor.line)
               .frame(height: 1)
             Spacer(minLength: 0)
           }
@@ -344,8 +344,8 @@ struct WeekTimelineGridView: View {
 
       HStack(spacing: 0) {
         ForEach(0..<8, id: \.self) { index in
-          RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-            .fill(theme.hourLine)
+          TBDBrickShape()
+            .fill(TBDColor.line)
             .frame(width: index == 0 ? 0 : 1)
 
           if index < 7 {
@@ -364,8 +364,8 @@ struct WeekTimelineGridView: View {
       ForEach(WeekTimelineConfig.startHour..<WeekTimelineConfig.endHour, id: \.self) { hour in
         let hourIndex = hour - WeekTimelineConfig.startHour
         Text(formatHour(hour))
-          .font(.custom("Switzer", size: 9))
-          .foregroundColor(theme.hourLabel)
+          .font(TBDFonts.nunito(9, TBDKit.weightBody))
+          .foregroundStyle(TBDColor.muted)
           .padding(.trailing, 6)
           .padding(.top, 2)
           .frame(width: WeekTimelineConfig.timeColumnWidth, alignment: .trailing)
@@ -874,13 +874,13 @@ struct WeekTimelineGridView: View {
     }
     let fallback = categoryStore.categories.first ?? CategoryPersistence.defaultCategories.first!
     let category = matched ?? fallback
-    let accent = Color(nsColor: NSColor(hex: category.colorHex) ?? .systemBlue)
+    let accent = Color(nsColor: NSColor(hex: category.colorHex) ?? NSColor(TBDColor.toneTeal))
 
     return WeekTimelineCardPalette(
       accent: accent,
       fill: accent.opacity(theme.weekCardFillOpacity),
       border: accent,
-      title: theme.textPrimary
+      title: TBDColor.ink
     )
   }
 }

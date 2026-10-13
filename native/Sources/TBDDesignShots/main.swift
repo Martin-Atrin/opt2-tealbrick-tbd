@@ -38,7 +38,7 @@ TBDFonts.register()
     window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
     window.contentView = host
     host.layoutSubtreeIfNeeded()
-    RunLoop.main.run(until: Date().addingTimeInterval(1.2))   // lets async loads (the library list) land
+    RunLoop.main.run(until: Date().addingTimeInterval(2.0))   // lets async loads (the library list) land
     host.layoutSubtreeIfNeeded()
     guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(size.width * 2), pixelsHigh: Int(size.height * 2),
                                      bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
@@ -252,7 +252,7 @@ struct ComponentSheet: View {
                 Row(title: "Chips") {
                     TBDFilterChip("Meetings", isOn: $on); TBDFilterChip("Dictation", isOn: $off)
                     TBDFilterChip("Hover", isOn: $off).environment(\.tbdForcedState, .hover)
-                    TBDChip("Listening", color: TBDColor.teal)
+                    TBDChip("Listen", color: TBDColor.teal)
                 }
                 Row(title: "Switch") {
                     Toggle("Clean up voice notes", isOn: $on).toggleStyle(TBDSwitchStyle()).frame(width: 240)

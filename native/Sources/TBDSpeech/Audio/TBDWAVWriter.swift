@@ -112,7 +112,7 @@ public final class TBDWAVWriter: @unchecked Sendable {
         try reader.close()
         let expected = header(dataBytes: 0, sampleRate: sampleRate)
         guard head.count == 44, head[0..<4] == expected[0..<4], head[8..<40] == expected[8..<40] else {
-            throw TBDSpeechError.audioUnreadable("not a Listening recording")
+            throw TBDSpeechError.audioUnreadable("not a Listen recording")
         }
         let dataBytes = UInt32(min(UInt64(UInt32.max - 36), (size - 44) & ~1))
         let handle = try FileHandle(forWritingTo: url)

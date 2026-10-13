@@ -173,7 +173,7 @@ function ensureListeners(
       const peer = {
         id: known?.id ?? event.peer,
         name: known?.name ?? event.peer,
-        accent: known?.accent ?? "#7c6cf0",
+        accent: known?.accent ?? "var(--tb-tone-moss)",
       };
       const entry: PeerEvent = {
         id: `pe${Date.now()}-${conv.length}`,
@@ -737,7 +737,7 @@ export const useStore = create<State>((set, get) => ({
     const key = (name: string): string => name.toLowerCase().replace(/[^a-z0-9]+/g, "");
     const identify = (name: string): { id: string; name: string; accent: string } => {
       const known = get().agents.find((a) => key(a.name) === key(name));
-      return { id: known?.id ?? name, name: known?.name ?? name, accent: known?.accent ?? "#7c6cf0" };
+      return { id: known?.id ?? name, name: known?.name ?? name, accent: known?.accent ?? "var(--tb-tone-moss)" };
     };
 
     const fromAgent: Block[] = [
@@ -1332,7 +1332,7 @@ export const useStore = create<State>((set, get) => ({
       startRosterRefresh(get);
       // Keep local presentation (accent, pin) but let the control plane own the
       // set: an agent whose grant was revoked must disappear from the sidebar.
-      const palette = ["#2ec4a6", "#f0883e", "#7c6cf0", "#4f9cf0", "#e0609a"];
+      const palette = ["var(--tb-tone-teal)", "var(--tb-tone-wood)", "var(--tb-tone-moss)", "var(--tb-tone-stone)", "var(--tb-tone-brick)"];
       const existing = new Map(get().agents.map((a) => [a.id, a]));
       set({
         agents: remote.map((r, i) => {
@@ -1355,7 +1355,7 @@ export const useStore = create<State>((set, get) => ({
               (profile ? profile.accent : chosen.accent) ??
               prior?.accent ??
               palette[i % palette.length] ??
-              "#2ec4a6",
+              "var(--tb-tone-teal)",
             // Restored on every refresh, like the name and the accent. Left out,
             // a picture would survive a relaunch and then vanish the next time
             // the agent list synced — which reads as the app losing it at

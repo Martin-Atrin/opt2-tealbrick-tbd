@@ -84,15 +84,13 @@ private struct GoalSetupStatPair {
 }
 
 struct DayGoalFlowOverlay: View {
-  @Environment(\.dayflowTheme) private var theme
-
   let presentation: DayGoalFlowPresentation
   var onDismiss: () -> Void
 
   var body: some View {
     GeometryReader { proxy in
       ZStack {
-        theme.sheetOverlay
+        TBDColor.scrim
           .ignoresSafeArea()
 
         DayGoalFlowView(
@@ -123,7 +121,6 @@ struct DayGoalFlowOverlay: View {
 }
 
 struct DayGoalFlowView: View {
-  @Environment(\.dayflowTheme) private var theme
   @Environment(\.stylePreviewAfter) private var stylePreviewAfter
 
   let review: DayGoalReviewSnapshot
@@ -197,9 +194,9 @@ struct DayGoalFlowView: View {
   private var reviewScreen: some View {
     ZStack(alignment: .topLeading) {
       Text("Yesterday’s review")
-        .font(.custom("Switzer-Medium", size: 36))
-        .foregroundColor(theme.textPrimary)
-        .tracking(-1.08)
+        .font(TBDTokens.Typography.display)
+        .foregroundColor(TBDColor.ink)
+        .tracking(TBDTokens.Typography.displayTracking)
         .multilineTextAlignment(.center)
         .frame(width: 346, height: 44)
         .position(x: 592.4, y: 125)
@@ -245,8 +242,8 @@ struct DayGoalFlowView: View {
 
     return ZStack(alignment: .topLeading) {
       Text("Where do you want to spend your time today?")
-        .font(.custom("Switzer-Medium", size: 24))
-        .foregroundColor(theme.textPrimary)
+        .font(TBDTokens.Typography.title)
+        .foregroundColor(TBDColor.ink)
         .multilineTextAlignment(.center)
         .frame(width: 620, height: 30)
         .position(x: 602, y: 64)
@@ -473,7 +470,6 @@ struct DayGoalFlowView: View {
   private func primaryButton(_ title: String, action: @escaping () -> Void) -> some View {
     Button(action: action) {
       Text(title)
-        .font(.custom("Switzer", size: 13).weight(.medium))
         .lineLimit(1)
         .frame(width: 120, height: 36)
     }
@@ -484,7 +480,6 @@ struct DayGoalFlowView: View {
   private func secondaryButton(_ title: String, action: @escaping () -> Void) -> some View {
     Button(action: action) {
       Text(title)
-        .font(.custom("Switzer", size: 13).weight(.medium))
         .lineLimit(1)
         .frame(width: 120, height: 36)
     }

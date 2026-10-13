@@ -39,6 +39,7 @@ struct LLMProviderSetupView: View {
   @StateObject var setupState = ProviderSetupState()
   @State var sidebarOpacity: Double = 0
   @State var contentOpacity: Double = 0
+  @Environment(\.accessibilityReduceMotion) var reduceMotion
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
@@ -49,17 +50,13 @@ struct LLMProviderSetupView: View {
           Button(action: handleBack) {
             HStack(spacing: 8) {
               Image(systemName: "chevron.left")
-                .font(.system(size: 15, weight: .medium))
-                .foregroundColor(Color(hex: "634342"))
+                .font(TBDFonts.symbol(15, .bold))
                 .frame(width: 20, height: 20, alignment: .center)
 
               Text("Back")
-                .font(.custom("Switzer", size: 16))
-                .fontWeight(.medium)
-                .foregroundColor(Color(hex: "634342"))
             }
           }
-          .buttonStyle(DayflowPressScaleButtonStyle(pressedScale: 0.97))
+          .buttonStyle(TBDButtonStyle(.quiet))
           .padding(.leading, 7)
           .pointingHandCursor()
 
@@ -70,9 +67,9 @@ struct LLMProviderSetupView: View {
         // Title in the content area
         HStack {
           Text(headerTitle)
-            .font(.custom("Switzer", size: 28))
-            .fontWeight(.semibold)
-            .foregroundColor(Color(hex: "333333"))
+            .font(TBDTokens.Typography.display)
+            .tracking(TBDTokens.Typography.displayTracking)
+            .foregroundColor(TBDColor.ink)
 
           Spacer()
         }
@@ -120,7 +117,6 @@ struct LLMProviderSetupView: View {
       setupState.configureSteps(for: providerType)
       animateAppearance()
     }
-    .preferredColorScheme(.light)
     .alert(
       "Couldn't finish setup",
       isPresented: Binding(
@@ -150,44 +146,26 @@ struct LLMProviderSetupView: View {
   @ViewBuilder
   var nextButton: some View {
     if setupState.isLastStep {
-      DayflowSurfaceButton(
-        action: completeSetup,
-        content: {
-          Text("Complete setup").font(.custom("Switzer", size: 16)).fontWeight(.medium)
-        },
-        background: TBDTokens.fill,
-        foreground: TBDTokens.onPrimary,
-        borderColor: TBDTokens.fill,
-        cornerRadius: TBDTokens.Radius.base,
-        horizontalPadding: 40,
-        verticalPadding: 16,
-        showOverlayStroke: false
-      )
+      Button(action: completeSetup) {
+        Text("Complete setup")
+      }
+      .buttonStyle(TBDButtonStyle(.primary, size: .large))
+      .pointingHandCursor()
     } else {
-      DayflowSurfaceButton(
-        action: handleContinue,
-        content: {
-          HStack(spacing: 4) {
-            Text(nextButtonText).font(.custom("Switzer", size: 16)).fontWeight(.medium)
-            if !["verify", "test"].contains(setupState.currentStep.id) || setupState.testSuccessful
-            {
-              Image(systemName: "chevron.right")
-                .font(.system(size: 15, weight: .medium))
-                .frame(width: 20, height: 20)
-            }
+      Button(action: handleContinue) {
+        HStack(spacing: 4) {
+          Text(nextButtonText)
+          if !["verify", "test"].contains(setupState.currentStep.id) || setupState.testSuccessful
+          {
+            Image(systemName: "chevron.right")
+              .font(TBDFonts.symbol(15, .bold))
+              .frame(width: 20, height: 20)
           }
-          .padding(.leading, 6)
-        },
-        background: TBDTokens.fill,
-        foreground: TBDTokens.onPrimary,
-        borderColor: TBDTokens.fill,
-        cornerRadius: TBDTokens.Radius.base,
-        horizontalPadding: 40,
-        verticalPadding: 16,
-        showOverlayStroke: false
-      )
+        }
+      }
+      .buttonStyle(TBDButtonStyle(.primary, size: .large))
       .disabled(!setupState.canContinue)
-      .opacity(!setupState.canContinue ? 0.5 : 1.0)
+      .pointingHandCursor(enabled: setupState.canContinue)
     }
   }
 
@@ -200,22 +178,20 @@ struct LLMProviderSetupView: View {
       VStack(alignment: .leading, spacing: 20) {
         VStack(alignment: .leading, spacing: 8) {
           Text("Choose your local AI engine")
-            .font(.custom("Switzer", size: 24))
-            .fontWeight(.semibold)
-            .foregroundColor(Color(hex: "333333"))
+            .font(TBDTokens.Typography.title)
+            .foregroundColor(TBDColor.ink)
           Text(
             "For local use, LM Studio is the most reliable; Ollama has a known thinking bug in onboarding (can't turn thinking off) and performance is unreliable."
           )
-          .font(.custom("Switzer", size: 14))
-          .foregroundColor(Color(hex: "333333"))
+          .font(TBDTokens.Typography.hint)
+          .foregroundColor(TBDColor.ink)
         }
         HStack(alignment: .center, spacing: 12) {
-          DayflowSurfaceButton(
-            action: {
-              setupState.selectEngine(.lmstudio)
-              openLMStudioDownload()
-            },
-            content: {
+          Button(action: {
+            setupState.selectEngine(.lmstudio)
+            openLMStudioDownload()
+          }) {
+            HStack(spacing: 10) {
               AsyncImage(
                 url: URL(
                   string:
@@ -226,39 +202,33 @@ struct LLMProviderSetupView: View {
                 case .success(let image): image.resizable().scaledToFit()
                 case .failure(_):
                   Image(systemName: "desktopcomputer").resizable().scaledToFit().foregroundColor(
-                    .white.opacity(0.6))
+                    TBDColor.muted)
                 case .empty: ProgressView().scaleEffect(0.7)
                 @unknown default: EmptyView()
                 }
               }
               .frame(width: 18, height: 18)
               Text("Download LM Studio")
-                .font(.custom("Switzer", size: 14))
-                .fontWeight(.semibold)
-            },
-            background: TBDTokens.fill,
-            foreground: TBDTokens.onPrimary,
-            borderColor: TBDTokens.fill,
-            cornerRadius: TBDTokens.Radius.base,
-            showOverlayStroke: false
-          )
+            }
+          }
+          .buttonStyle(TBDButtonStyle(.secondary))
+          .pointingHandCursor()
         }
         Text(
           "Already have a local server? Make sure it’s OpenAI-compatible. You can set a custom base URL in the next step."
         )
-        .font(.custom("Switzer", size: 13))
-        .foregroundColor(Color(hex: "333333"))
+        .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+        .foregroundColor(TBDColor.ink)
       }
     case .localModelInstall:
       VStack(alignment: .leading, spacing: 16) {
         Text("Install Qwen3-VL 4B")
-          .font(.custom("Switzer", size: 24))
-          .fontWeight(.semibold)
-          .foregroundColor(Color(hex: "333333"))
+          .font(TBDTokens.Typography.title)
+          .foregroundColor(TBDColor.ink)
         if setupState.localEngine == .ollama {
           Text("After installing Ollama, run this in your terminal to download the model (≈5GB):")
-            .font(.custom("Switzer", size: 14))
-            .foregroundColor(Color(hex: "333333"))
+            .font(TBDTokens.Typography.hint)
+            .foregroundColor(TBDColor.ink)
           TerminalCommandView(
             title: String(localized: "Run this command:"),
             subtitle: String(localized: "Downloads Qwen3 Vision 4B for Ollama"),
@@ -267,66 +237,55 @@ struct LLMProviderSetupView: View {
         } else if setupState.localEngine == .lmstudio {
           VStack(alignment: .leading, spacing: 16) {
             Text("After installing LM Studio, download the recommended model:")
-              .font(.custom("Switzer", size: 14))
-              .foregroundColor(Color(hex: "333333"))
+              .font(TBDTokens.Typography.hint)
+              .foregroundColor(TBDColor.ink)
 
-            DayflowSurfaceButton(
-              action: openLMStudioModelDownload,
-              content: {
-                HStack(spacing: 8) {
-                  Image(systemName: "arrow.down.circle.fill").font(.system(size: 14))
-                  Text("Download Qwen3-VL 4B in LM Studio").font(.custom("Switzer", size: 14))
-                    .fontWeight(.semibold)
-                }
-              },
-              background: TBDTokens.fill,
-              foreground: TBDTokens.onPrimary,
-              borderColor: TBDTokens.fill,
-              cornerRadius: TBDTokens.Radius.base,
-              horizontalPadding: 24,
-              verticalPadding: 12,
-              showOverlayStroke: false
-            )
+            Button(action: openLMStudioModelDownload) {
+              HStack(spacing: 8) {
+                Image(systemName: "arrow.down.circle.fill").font(TBDFonts.symbol(14, .regular))
+                Text("Download Qwen3-VL 4B in LM Studio")
+              }
+            }
+            .buttonStyle(TBDButtonStyle(.secondary))
+            .pointingHandCursor()
 
             VStack(alignment: .leading, spacing: 6) {
               Text("This will open LM Studio and prompt you to download the model (≈3GB).")
-                .font(.custom("Switzer", size: 13))
-                .foregroundColor(Color(hex: "333333"))
+                .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+                .foregroundColor(TBDColor.ink)
 
               Text(
                 "Once downloaded, turn on 'Local Server' in LM Studio (default http://localhost:1234)"
               )
-              .font(.custom("Switzer", size: 13))
-              .foregroundColor(Color(hex: "333333"))
+              .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+              .foregroundColor(TBDColor.ink)
             }
             .padding(.top, 4)
 
             // Fallback manual instructions
             VStack(alignment: .leading, spacing: 4) {
               Text("Manual setup:")
-                .font(.custom("Switzer", size: 12))
-                .fontWeight(.semibold)
-                .foregroundColor(Color(hex: "727272"))
+                .font(TBDTokens.Typography.label)
+                .foregroundColor(TBDColor.muted)
               Text("1. Open LM Studio → Models tab")
-                .font(.custom("Switzer", size: 12))
-                .foregroundColor(Color(hex: "727272"))
+                .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+                .foregroundColor(TBDColor.muted)
               Text("2. Search for 'Qwen3-VL-4B' and install the Instruct variant")
-                .font(.custom("Switzer", size: 12))
-                .foregroundColor(Color(hex: "727272"))
+                .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+                .foregroundColor(TBDColor.muted)
             }
             .padding(.top, 8)
           }
         } else {
           VStack(alignment: .leading, spacing: 8) {
             Text("Use any OpenAI-compatible VLM")
-              .font(.custom("Switzer", size: 16))
-              .fontWeight(.semibold)
-              .foregroundColor(Color(hex: "333333"))
+              .font(TBDFonts.nunito(TBDKit.textLabel, TBDKit.weightLabel))
+              .foregroundColor(TBDColor.ink)
             Text(
               "Make sure your server exposes the OpenAI Chat Completions API and has Qwen3-VL 4B (or Qwen2.5-VL 3B if you need the legacy model) installed."
             )
-            .font(.custom("Switzer", size: 14))
-            .foregroundColor(Color(hex: "333333"))
+            .font(TBDTokens.Typography.hint)
+            .foregroundColor(TBDColor.ink)
           }
         }
       }
@@ -358,45 +317,25 @@ struct LLMProviderSetupView: View {
         }
 
         if let message = setupState.geminiAPIKeySaveError {
-          HStack(spacing: 8) {
-            Image(systemName: "exclamationmark.triangle.fill")
-              .font(.system(size: 12))
-              .foregroundColor(Color(hex: "E91515"))
-
-            Text(message)
-              .font(.custom("Switzer", size: 13))
-              .foregroundColor(Color(hex: "E91515"))
-          }
-          .padding(.horizontal, 16)
-          .padding(.vertical, 10)
-          .background(
-            RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-              .fill(Color(hex: "E91515").opacity(0.1))
-          )
-          .overlay(
-            RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-              .stroke(Color(hex: "E91515").opacity(0.3), lineWidth: 1)
-          )
+          TBDNotice(message, tone: .needsYou)
         }
 
         VStack(alignment: .leading, spacing: 12) {
           Text(
             "Choose your Gemini model. We recommend 3.5 Flash, with 3.1 Flash-Lite available as a fallback."
           )
-          .font(.custom("Switzer", size: 16))
-          .fontWeight(.semibold)
-          .foregroundColor(Color(hex: "333333"))
+          .font(TBDFonts.nunito(TBDKit.textLabel, TBDKit.weightLabel))
+          .foregroundColor(TBDColor.ink)
 
-          Picker("Gemini model", selection: $setupState.geminiModel) {
-            ForEach(GeminiModel.allCases, id: \.self) { model in
-              Text(model.shortLabel).tag(model)
-            }
-          }
-          .pickerStyle(.segmented)
+          TBDSegmented(
+            selection: $setupState.geminiModel,
+            options: GeminiModel.allCases.map { ($0, $0.shortLabel) }
+          )
+          .accessibilityLabel("Gemini model")
 
           Text(GeminiModelPreference(primary: setupState.geminiModel).fallbackSummary)
-            .font(.custom("Switzer", size: 13))
-            .foregroundColor(Color(hex: "727272"))
+            .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+            .foregroundColor(TBDColor.muted)
         }
         .onChange(of: setupState.geminiModel) {
           setupState.persistGeminiModelSelection(source: "onboarding_picker")
@@ -408,13 +347,12 @@ struct LLMProviderSetupView: View {
       VStack(alignment: .leading, spacing: 24) {
         VStack(alignment: .leading, spacing: 8) {
           Text("Download the AI model")
-            .font(.custom("Switzer", size: 24))
-            .fontWeight(.semibold)
-            .foregroundColor(Color(hex: "333333"))
+            .font(TBDTokens.Typography.title)
+            .foregroundColor(TBDColor.ink)
 
           Text("This model enables Tealbrick to understand what's on your screen")
-            .font(.custom("Switzer", size: 14))
-            .foregroundColor(Color(hex: "333333"))
+            .font(TBDTokens.Typography.hint)
+            .foregroundColor(TBDColor.ink)
         }
 
         TerminalCommandView(
@@ -434,14 +372,13 @@ struct LLMProviderSetupView: View {
         VStack(alignment: .leading, spacing: 12) {
           if !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             Text(title)
-              .font(.custom("Switzer", size: 24))
-              .fontWeight(.semibold)
-              .foregroundColor(Color(hex: "333333"))
+              .font(TBDTokens.Typography.title)
+              .foregroundColor(TBDColor.ink)
           }
           if !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             Text(description)
-              .font(.custom("Switzer", size: 16))
-              .foregroundColor(Color(hex: "333333"))
+              .font(TBDTokens.Typography.body)
+              .foregroundColor(TBDColor.ink)
               .fixedSize(horizontal: false, vertical: true)
               .multilineTextAlignment(.leading)
               .lineLimit(nil)
@@ -451,8 +388,8 @@ struct LLMProviderSetupView: View {
               Text(
                 "Advanced users can pick any **vision-capable** LLM, but we strongly recommend using Qwen3-VL 4B based on our internal benchmarks."
               )
-              .font(.custom("Switzer", size: 16))
-              .foregroundColor(Color(hex: "333333"))
+              .font(TBDTokens.Typography.body)
+              .foregroundColor(TBDColor.ink)
               .fixedSize(horizontal: false, vertical: true)
               .multilineTextAlignment(.leading)
               .frame(maxWidth: 500, alignment: .leading)
@@ -484,12 +421,15 @@ struct LLMProviderSetupView: View {
                 )
               } else if providerType == .openAICompatible {
                 VStack(alignment: .leading, spacing: 12) {
-                  Picker("Endpoint", selection: $setupState.openAICompatiblePreset) {
-                    Text("OpenRouter").tag(OpenAICompatiblePreset.openRouter)
-                    Text("Custom").tag(OpenAICompatiblePreset.custom)
-                  }
-                  .pickerStyle(.segmented)
-                  .frame(maxWidth: 380)
+                  TBDSegmented(
+                    selection: $setupState.openAICompatiblePreset,
+                    options: [
+                      (OpenAICompatiblePreset.openRouter, "OpenRouter"),
+                      (OpenAICompatiblePreset.custom, "Custom"),
+                    ]
+                  )
+                  .accessibilityLabel("Endpoint")
+                  .frame(maxWidth: 380, alignment: .leading)
                   .onChange(of: setupState.openAICompatiblePreset) { _, preset in
                     if preset == .openRouter {
                       setupState.openAICompatibleBaseURL =
@@ -536,14 +476,17 @@ struct LLMProviderSetupView: View {
                 // Engine selection: LM Studio or Custom
                 VStack(alignment: .leading, spacing: 12) {
                   Text("Which tool are you using?")
-                    .font(.custom("Switzer", size: 14))
-                    .foregroundColor(Color(hex: "333333"))
-                  Picker("Engine", selection: $setupState.localEngine) {
-                    Text("LM Studio").tag(LocalEngine.lmstudio)
-                    Text("Custom model").tag(LocalEngine.custom)
-                  }
-                  .pickerStyle(.segmented)
-                  .frame(maxWidth: 380)
+                    .font(TBDTokens.Typography.hint)
+                    .foregroundColor(TBDColor.ink)
+                  TBDSegmented(
+                    selection: $setupState.localEngine,
+                    options: [
+                      (LocalEngine.lmstudio, String(localized: "LM Studio")),
+                      (LocalEngine.custom, String(localized: "Custom model")),
+                    ]
+                  )
+                  .accessibilityLabel("Engine")
+                  .frame(maxWidth: 380, alignment: .leading)
                 }
                 .onChange(of: setupState.localEngine) { _, newValue in
                   setupState.selectEngine(newValue)
@@ -602,31 +545,30 @@ struct LLMProviderSetupView: View {
       VStack(alignment: .leading, spacing: 24) {
         VStack(alignment: .leading, spacing: 8) {
           Text("Get your Gemini API key")
-            .font(.custom("Switzer", size: 24))
-            .fontWeight(.semibold)
-            .foregroundColor(Color(hex: "333333"))
+            .font(TBDTokens.Typography.title)
+            .foregroundColor(TBDColor.ink)
 
           Text(
             "allows you to run Tealbrick for free. All you need is a Google account - no credit card required."
           )
-          .font(.custom("Switzer", size: 14))
-          .foregroundColor(Color(hex: "333333"))
+          .font(TBDTokens.Typography.hint)
+          .foregroundColor(TBDColor.ink)
         }
 
         VStack(alignment: .leading, spacing: 16) {
           HStack(alignment: .top, spacing: 12) {
             Text("1.")
-              .font(.custom("Switzer", size: 14))
-              .foregroundColor(Color(hex: "333333"))
+              .font(TBDTokens.Typography.hint)
+              .foregroundColor(TBDColor.ink)
               .frame(width: 20, alignment: .leading)
 
             Button(action: openGoogleAIStudio) {
               Text("Visit Google AI Studio ")
-                .font(.custom("Switzer", size: 14))
-                .foregroundColor(Color(hex: "333333"))
+                .font(TBDTokens.Typography.hint)
+                .foregroundColor(TBDColor.ink)
                 + Text("(aistudio.google.com)")
-                .font(.custom("Switzer", size: 14))
-                .foregroundColor(Color(red: 1, green: 0.42, blue: 0.02))
+                .font(TBDTokens.Typography.hint)
+                .foregroundColor(TBDColor.link)
                 .underline()
             }
             .buttonStyle(.plain)
@@ -635,46 +577,37 @@ struct LLMProviderSetupView: View {
 
           HStack(alignment: .top, spacing: 12) {
             Text("2.")
-              .font(.custom("Switzer", size: 14))
-              .foregroundColor(Color(hex: "333333"))
+              .font(TBDTokens.Typography.hint)
+              .foregroundColor(TBDColor.ink)
               .frame(width: 20, alignment: .leading)
 
             Text("Click \"Create API key\" in the top right")
-              .font(.custom("Switzer", size: 14))
-              .foregroundColor(Color(hex: "333333"))
+              .font(TBDTokens.Typography.hint)
+              .foregroundColor(TBDColor.ink)
           }
 
           HStack(alignment: .top, spacing: 12) {
             Text("3.")
-              .font(.custom("Switzer", size: 14))
-              .foregroundColor(Color(hex: "333333"))
+              .font(TBDTokens.Typography.hint)
+              .foregroundColor(TBDColor.ink)
               .frame(width: 20, alignment: .leading)
 
             Text("Create a new API key and copy it")
-              .font(.custom("Switzer", size: 14))
-              .foregroundColor(Color(hex: "333333"))
+              .font(TBDTokens.Typography.hint)
+              .foregroundColor(TBDColor.ink)
           }
         }
         .padding(.vertical, 12)
 
         HStack {
-          DayflowSurfaceButton(
-            action: openGoogleAIStudio,
-            content: {
-              HStack(spacing: 8) {
-                Image(systemName: "safari").font(.system(size: 14))
-                Text("Open Google AI Studio").font(.custom("Switzer", size: 14)).fontWeight(
-                  .semibold)
-              }
-            },
-            background: TBDTokens.fill,
-            foreground: TBDTokens.onPrimary,
-            borderColor: TBDTokens.fill,
-            cornerRadius: TBDTokens.Radius.base,
-            horizontalPadding: 24,
-            verticalPadding: 12,
-            showOverlayStroke: false
-          )
+          Button(action: openGoogleAIStudio) {
+            HStack(spacing: 8) {
+              Image(systemName: "safari").font(TBDFonts.symbol(14, .regular))
+              Text("Open Google AI Studio")
+            }
+          }
+          .buttonStyle(TBDButtonStyle(.secondary))
+          .pointingHandCursor()
           Spacer()
         }
       }
@@ -844,12 +777,12 @@ struct LLMProviderSetupView: View {
   }
 
   func animateAppearance() {
-    withAnimation(TBDMotion.gentle) {
+    withAnimation(TBDMotion.animation(TBDMotion.gentle, reduce: reduceMotion)) {
       sidebarOpacity = 1
     }
 
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-      withAnimation(TBDMotion.gentle) {
+      withAnimation(TBDMotion.animation(TBDMotion.gentle, reduce: reduceMotion)) {
         contentOpacity = 1
       }
     }

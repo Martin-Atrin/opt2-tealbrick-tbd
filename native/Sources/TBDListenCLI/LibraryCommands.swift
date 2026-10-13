@@ -106,11 +106,11 @@ struct Snippets: ParsableCommand {
 }
 
 struct Config: ParsableCommand {
-    static let configuration = CommandConfiguration(abstract: "Show or change Listening preferences (shared with the TBD app).",
+    static let configuration = CommandConfiguration(abstract: "Show or change Listen preferences (shared with the TBD app).",
                                                     subcommands: [ShowAll.self, Get.self, Set.self], defaultSubcommand: ShowAll.self)
 
     struct ShowAll: ParsableCommand {
-        static let configuration = CommandConfiguration(commandName: "show", abstract: "Show every Listening preference.")
+        static let configuration = CommandConfiguration(commandName: "show", abstract: "Show every Listen preference.")
         @Flag(help: "Print JSON (an object of key → value; null means default).") var json = false
         func run() throws {
             let snapshot = appPreferences.configSnapshot()

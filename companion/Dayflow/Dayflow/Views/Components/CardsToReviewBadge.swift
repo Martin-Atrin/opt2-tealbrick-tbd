@@ -18,57 +18,40 @@ struct CardsToReviewBadge: View {
 
       // Label text
       Text("Review cards")
-        .font(.custom("Switzer", size: 10).weight(.medium))
-        .foregroundColor(.white)
+        .font(TBDFonts.nunito(10, TBDKit.weightNav))
+        .foregroundStyle(TBDColor.primaryOn)
     }
     .accessibilityElement(children: .ignore)
     .accessibilityLabel(Text("\(count) cards to review"))
     .padding(.horizontal, 12)
     .padding(.vertical, 10)
-    .background(
-      LinearGradient(
-        stops: [
-          Gradient.Stop(color: Color(red: 1, green: 0.6, blue: 0.44), location: 0.00),
-          Gradient.Stop(color: Color(red: 0.74, green: 0.67, blue: 1), location: 1.00),
-        ],
-        startPoint: UnitPoint(x: 0.05, y: 0),
-        endPoint: UnitPoint(x: 0.95, y: 1)
-      )
-    )
-    .cornerRadius(TBDTokens.Radius.base)
-    .shadow(color: Color(red: 0.91, green: 0.79, blue: 0.7), radius: 1.5, x: 0, y: 2)
-    .overlay(
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-        .inset(by: 0.75)
-        .stroke(Color(red: 1, green: 0.85, blue: 0.83), lineWidth: 1.5)
-    )
+    .background(TBDColor.primaryFill, in: TBDBrickShape())
   }
 
   private var stackedCardsIcon: some View {
     ZStack(alignment: .bottom) {
       // Back card (rotated, behind) - 15.75 x 14 (h x w)
       // Positioned so leftmost point pokes out only 3px
-      RoundedRectangle(cornerRadius: 3.5)
-        .fill(Color.white)
+      RoundedRectangle(cornerRadius: TBDKit.radiusSwatch)
+        .fill(TBDColor.plate)
         .frame(width: 14, height: 15.75)
         .rotationEffect(.degrees(-11.64))
         .offset(x: -3, y: 0)
 
       // Front card with number - 18 x 14 (h x w)
       ZStack {
-        RoundedRectangle(cornerRadius: 3.5)
-          .fill(Color.white)
+        RoundedRectangle(cornerRadius: TBDKit.radiusSwatch)
+          .fill(TBDColor.tile)
       }
       .frame(width: 14, height: 18)
       .overlay(
-        RoundedRectangle(cornerRadius: 3.5)
-          .inset(by: -0.63)
-          .stroke(Color(red: 0.97, green: 0.61, blue: 0.51), lineWidth: 1.25)
+        RoundedRectangle(cornerRadius: TBDKit.radiusSwatch)
+          .strokeBorder(TBDColor.brick, lineWidth: 1.25)
       )
       .overlay(
         Text("\(count)")
-          .font(.custom("Switzer", size: 9).weight(.heavy))
-          .foregroundColor(Color(red: 0.98, green: 0.6, blue: 0.49))
+          .font(TBDFonts.nunito(9, TBDKit.weightLabel))
+          .foregroundStyle(TBDColor.brickInk)
       )
       .offset(x: 4, y: 0)
     }
@@ -138,8 +121,8 @@ private struct CardsToReviewBadgePreview: View {
       // Controls
       VStack(spacing: 16) {
         Text("Count: \(count)")
-          .font(.custom("Switzer", size: 14).weight(.medium))
-          .foregroundColor(.secondary)
+          .font(TBDFonts.nunito(TBDKit.textControl, TBDKit.weightNav))
+          .foregroundStyle(TBDColor.muted)
 
         HStack(spacing: 12) {
           Button("1") { count = 1 }
@@ -147,7 +130,7 @@ private struct CardsToReviewBadgePreview: View {
           Button("10") { count = 10 }
           Button("99") { count = 99 }
         }
-        .buttonStyle(.bordered)
+        .buttonStyle(TBDButtonStyle(.secondary))
 
         Slider(
           value: Binding(
@@ -158,10 +141,9 @@ private struct CardsToReviewBadgePreview: View {
         .frame(width: 200)
       }
       .padding()
-      .background(Color.gray.opacity(0.1))
-      .cornerRadius(TBDTokens.Radius.base)
+      .background(TBDColor.plate, in: TBDBrickShape())
     }
     .padding(60)
-    .background(Color(red: 0.98, green: 0.96, blue: 0.94))
+    .background(TBDColor.paper)
   }
 }

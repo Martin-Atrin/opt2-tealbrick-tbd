@@ -4,8 +4,6 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct GoalCategoryPool: View {
-  @Environment(\.dayflowTheme) private var theme
-
   let categories: [TimelineCategory]
   let focusIDs: Set<String>
   let distractionIDs: Set<String>
@@ -14,8 +12,8 @@ struct GoalCategoryPool: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
       Text("Drag and drop to set the categories you want to track")
-        .font(.custom("Switzer", size: 12))
-        .foregroundColor(theme.textSecondary)
+        .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+        .foregroundColor(TBDColor.muted)
 
       DayGoalFlowLayout(spacing: 8, rowSpacing: 6) {
         ForEach(categories) { category in
@@ -41,12 +39,8 @@ struct GoalCategoryPool: View {
     .padding(.horizontal, 16)
     .padding(.vertical, 14)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .background(theme.sheetCardFill)
-    .clipShape(RoundedRectangle(cornerRadius: TBDTokens.Radius.base))
-    .overlay(
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-        .stroke(theme.sheetCardBorder, lineWidth: 1)
-    )
+    .background(TBDColor.tile, in: TBDBrickShape())
+    .overlay(TBDBrickShape().strokeBorder(TBDColor.line, lineWidth: TBDKit.hair))
   }
 
   private func status(for category: TimelineCategory) -> GoalCategoryChip.Status {
@@ -62,8 +56,6 @@ struct GoalCategoryPool: View {
 }
 
 struct GoalSetupPanel: View {
-  @Environment(\.dayflowTheme) private var theme
-
   let kind: DayGoalCategoryKind
   let title: String
   @Binding var durationMinutes: Int
@@ -79,18 +71,26 @@ struct GoalSetupPanel: View {
   private var accent: Color {
     switch kind {
     case .focus:
-      return theme.sheetFocusHeader
+      return TBDColor.teal
     case .distraction:
-      return theme.sheetDistractionHeader
+      return TBDColor.brick
     }
+  }
+
+  private var headerFill: Color {
+    kind == .focus ? TBDColor.statusLiveFill : TBDColor.statusNeedsYouFill
+  }
+
+  private var headerOn: Color {
+    kind == .focus ? TBDColor.statusLiveOn : TBDColor.statusNeedsYouOn
   }
 
   private var statTextColor: Color {
     switch kind {
     case .focus:
-      return theme.sheetFocusStatText
+      return TBDColor.tealInk
     case .distraction:
-      return theme.sheetDistractionStatText
+      return TBDColor.brickInk
     }
   }
 
@@ -125,14 +125,14 @@ struct GoalSetupPanel: View {
           .frame(width: 16, height: 16)
 
         Text(title)
-          .font(.custom("Switzer", size: 14))
-          .foregroundColor(.white)
+          .font(TBDTokens.Typography.control)
+          .foregroundColor(headerOn)
 
         Spacer()
       }
       .padding(.horizontal, 11)
       .frame(height: 30)
-      .background(accent)
+      .background(headerFill)
 
       HStack(spacing: 10) {
         categoryBox
@@ -145,24 +145,21 @@ struct GoalSetupPanel: View {
       .padding(.bottom, 23)
       .padding(.horizontal, 24)
       .frame(maxWidth: .infinity)
-      .background(theme.sheetPanelFill)
+      .background(TBDColor.tile)
 
       footer
         .frame(height: 59)
     }
     .frame(width: panelWidth)
-    .clipShape(RoundedRectangle(cornerRadius: TBDTokens.Radius.base))
-    .overlay(
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-        .stroke(theme.sheetPanelBorder, lineWidth: 1)
-    )
+    .clipShape(TBDBrickShape())
+    .overlay(TBDBrickShape().strokeBorder(TBDColor.line, lineWidth: TBDKit.hair))
   }
 
   private var categoryBox: some View {
     VStack(alignment: .leading, spacing: 10) {
       Text("Categories")
-        .font(.custom("Switzer", size: 12))
-        .foregroundColor(theme.textSecondary)
+        .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+        .foregroundColor(TBDColor.muted)
 
       VStack(alignment: .leading, spacing: 6) {
         ForEach(selectedCategories) { category in
@@ -184,12 +181,8 @@ struct GoalSetupPanel: View {
     }
     .padding(11)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .background(theme.sheetInnerBoxFill)
-    .clipShape(RoundedRectangle(cornerRadius: TBDTokens.Radius.base))
-    .overlay(
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-        .stroke(theme.sheetInnerBoxBorder, lineWidth: 1)
-    )
+    .background(TBDColor.paper, in: TBDBrickShape())
+    .overlay(TBDBrickShape().strokeBorder(TBDColor.line, lineWidth: TBDKit.hair))
     .onDrop(of: [.plainText], isTargeted: nil, perform: handleCategoryDrop)
   }
 
@@ -231,24 +224,24 @@ struct GoalSetupPanel: View {
     }
     .padding(.horizontal, 16)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-    .background(theme.sheetFooterFill)
+    .background(TBDColor.plate)
   }
 
   private func goalStat(title: String, minutes: Int) -> some View {
     VStack(alignment: .leading, spacing: 5) {
       Text(title)
-        .font(.custom("Switzer", size: 12))
-        .foregroundColor(theme.textPrimary)
+        .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+        .foregroundColor(TBDColor.ink)
         .lineLimit(1)
         .minimumScaleFactor(0.82)
 
       HStack(spacing: 5) {
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
+        TBDBrickShape()
           .fill(accent)
           .frame(width: statBarWidth(minutes: minutes), height: 6)
 
         Text(formatShort(minutes: minutes))
-          .font(.custom("Switzer", size: 12))
+          .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
           .foregroundColor(statTextColor)
           .lineLimit(1)
           .minimumScaleFactor(0.86)
@@ -277,8 +270,6 @@ struct GoalSetupPanel: View {
 }
 
 private struct GoalCategoryChip: View {
-  @Environment(\.dayflowTheme) private var theme
-
   enum Status {
     case untracked
     case focus
@@ -294,7 +285,7 @@ private struct GoalCategoryChip: View {
     if let nsColor = NSColor(hex: colorHex) {
       return Color(nsColor: nsColor)
     }
-    return .gray
+    return TBDColor.toneStone
   }
 
   var body: some View {
@@ -303,24 +294,20 @@ private struct GoalCategoryChip: View {
         .frame(width: 16, height: 16)
 
       Text(title)
-        .font(.custom("Switzer", size: 12))
-        .foregroundColor(theme.textPrimary)
+        .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+        .foregroundColor(TBDColor.ink)
         .lineLimit(1)
         .minimumScaleFactor(0.8)
 
       if showsRemove {
         Image(systemName: "xmark")
-          .font(.system(size: 7, weight: .semibold))
-          .foregroundColor(theme.textMuted)
+          .font(TBDFonts.symbol(7, .bold))
+          .foregroundColor(TBDColor.muted)
       }
     }
     .padding(4)
-    .background(color.opacity(0.3))
-    .clipShape(RoundedRectangle(cornerRadius: TBDTokens.Radius.xs))
-    .overlay(
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.xs)
-        .stroke(color.opacity(status == .untracked ? 0.75 : 1), lineWidth: 0.5)
-    )
+    .background(color.opacity(0.3), in: Capsule())
+    .tbdPillEdge(color.opacity(status == .untracked ? 0.75 : 1))
   }
 }
 

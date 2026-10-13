@@ -1,10 +1,10 @@
 import AppKit
 import Foundation
 import SwiftUI
+import TBDDesign
 import UserNotifications
 
 struct DailyView: View {
-  @Environment(\.dayflowTheme) var theme
   @Environment(\.stylePreviewAfter) var stylePreviewAfter
   @Binding var selectedDate: Date
   @EnvironmentObject var categoryStore: CategoryStore
@@ -40,9 +40,12 @@ struct DailyView: View {
   let priorStandupHistoryLimit = 3
   static let maxDateTitleWidth: CGFloat = {
     let referenceText = "Wednesday, September 30"
-    let font = NSFont(name: "Georgia", size: 28) ?? NSFont.systemFont(ofSize: 28)
+    // Measure the kit's display face (Nunito 900, 26pt) so the arrows keep their place between days.
+    TBDFonts.register()
+    let base = NSFont(name: TBDFonts.family, size: 26) ?? NSFont.boldSystemFont(ofSize: 26)  // design-guard: allow (AppKit text measurement of the kit face)
+    let font = NSFontManager.shared.convert(base, toHaveTrait: .boldFontMask)
     let width = referenceText.size(withAttributes: [.font: font]).width
-    return ceil(width) + 6
+    return ceil(width * 1.15) + 6
   }()
 
   var body: some View {

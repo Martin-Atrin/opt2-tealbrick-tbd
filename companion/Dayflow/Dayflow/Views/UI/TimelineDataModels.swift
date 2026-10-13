@@ -118,8 +118,8 @@ struct DatePickerSheet: View {
   var body: some View {
     VStack(spacing: 20) {
       Text("Select Date")
-        .font(.title2)
-        .fontWeight(.semibold)
+        .font(TBDTokens.Typography.title)
+        .foregroundStyle(TBDColor.ink)
 
       DatePicker(
         "",
@@ -134,26 +134,18 @@ struct DatePickerSheet: View {
         Button("Cancel") {
           isPresented = false
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TBDButtonStyle(.secondary))
         .pointingHandCursor()
-        .padding(.horizontal, 20)
-        .padding(.vertical, 8)
-        .background(Color.gray.opacity(0.2))
-        .cornerRadius(TBDTokens.Radius.base)
 
         Button("Select") {
           isPresented = false
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TBDButtonStyle(.primary))
         .pointingHandCursor()
-        .padding(.horizontal, 20)
-        .padding(.vertical, 8)
-        .background(Color.accentColor)
-        .foregroundColor(.white)
-        .cornerRadius(TBDTokens.Radius.base)
       }
     }
     .padding(30)
     .frame(width: 420)
+    .background(TBDColor.tile)
   }
 }

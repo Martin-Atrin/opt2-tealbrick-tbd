@@ -91,7 +91,7 @@ struct TBDLibraryView: View {
                     if bulk.selection.isActive {
                         List { rows }.listStyle(.inset).scrollContentBackground(.hidden)
                     } else {
-                        List(selection: $env.selectedTranscriptionID) { rows }.listStyle(.inset).scrollContentBackground(.hidden)
+                        selectableList
                     }
                 }
             }
@@ -173,6 +173,59 @@ extension TBDLibraryView {
                 .listRowBackground(rowBackground(env.selectedTranscriptionID == item.id))
                 .listRowSeparatorTint(TBDColor.line)
         }
+    }
+
+    /// The library list outside selection mode: the same rows, groups, context menu, click and ↑/↓ selection as the
+    /// earlier `List(selection:)`, drawn with the kit (the chosen row is a teal-wash brick, never the macOS accent).
+    private var selectableList: some View {
+        let ordered = sort == .title ? items : Self.groups(items).flatMap(\.1)
+        return ScrollViewReader { proxy in
+            ScrollView(.vertical) {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    if sort == .title {
+                        ForEach(items) { selectableRow($0) }
+                    } else {
+                        ForEach(Self.groups(items), id: \.0) { group, entries in
+                            Text(group.title).font(TBDTokens.Typography.label).foregroundStyle(TBDColor.muted)
+                                .padding(.horizontal, TBDKit.s2).padding(.top, TBDKit.s3).padding(.bottom, TBDKit.s1)
+                                .accessibilityAddTraits(.isHeader)
+                            ForEach(entries) { selectableRow($0) }
+                        }
+                    }
+                }
+            }
+            .focusable()
+            .focusEffectDisabled()
+            .onKeyPress(.downArrow) { moveSelection(1, in: ordered, proxy: proxy) }
+            .onKeyPress(.upArrow) { moveSelection(-1, in: ordered, proxy: proxy) }
+        }
+    }
+
+    private func selectableRow(_ item: TBDTranscription) -> some View {
+        let chosen = env.selectedTranscriptionID == item.id
+        return VStack(spacing: 0) {
+            Button { env.selectedTranscriptionID = item.id } label: {
+                TBDLibraryRow(item: item)
+                    .padding(.horizontal, TBDKit.s2).padding(.vertical, TBDKit.s2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(chosen ? TBDColor.tealWash : Color.clear, in: TBDBrickShape())
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .contextMenu { menu(item) }
+            .accessibilityAddTraits(chosen ? .isSelected : [])
+            Rectangle().fill(TBDColor.line).frame(height: TBDKit.hair).padding(.horizontal, TBDKit.s2)
+        }
+        .id(item.id)
+    }
+
+    private func moveSelection(_ step: Int, in ordered: [TBDTranscription], proxy: ScrollViewProxy) -> KeyPress.Result {
+        guard !ordered.isEmpty else { return .ignored }
+        let current = ordered.firstIndex { $0.id == env.selectedTranscriptionID }
+        let next = current.map { min(max($0 + step, 0), ordered.count - 1) } ?? (step > 0 ? 0 : ordered.count - 1)
+        env.selectedTranscriptionID = ordered[next].id
+        proxy.scrollTo(ordered[next].id)
+        return .handled
     }
 
     /// Ruled rows: a hairline between rows, the chosen row a teal-wash brick.

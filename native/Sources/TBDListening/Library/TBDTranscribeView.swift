@@ -23,7 +23,7 @@ struct TBDTranscribeView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: TBDTokens.Space.lg) {
-                TBDPageHeader("Transcribe", label: "Listening · Processed on this Mac")
+                TBDPageHeader("Transcribe", label: "Listen · Processed on this Mac")
                 HStack(alignment: .top, spacing: TBDTokens.Space.lg) {
                     linkCard
                     dropZone

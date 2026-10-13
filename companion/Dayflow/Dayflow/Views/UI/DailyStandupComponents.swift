@@ -5,7 +5,6 @@ import TBDDesign
 import UserNotifications
 
 struct DailyBulletCard: View {
-  @Environment(\.dayflowTheme) private var theme
   @Environment(\.stylePreviewAfter) private var stylePreviewAfter
 
   enum SeamMode {
@@ -40,16 +39,14 @@ struct DailyBulletCard: View {
   }
 
   // Brick: all corners are square regardless of seam mode.
-  private var cardShape: RoundedRectangle {
-    RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-  }
+  private var cardShape: TBDBrickShape { TBDBrickShape() }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
       VStack(alignment: .leading, spacing: 18 * scale) {
         Text(title)
-          .font(.custom("Switzer-Medium", size: (stylePreviewAfter ? 20 : 24) * scale))
-          .foregroundStyle(theme.isDark ? theme.textSecondary : StandupStyle.headingColor)
+          .font(TBDTokens.Typography.title)
+          .foregroundStyle(TBDColor.ink)
           .frame(maxWidth: .infinity, alignment: .leading)
 
         itemListEditor
@@ -67,15 +64,9 @@ struct DailyBulletCard: View {
       }
     }
     .frame(maxWidth: .infinity, minHeight: max(180, 394 * scale), alignment: .topLeading)
-    .background(cardShape.fill(theme.standupCardGradient))
+    .background(TBDColor.tile, in: cardShape)
     .clipShape(cardShape)
-    .overlay(
-      cardShape
-        .stroke(
-          theme.isDark ? theme.standupCardBorder : StandupStyle.strokeColor,
-          lineWidth: 0.75
-        )
-    )
+    .overlay(cardShape.strokeBorder(TBDColor.line, lineWidth: TBDKit.hair))
     // Brick: flat content never floats — the soft drop shadow the donor
     // design used here is gone; the 1pt border above carries the edge.
     .onAppear {
@@ -125,8 +116,8 @@ struct DailyBulletCard: View {
                 .pointingHandCursorOnHover(reassertOnPressEnd: true)
 
               TextField("", text: bindingForItemText(id: itemID), axis: .vertical)
-                .font(.custom("Switzer-Regular", size: 14 * scale))
-                .foregroundStyle(theme.textPrimary)
+                .font(TBDTokens.Typography.hint)
+                .foregroundStyle(TBDColor.ink)
                 .textFieldStyle(.plain)
                 .lineLimit(1...6)
                 .multilineTextAlignment(.leading)
@@ -186,18 +177,14 @@ struct DailyBulletCard: View {
     Button(action: { addItem(after: nil) }) {
       HStack(spacing: 6 * scale) {
         Image(systemName: "plus")
-          .font(.system(size: 18 * scale, weight: .regular))
-          .foregroundStyle(theme.textMuted)
+          .font(TBDFonts.symbol(14, .bold))
           .frame(width: 18 * scale, height: 18 * scale)
 
         Text("Add item")
-          .font(.custom("Switzer-Regular", size: 13 * scale))
-          .foregroundStyle(theme.textMuted)
           .lineLimit(1)
       }
-      .padding(.vertical, 6 * scale)
     }
-    .buttonStyle(.plain)
+    .buttonStyle(TBDButtonStyle(.quiet))
     .pointingHandCursorOnHover(reassertOnPressEnd: true)
   }
 
@@ -270,8 +257,6 @@ struct DailyBulletCard: View {
 }
 
 struct DailyDragHandleIcon: View {
-  @Environment(\.dayflowTheme) private var theme
-
   let scale: CGFloat
 
   var body: some View {
@@ -279,10 +264,10 @@ struct DailyDragHandleIcon: View {
       ForEach(0..<3, id: \.self) { _ in
         HStack(spacing: 2 * scale) {
           Circle()
-            .fill(theme.textMuted)
+            .fill(TBDColor.muted)
             .frame(width: 2.5 * scale, height: 2.5 * scale)
           Circle()
-            .fill(theme.textMuted)
+            .fill(TBDColor.muted)
             .frame(width: 2.5 * scale, height: 2.5 * scale)
         }
       }
@@ -292,7 +277,6 @@ struct DailyDragHandleIcon: View {
 }
 
 struct DailyBlockersSection: View {
-  @Environment(\.dayflowTheme) private var theme
   @Environment(\.stylePreviewAfter) private var stylePreviewAfter
 
   let scale: CGFloat
@@ -302,8 +286,8 @@ struct DailyBlockersSection: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 8 * scale) {
       TextField("Blockers", text: $title)
-        .font(.custom("Switzer-Medium", size: 14 * scale))
-        .foregroundStyle(theme.isDark ? theme.textSecondary : StandupStyle.headingColor)
+        .font(TBDTokens.Typography.tag)
+        .foregroundStyle(TBDColor.ink)
         .textFieldStyle(.plain)
 
       HStack(alignment: .center, spacing: 8 * scale) {
@@ -311,8 +295,8 @@ struct DailyBlockersSection: View {
           .frame(width: 18 * scale, height: 18 * scale)
 
         TextField("Fill in any blockers you may have", text: $prompt, axis: .vertical)
-          .font(.custom("Switzer-Regular", size: 14 * scale))
-          .foregroundStyle(theme.textPrimary)
+          .font(TBDTokens.Typography.hint)
+          .foregroundStyle(TBDColor.ink)
           .textFieldStyle(.plain)
           .lineLimit(1...4)
           .multilineTextAlignment(.leading)
@@ -326,10 +310,9 @@ struct DailyBlockersSection: View {
       maxWidth: .infinity, minHeight: 94 * scale,
       maxHeight: stylePreviewAfter ? .infinity : nil, alignment: .topLeading
     )
-    .background(theme.standupBlockersFill)
-    .overlay {
-      Rectangle()
-        .stroke(theme.standupBlockersBorder, lineWidth: max(0.7, 1 * scale))
+    .background(TBDColor.brickWash)
+    .overlay(alignment: .top) {
+      Rectangle().fill(TBDColor.line).frame(height: TBDKit.hair)
     }
   }
 }

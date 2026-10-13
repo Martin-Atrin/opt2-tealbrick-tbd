@@ -33,7 +33,7 @@ extension DailyView {
         ZStack {
           if standupCopyState == .copied {
             Image(systemName: "checkmark")
-              .font(.system(size: 12 * scale, weight: .semibold))
+              .font(TBDFonts.symbol(12 * scale, .bold))
               .transition(transition)
           } else {
             Image("Copy")
@@ -49,12 +49,10 @@ extension DailyView {
 
         ZStack(alignment: .leading) {
           Text("Copy standup update")
-            .font(.custom("Switzer-Medium", size: 14 * scale))
             .lineLimit(1)
             .opacity(standupCopyState == .copied ? 0 : 1)
 
           Text("Copied")
-            .font(.custom("Switzer-Medium", size: 14 * scale))
             .lineLimit(1)
             .opacity(standupCopyState == .copied ? 1 : 0)
         }
@@ -79,18 +77,18 @@ extension DailyView {
             ProgressView()
               .progressViewStyle(.circular)
               .scaleEffect(0.5 * scale)
-              .tint(theme.controlText)
+              .tint(TBDColor.ink)
           } else if standupRegenerateState == .regenerated {
             Image(systemName: "checkmark")
-              .font(.system(size: 12 * scale, weight: .semibold))
+              .font(TBDFonts.symbol(12 * scale, .bold))
               .transition(transition)
           } else if standupRegenerateState == .noData {
             Image(systemName: "exclamationmark.circle")
-              .font(.system(size: 12 * scale, weight: .semibold))
+              .font(TBDFonts.symbol(12 * scale, .bold))
               .transition(transition)
           } else {
             Image(systemName: "arrow.clockwise")
-              .font(.system(size: 12 * scale, weight: .semibold))
+              .font(TBDFonts.symbol(12 * scale, .bold))
               .transition(transition)
           }
         }
@@ -98,12 +96,10 @@ extension DailyView {
 
         ZStack(alignment: .leading) {
           Text(regenerateButtonLabel)
-            .font(.custom("Switzer-Medium", size: 14 * scale))
             .lineLimit(1)
             .opacity(transientRegenerateButtonLabel == nil ? 1 : 0)
 
           Text(transientRegenerateButtonLabel ?? "")
-            .font(.custom("Switzer-Medium", size: 14 * scale))
             .lineLimit(1)
             .opacity(transientRegenerateButtonLabel == nil ? 0 : 1)
         }
@@ -144,8 +140,8 @@ extension DailyView {
       if stylePreviewAfter {
         HStack(alignment: .center, spacing: 12 * scale) {
           Text(heading)
-            .font(.custom("Switzer-Medium", size: 22 * scale))
-            .foregroundStyle(theme.textSecondary)
+            .font(TBDTokens.Typography.title)
+            .foregroundStyle(TBDColor.muted)
             .lineLimit(1)
             .minimumScaleFactor(0.75)
 
@@ -155,8 +151,8 @@ extension DailyView {
         }
       } else {
         Text(heading)
-          .font(.custom("Switzer-Medium", size: 24 * scale))
-          .foregroundStyle(theme.textSecondary)
+          .font(TBDTokens.Typography.title)
+          .foregroundStyle(TBDColor.muted)
       }
 
       if !dailyRecapProvider.canGenerate && !hasPersistedStandupEntry {
@@ -216,14 +212,14 @@ extension DailyView {
   func chooseModelPrompt(scale: CGFloat) -> some View {
     VStack(alignment: .leading, spacing: 10 * scale) {
       Text("Choose a model for Daily")
-        .font(.custom("Switzer-Semibold", size: 16 * scale))
-        .foregroundStyle(theme.textPrimary)
+        .font(TBDFonts.nunito(TBDKit.textLabel, TBDKit.weightLabel))
+        .foregroundStyle(TBDColor.ink)
 
       Text(
         "Daily needs a model to write the recap. Use TBD's agent model (Settings → Models) or pick another provider."
       )
-      .font(.custom("Switzer-Regular", size: 13 * scale))
-      .foregroundStyle(theme.textSecondary)
+      .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
+      .foregroundStyle(TBDColor.muted)
       .fixedSize(horizontal: false, vertical: true)
 
       Button {
@@ -231,18 +227,14 @@ extension DailyView {
         isShowingProviderPicker = true
       } label: {
         Text("Choose a model")
-          .font(.custom("Switzer-Medium", size: 14 * scale))
       }
       .buttonStyle(TBDButtonStyle(.primary))
       .pointingHandCursorOnHover(reassertOnPressEnd: true)
     }
     .padding(16 * scale)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(theme.chipFill)
-    .overlay(
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-        .stroke(theme.chipBorder, lineWidth: max(1, 1.2 * scale))
-    )
+    .background(TBDColor.tile, in: TBDBrickShape())
+    .overlay(TBDBrickShape().strokeBorder(TBDColor.line, lineWidth: TBDKit.hair))
   }
   func copyStandupUpdateToClipboard() {
     let clipboardText = standupClipboardText(for: selectedDate)
