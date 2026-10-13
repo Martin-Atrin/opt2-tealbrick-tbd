@@ -304,7 +304,6 @@ struct TBDEngineSettings: View {
 struct TBDAISettings: View {
     @EnvironmentObject private var env: TBDListeningEnvironment
     @State private var tick = 0
-    @State private var prompts: [TBDTransformPrompt] = []
 
     var body: some View {
         let prefs = env.preferences
@@ -326,32 +325,12 @@ struct TBDAISettings: View {
             }
             promptEditor("Cleanup prompt", text: tbdBinding({ prefs.cleanupPrompt }, { prefs.cleanupPrompt = $0 }),
                          reset: { prefs.cleanupPrompt = TBDListeningPreferences.defaultCleanupPrompt; tick += 1 })
-            promptEditor("Summary prompt", text: tbdBinding({ prefs.summaryPrompt }, { prefs.summaryPrompt = $0 }),
-                         reset: { prefs.summaryPrompt = TBDListeningPreferences.defaultSummaryPrompt; tick += 1 })
-            HStack {
-                TBDLabel("Transform prompts")
-                Spacer()
-                Button("Add") { prompts.append(TBDTransformPrompt(name: "New prompt", instruction: "Rewrite the text.")); save() }
-                    .buttonStyle(TBDButtonStyle(.quiet))
-                Button("Reset") { prompts = TBDTransformPrompt.defaults; save() }.buttonStyle(TBDButtonStyle(.quiet))
-            }
-            .padding(.top, TBDTokens.Space.xl)
-            ForEach($prompts) { $prompt in
-                HStack(alignment: .top, spacing: TBDTokens.Space.sm) {
-                    TextField("Name", text: $prompt.name, onCommit: save).tbdField().frame(width: 160)
-                    TextField("Instruction", text: $prompt.instruction, onCommit: save).tbdField()
-                    Button { prompts.removeAll { $0.id == prompt.id }; save() } label: { Image(systemName: "minus.circle") }
-                        .buttonStyle(TBDButtonStyle(.icon)).disabled(prompts.count <= 1).accessibilityLabel("Remove prompt")
-                }
-                .padding(.vertical, TBDTokens.Space.xs)
-            }
+            // Summary prompts and Transforms moved to their own Listening pages (prompt library with versions).
+            Text("Summary prompts live on the Listening Prompts page; text Transforms and their hotkeys live on the Transforms page.")
+                .foregroundStyle(TBDTokens.muted).fixedSize(horizontal: false, vertical: true).padding(.top, TBDTokens.Space.xl)
         }
         .id(tick)
-        .onAppear { prompts = prefs.transformPrompts }
-        .onDisappear(perform: save)
     }
-
-    private func save() { env.preferences.transformPrompts = prompts }
 
     private func promptEditor(_ title: String, text: Binding<String>, reset: @escaping () -> Void) -> some View {
         VStack(alignment: .leading, spacing: TBDTokens.Space.xs) {

@@ -27,6 +27,8 @@ final class TBDListeningEnvironment: ObservableObject {
             database = try TBDListeningDatabase()
             databaseError = nil
             try? database?.markInterruptedTranscriptions()
+            // Built-in prompts and the one-time import of the old prompt settings.
+            try? database?.preparePromptLibrary(preferences: preferences)
         } catch {
             database = nil
             databaseError = error.localizedDescription
@@ -49,7 +51,7 @@ final class TBDListeningEnvironment: ObservableObject {
 
 /// Listening pages, in the rail order of v1 (Transcribe, Library, Dictations, Meetings, Prompts, Transforms, Vocabulary).
 enum TBDListeningTab: String, CaseIterable, Identifiable {
-    case transcribe, library, dictations, meetings, vocabulary
+    case transcribe, library, dictations, meetings, prompts, transforms, vocabulary
     var id: String { rawValue }
     var title: String {
         switch self {
@@ -57,6 +59,8 @@ enum TBDListeningTab: String, CaseIterable, Identifiable {
         case .library: "Library"
         case .dictations: "Dictations"
         case .meetings: "Meetings"
+        case .prompts: "Prompts"
+        case .transforms: "Transforms"
         case .vocabulary: "Vocabulary"
         }
     }

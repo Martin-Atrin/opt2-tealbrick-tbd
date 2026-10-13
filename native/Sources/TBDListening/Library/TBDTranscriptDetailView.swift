@@ -10,6 +10,10 @@ final class TBDTranscriptDetailModel: ObservableObject {
     @Published var item: TBDTranscription?
     @Published private(set) var projection: TBDTranscriptEditor.Projection?
     @Published var summaries: [TBDSummary] = []
+    /// Transcript prompts offered in the summary picker (Prompts page, visible ones).
+    @Published var summaryPrompts: [TBDPrompt] = []
+    /// One-off instructions added to the next prompt run.
+    @Published var extraInstructions = ""
     @Published var working: String?
     @Published var error: String?
     @Published var tab: Tab = .transcript
@@ -41,6 +45,7 @@ final class TBDTranscriptDetailModel: ObservableObject {
         projection = try? env.database?.projectedTranscription(id: id)
         item = projection?.item
         summaries = (try? env.database?.summaries(for: id)) ?? []
+        summaryPrompts = (try? env.database?.prompts(category: .result, visibleOnly: true)) ?? []
         if !notesDirty { notes = item?.userNotes ?? "" }
         ask.load()
     }
@@ -73,10 +78,18 @@ final class TBDTranscriptDetailModel: ObservableObject {
         }
     }
 
-    func summarize() { runAI("Summarising…") { item in
-        let prompt = self.env.preferences.summaryPrompt
-        return TBDSummary(transcriptionId: item.id, kind: .summary, prompt: prompt, content: try await TBDListeningAI.summarize(item, prompt: prompt))
-    } }
+    /// Runs a library prompt (the default one when nil) and adds its result as another summary.
+    func summarize(with prompt: TBDPrompt? = nil) {
+        guard let chosen = prompt ?? (try? env.database?.defaultSummaryPrompt()) else {
+            error = "No transcript prompt is available. Add or show one on the Prompts page."
+            return
+        }
+        let extra = extraInstructions
+        runAI("Running \(chosen.name)…") { item in
+            try await TBDPromptRunner.summarize(item, with: chosen, extraInstructions: extra)
+        }
+        extraInstructions = ""
+    }
 
     private func runAI(_ label: String, _ body: @escaping (TBDTranscription) async throws -> TBDSummary) {
         guard let item, working == nil else { return }
@@ -223,7 +236,8 @@ struct TBDTranscriptDetailView: View {
                             TBDNotesEditor(text: Binding(get: { model.notes }, set: { model.editNotes($0) }), status: model.notesStatus,
                                            placeholder: "Your notes for this meeting…").frame(minHeight: 320)
                         case .ask:
-                            TBDAskView(model: model.ask, starters: item.sourceKind == .meeting ? TBDQuickPrompt.starters : TBDQuickPrompt.transcriptStarters,
+                            TBDAskView(model: model.ask, starters: item.sourceKind == .meeting ? TBDAskPrompts.starters(env.database) : TBDQuickPrompt.transcriptStarters,
+                                       followUps: TBDAskPrompts.followUps(env.database),
                                        placeholder: item.sourceKind == .meeting ? "Ask about the meeting…" : "Ask about this transcript…")
                                 .frame(minHeight: 360)
                         }
@@ -306,6 +320,14 @@ struct TBDTranscriptDetailView: View {
             HStack(spacing: TBDTokens.Space.sm) {
                 Button { model.summarize() } label: { Label("Summarise", systemImage: "text.alignleft") }
                     .buttonStyle(TBDButtonStyle(.primary)).disabled(model.working != nil)
+                    .help("Runs the default transcript prompt from the Prompts page.")
+                Menu("Run prompt") {
+                    ForEach(model.summaryPrompts) { prompt in
+                        Button(prompt.name) { model.summarize(with: prompt) }
+                    }
+                }
+                .menuStyle(.borderlessButton).fixedSize().disabled(model.working != nil || model.summaryPrompts.isEmpty)
+                TextField("Extra instructions (optional)", text: $model.extraInstructions).tbdField().frame(maxWidth: 260)
                 Button { model.tab = .ask } label: { Label("Ask", systemImage: "bubble.left.and.text.bubble.right") }
                     .buttonStyle(TBDButtonStyle(.secondary))
             }
@@ -315,7 +337,7 @@ struct TBDTranscriptDetailView: View {
             ForEach(model.summaries) { summary in
                 VStack(alignment: .leading, spacing: TBDTokens.Space.xs) {
                     HStack {
-                        TBDLabel(summary.kind == .summary ? "Summary" : "Q: " + summary.prompt)
+                        TBDLabel(summary.kind == .summary ? (summary.promptName ?? "Summary") : "Q: " + summary.prompt)
                         Spacer()
                         Button { TBDPasteService.copy(summary.content) } label: { Image(systemName: "doc.on.doc") }
                             .buttonStyle(TBDButtonStyle(.icon)).help("Copy")

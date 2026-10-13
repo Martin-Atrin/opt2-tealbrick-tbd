@@ -12,6 +12,8 @@ protocol TBDHotkeyTargets: AnyObject {
     /// Meeting start/stop, transcribe file, transcribe URL (the menu-bar actions).
     func hotkeyPerform(_ action: TBDListeningAction)
     func hotkeyRunTransform()
+    /// A Transform's own hotkey (Transforms page).
+    func hotkeyRunTransform(id: String)
     func hotkeyReport(_ message: String)
     /// Recording mode of a live dictation take, nil when idle.
     var hotkeyRecordingMode: TBDFnKeyStateMachine.RecordingMode? { get }
@@ -40,7 +42,12 @@ final class TBDHotkeyCoordinator {
     struct ShortcutEntry {
         let surface: TBDHotkeySurface
         var matcher: TBDShortcutMatcher
+        /// Set for a Transform's own hotkey.
+        var transformID: String? = nil
     }
+
+    /// Transforms with their own hotkeys (Transforms page); read at every hotkey reload.
+    var transformPrompts: () -> [TBDPrompt] = { [] }
 
     weak var targets: TBDHotkeyTargets?
     private let preferences: TBDListeningPreferences
@@ -126,6 +133,11 @@ final class TBDHotkeyCoordinator {
                 shortcutEntries.append(ShortcutEntry(surface: .transform, matcher: TBDShortcutMatcher(hotkey: hotkey)))
             }
         }
+        // Per-Transform hotkeys skip every reserved hotkey (v1 TransformsCoordinator).
+        let reserved = TBDHotkeySurface.allCases.compactMap { snapshot.hotkey(for: $0) }
+        for binding in TBDTransformHotkeys.bindings(for: transformPrompts(), reserved: reserved) {
+            shortcutEntries.append(ShortcutEntry(surface: .transform, matcher: TBDShortcutMatcher(hotkey: binding.hotkey), transformID: binding.transformID))
+        }
         onChange?(hasHotkeys, needsActiveTap)
     }
 
@@ -170,7 +182,9 @@ final class TBDHotkeyCoordinator {
         for index in shortcutEntries.indices {
             let result = shortcutEntries[index].matcher.handle(event)
             swallow = swallow || result.swallow
-            if result.fired { fire(shortcutEntries[index].surface) }
+            if result.fired {
+                if let id = shortcutEntries[index].transformID { targets?.hotkeyRunTransform(id: id) } else { fire(shortcutEntries[index].surface) }
+            }
         }
         return swallow
     }
@@ -305,6 +319,7 @@ extension TBDListeningContext: TBDHotkeyTargets {
     func hotkeyReadyForSecondTap() { dictation.showReadyForSecondTap() }
     func hotkeyPerform(_ action: TBDListeningAction) { perform(action) }
     func hotkeyRunTransform() { transforms.run() }
+    func hotkeyRunTransform(id: String) { transforms.run(id: id) }
     func hotkeyReport(_ message: String) { report(message) }
     var hotkeyRecordingMode: TBDFnKeyStateMachine.RecordingMode? { dictation.recordingMode }
 }

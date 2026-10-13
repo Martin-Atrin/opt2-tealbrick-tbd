@@ -59,6 +59,8 @@ struct TBDNotesEditor: View {
 struct TBDAskView: View {
     @ObservedObject var model: TBDAskModel
     var starters: [TBDQuickPrompt] = TBDQuickPrompt.starters
+    /// Strip after each answer (pinned quick prompts).
+    var followUps: [TBDQuickPrompt] = TBDQuickPrompt.followUps
     var placeholder = "Ask about the meeting…"
     var showsHistory = true
 
@@ -99,7 +101,7 @@ struct TBDAskView: View {
                             bubble(line).id(line.id)
                         }
                         if !model.lines.isEmpty, !model.streaming {
-                            prompts(TBDQuickPrompt.followUps, grouped: false)
+                            prompts(followUps, grouped: false)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -124,7 +126,9 @@ struct TBDAskView: View {
 
     @ViewBuilder private func prompts(_ items: [TBDQuickPrompt], grouped: Bool) -> some View {
         let groups = grouped ? Dictionary(grouping: items, by: { $0.group ?? "" }) : ["": items]
-        let order = grouped ? items.compactMap(\.group).reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } } : [""]
+        // Named groups in first-seen order; ungrouped prompts (for example pinned ones) last.
+        let named = items.compactMap(\.group).reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
+        let order = grouped ? named + (items.contains { $0.group == nil } ? [""] : []) : [""]
         VStack(alignment: .leading, spacing: TBDTokens.Space.sm) {
             ForEach(order.isEmpty ? [""] : order, id: \.self) { group in
                 VStack(alignment: .leading, spacing: TBDTokens.Space.xs) {

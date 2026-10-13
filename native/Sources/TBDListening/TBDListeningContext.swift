@@ -78,6 +78,8 @@ final class TBDListeningContext {
         dictation.onHotkeysReset = { [weak self] in self?.hotkeyCoordinator.resetDictationGestures() }
         dictation.onCancelledByUI = { [weak self] in self?.hotkeyCoordinator.notifyCancelledByUI() }
         dictation.onStartedOutsideHotkey = { [weak self] in self?.hotkeyCoordinator.syncRecordingMode($0) }
+        // One hotkey per Transform (Transforms page), registered by the coordinator after the reserved hotkeys.
+        hotkeyCoordinator.transformPrompts = { [weak self] in (try? self?.env.database?.prompts(category: .transform)) ?? [] }
     }
 
     func report(_ message: String) { runtime?.report(message) }

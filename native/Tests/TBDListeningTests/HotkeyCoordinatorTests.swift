@@ -9,7 +9,7 @@ final class HotkeyCoordinatorTests: XCTestCase {
     final class FakeTargets: TBDHotkeyTargets {
         enum Call: Equatable {
             case start(TBDFnKeyStateMachine.RecordingMode, TBDDictationTakeOptions)
-            case stop, cancel, discard(Bool), ready, perform(TBDListeningAction), transform, report(String)
+            case stop, cancel, discard(Bool), ready, perform(TBDListeningAction), transform, transformID(String), report(String)
         }
         var calls: [Call] = []
         var acceptStart = true
@@ -23,6 +23,7 @@ final class HotkeyCoordinatorTests: XCTestCase {
         func hotkeyReadyForSecondTap() { calls.append(.ready) }
         func hotkeyPerform(_ action: TBDListeningAction) { calls.append(.perform(action)) }
         func hotkeyRunTransform() { calls.append(.transform) }
+        func hotkeyRunTransform(id: String) { calls.append(.transformID(id)) }
         func hotkeyReport(_ message: String) { calls.append(.report(message)) }
     }
 
@@ -67,6 +68,21 @@ final class HotkeyCoordinatorTests: XCTestCase {
     func key(_ text: String) -> TBDHotkey { try! TBDHotkey.parse(text) }
     func down(_ code: UInt16, _ flags: UInt64 = 0) -> TBDKeyEvent { .keyDown(keyCode: code, flags: flags, timestampMs: 0) }
     func up(_ code: UInt16, _ flags: UInt64 = 0) -> TBDKeyEvent { .keyUp(keyCode: code, flags: flags, timestampMs: 0) }
+
+    func testEachTransformHotkeyRunsItsTransformAndSkipsReservedKeys() {
+        prefs.setHotkey(key("ctrl+opt+t"), for: .transform)
+        let clock = self.clock
+        let c = TBDHotkeyCoordinator(preferences: prefs, schedule: { clock.schedule($0, $1) })
+        c.targets = targets
+        c.transformPrompts = {
+            [TBDPrompt(id: "polish", name: "Polish", content: "x", category: .transform, hotkey: "ctrl+opt+1"),
+             TBDPrompt(id: "clash", name: "Clash", content: "x", category: .transform, hotkey: "ctrl+opt+t")]
+        }
+        c.refreshAll()
+        XCTAssertTrue(c.handle(down(18, 0xC_0000)))           // ⌃⌥1
+        XCTAssertTrue(c.handle(down(17, 0xC_0000)))           // ⌃⌥T stays the general Transform key
+        XCTAssertEqual(targets.calls, [.transformID("polish"), .transform])
+    }
 
     func testImmediateHotkeysMapToTheirActions() {
         prefs.setHotkey(key("f13"), for: .fileTranscription)
