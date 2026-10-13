@@ -260,6 +260,7 @@ struct TBDTranscriptDetailView: View {
                     ForEach(TBDExportFormat.allCases, id: \.self) { format in Button(format.title) { model.export(format) } }
                 } label: { Label("Export", systemImage: "square.and.arrow.up") }
                 .menuStyle(.borderlessButton).fixedSize()
+                TBDKnowledgeButton(item: item, knowledge: context.knowledge)
                 if !item.speakers.isEmpty {
                     Menu {
                         ForEach(item.speakers, id: \.id) { speaker in Button("Rename \(speaker.label)…") { model.renameSpeaker(speaker) } }

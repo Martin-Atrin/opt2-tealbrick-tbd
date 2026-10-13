@@ -178,6 +178,7 @@ final class TBDMeetingController: ObservableObject {
             if select { env.selectedTranscriptionID = item.id }
             onMessage?("Meeting transcript saved")
             summarizeAutomatically(item)
+            env.transcriptSaved(item)
         } catch is CancellationError {
         } catch {
             onMessage?("Meeting transcription failed: \(error.localizedDescription). The audio is kept; use Transcribe again.")

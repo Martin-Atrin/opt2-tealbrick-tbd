@@ -73,6 +73,28 @@ final class TBDChatRuntime: NSObject, ObservableObject, WKScriptMessageHandler, 
     guard allowed.contains(channel) else { throw failure("Unsupported account operation") }
     start()
     guard ready || process?.isRunning == true else { throw failure(status) }
+    return try await hostCall(channel, args: args, timeout: .seconds(channel == "awaitSignIn" ? 660 : 45),
+                              timeoutMessage: "Portal operation timed out. Refresh to check current state.")
+  }
+
+  /// Progress handlers of running "Save to Knowledge" requests, by transcript id.
+  private var knowledgeStatus: [String: @MainActor (String) -> Void] = [:]
+
+  /// Listening "Save to Knowledge" (WP10): the helper calls Knowledge as TBD's own agent (key
+  /// connection and local relay), never with the person's token. Holds can take minutes.
+  func knowledgeSave(_ request: TBDKnowledgeSaveRequest, onStatus: @escaping @MainActor (String) -> Void) async throws -> TBDKnowledgeSaveResult {
+    start()
+    guard ready || process?.isRunning == true else { throw TBDKnowledgeError.signIn }
+    knowledgeStatus[request.transcriptId] = onStatus
+    defer { knowledgeStatus[request.transcriptId] = nil }
+    let value = try await hostCall("knowledgeSave", args: [request.payload], timeout: .seconds(11 * 60),
+                                   timeoutMessage: "Knowledge did not answer in time. Try again.")
+    guard let result = TBDKnowledgeSaveResult(payload: value) else { throw failure("Knowledge did not return a document id. Try again.") }
+    return result
+  }
+
+  /// One native-originated helper request (negative ids, `hostRequests`), with a time limit.
+  private func hostCall(_ channel: String, args: [Any], timeout: Duration, timeoutMessage: String) async throws -> Any {
     hostRequestID -= 1
     let id = hostRequestID
     return try await withCheckedThrowingContinuation { continuation in
@@ -81,9 +103,9 @@ final class TBDChatRuntime: NSObject, ObservableObject, WKScriptMessageHandler, 
       let message: [String: Any] = ["id": id, "channel": "studio:" + channel, "args": args]
       if ready { send(message) } else { queued.append(message) }
       Task { @MainActor [weak self] in
-        try? await Task.sleep(for: .seconds(channel == "awaitSignIn" ? 660 : 45))
+        try? await Task.sleep(for: timeout)
         guard let self, self.hostRequests[id] != nil else { return }
-        self.reply(id, error: "Portal operation timed out. Refresh to check current state.")
+        self.reply(id, error: timeoutMessage)
       }
     }
   }
@@ -199,6 +221,12 @@ final class TBDChatRuntime: NSObject, ObservableObject, WKScriptMessageHandler, 
         deliver(message)
       }
     case "event":
+      // "Save to Knowledge" progress goes to Listening, not to the web page.
+      if message["channel"] as? String == "tbd:knowledgeSaveStatus" {
+        let payload = message["payload"] as? [String: Any]
+        if let id = payload?["transcriptId"] as? String, let text = payload?["message"] as? String { knowledgeStatus[id]?(text) }
+        return
+      }
       if resetRequest == nil { deliver(message) }
     default: break
     }

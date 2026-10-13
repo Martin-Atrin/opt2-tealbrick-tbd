@@ -35,6 +35,10 @@ final class TBDListeningEnvironment: ObservableObject {
 
     func changed() { revision &+= 1 }
 
+    /// Observers of a finished transcript (meetings, files, links), called after it is saved.
+    var onTranscriptSaved: [(TBDTranscription) -> Void] = []
+    func transcriptSaved(_ item: TBDTranscription) { onTranscriptSaved.forEach { $0(item) } }
+
     /// Moves a capture into a private folder and returns the new location.
     func keep(_ url: URL, in folder: URL, name: String) throws -> URL {
         let destination = try TBDListeningPaths.ensure(folder).appendingPathComponent(name)

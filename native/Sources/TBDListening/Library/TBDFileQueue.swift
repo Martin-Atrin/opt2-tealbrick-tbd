@@ -137,6 +137,7 @@ final class TBDFileQueue: ObservableObject {
             }
             update(id) { $0.state = .done(result.id) }
             env.selectedTranscriptionID = result.id
+            env.transcriptSaved(result)
         } catch is CancellationError {
             update(id) { $0.state = .cancelled }
         } catch {

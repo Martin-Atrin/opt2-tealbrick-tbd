@@ -11,6 +11,7 @@ final class TBDListeningContext {
     let files: TBDFileQueue
     let transforms: TBDTransformController
     let retention: TBDRetentionController
+    let knowledge: TBDKnowledgeController
     private let hotkeys = TBDHotkeyMonitor()
     private weak var runtime: TBDListeningRuntime?
     private(set) var hotkeysActive = false
@@ -23,11 +24,15 @@ final class TBDListeningContext {
         files = TBDFileQueue(env: env)
         transforms = TBDTransformController(env: env)
         retention = TBDRetentionController(env: env)
+        knowledge = TBDKnowledgeController(database: env.database, preferences: env.preferences,
+                                           saver: { [weak runtime] in runtime?.saveToKnowledge })
         let report: (String) -> Void = { [weak runtime] in runtime?.report($0) }
         meetings.onMessage = report
         files.onMessage = report
         transforms.onMessage = report
         retention.onMessage = report
+        knowledge.onMessage = report
+        env.onTranscriptSaved.append { [weak knowledge] item in knowledge?.autoSave(item) }
         hotkeys.onStatusChange = { [weak self] in self?.hotkeysActive = $0 }
     }
 

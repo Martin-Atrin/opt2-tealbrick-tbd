@@ -150,6 +150,11 @@ struct TBDWorkspaceView<Companion: View>: View {
     }
     .task {
       listening.activate = { selection = .listening }
+      // "Save to Knowledge": through the Chat helper as TBD's own agent; needs a signed-in person.
+      listening.saveToKnowledge = { request, status in
+        guard TBDAccountCoordinator.shared.signedIn else { throw TBDKnowledgeError.signIn }
+        return try await TBDChatRuntime.shared.knowledgeSave(request, onStatus: status)
+      }
       listening.start()
       await account.refresh()
       while !Task.isCancelled {
