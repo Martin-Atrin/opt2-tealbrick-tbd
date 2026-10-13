@@ -91,7 +91,9 @@ export function summarize(info: unknown): AgentSummary {
       name: str(root.name), harness, protocol, native: true,
       model: shortModel(str(root.model)),
       capabilities: arr(root.capabilities).filter((v): v is string => typeof v === "string"),
-      schedules: [], connections: [], skills: [], tools: [], subagents: [],
+      // A native agent lists its own tools as [{ name, description }] (TBD: timeline, Listening);
+      // they feed the agent panel and the @ and / menus.
+      schedules: [], connections: [], skills: [], tools: named(arr(root.tools)), subagents: [],
       channels: [harness === "codex" && protocol === "app-server"
         ? { name: "Codex App Server", urlPath: "Native thread continuity · Teal Brick adapter" }
         : { name: harnessLabel({ harness, protocol })!, urlPath: "Native session continuity · Teal Brick adapter" }],

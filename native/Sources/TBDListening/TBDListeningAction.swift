@@ -7,7 +7,7 @@ import Foundation
 public enum TBDListeningAction: String, CaseIterable, Sendable {
     case dictation
     case meeting
-    /// v1 opened the floating meeting panel; opt2 shows the meeting panel in the Meetings page.
+    /// Meeting controls: the floating meeting panel while a meeting records (v1), else the Meetings page.
     case meetingPanel
     case transcribeFile
     case transcribeURL
@@ -23,15 +23,24 @@ public enum TBDListeningAction: String, CaseIterable, Sendable {
         case pickFiles
         case promptForURL
         case chooseTransform
+        /// The floating meeting panel while recording, else the Meetings page (`meetingControlsTarget`).
+        case meetingControls
         /// Bring Listening to the front on this page.
         case show(page: String)
+    }
+
+    public enum MeetingControlsTarget: Equatable, Sendable { case floatingPanel, meetingsPage }
+
+    /// Where "Meeting controls" goes: v1's floating panel while a meeting records; nothing to control otherwise.
+    public static func meetingControlsTarget(isRecording: Bool) -> MeetingControlsTarget {
+        isRecording ? .floatingPanel : .meetingsPage
     }
 
     public var effect: Effect {
         switch self {
         case .dictation: .toggleDictation
         case .meeting: .toggleMeeting
-        case .meetingPanel: .show(page: "meetings")
+        case .meetingPanel: .meetingControls
         case .transcribeFile: .pickFiles
         case .transcribeURL: .promptForURL
         case .history: .show(page: "dictations")

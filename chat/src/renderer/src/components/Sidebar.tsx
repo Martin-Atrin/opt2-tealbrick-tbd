@@ -4,7 +4,7 @@ import type { Agent, Block } from "@shared/types";
 import { useStore } from "@/lib/store";
 import { workspaceFooterLabel } from "@/lib/workspaceLabel";
 import { NO_MODEL_TITLE, modelGate } from "@/lib/agentModel";
-import { workspaceAgentSubtitle } from "@/lib/workspaceAgents";
+import { profileMenuLabel, workspaceAgentSubtitle } from "@/lib/workspaceAgents";
 import { Avatar, Icon, timeLabel } from "./primitives";
 
 function useRailTooltip(name: string): { events: { onMouseEnter: (event: React.MouseEvent<HTMLDivElement>) => void; onMouseLeave: () => void; onFocus: (event: React.FocusEvent<HTMLDivElement>) => void; onBlur: () => void }; label: ReactNode } {
@@ -65,7 +65,7 @@ function ContextMenu({
         patchAgent(agent.id, { unread: !agent.unread }),
       )}
       <div className="menu__sep" />
-      {item("pencil", "Edit Profile", () => {
+      {item("pencil", profileMenuLabel(agent), () => {
         select(agent.id);
         setPanel("settings");
       })}

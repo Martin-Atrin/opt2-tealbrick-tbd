@@ -102,6 +102,11 @@ final class TBDListeningContext {
         case .pickFiles: show(.transcribe); files.pickFiles()
         case .promptForURL: show(.transcribe); files.promptForURL()
         case .chooseTransform: transforms.chooseAndRun()
+        case .meetingControls:
+            switch TBDListeningAction.meetingControlsTarget(isRecording: meetings.isRecording) {
+            case .floatingPanel: meetings.showPanel()
+            case .meetingsPage: show(.meetings)
+            }
         case .show(let page): show(TBDListeningTab(rawValue: page) ?? .library)
         }
     }

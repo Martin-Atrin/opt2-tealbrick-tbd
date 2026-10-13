@@ -4,6 +4,19 @@ import type { WorkspaceAgentInfo, WorkspaceAgentState } from "../../../shared/ip
 
 export const CHAT_COMES_NEXT = "Chat with this agent comes next.";
 
+/**
+ * Which drawer view to show. A workspace agent has no TBD controls (connect, folders, reset, routines):
+ * every view of it is its read-only profile.
+ */
+export function drawerView<V extends string>(agent: { workspace?: WorkspaceAgentInfo } | undefined, shown: V): V | "workspace-profile" {
+  return agent?.workspace ? "workspace-profile" : shown;
+}
+
+/** The context-menu entry that opens the drawer for an agent. */
+export function profileMenuLabel(agent: { workspace?: WorkspaceAgentInfo }): string {
+  return agent.workspace ? "View Profile" : "Edit Profile";
+}
+
 export function stateLabel(state: WorkspaceAgentState): string {
   return state === "online" ? "Online" : state === "paused" ? "Paused" : "Offline";
 }

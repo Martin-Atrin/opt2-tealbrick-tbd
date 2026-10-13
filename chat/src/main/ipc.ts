@@ -18,6 +18,7 @@ import type { DeviceStart } from "@opt2-tealbrick/spec/routes";
 import { checkForUpdate } from "./updates";
 import { agentModelReadiness, requireAgentModel } from "./agentModelGuard";
 import { buildRoster } from "./workspaceAgents";
+import { tbdAgentInfo } from "./tbdAgentInfo";
 
 /**
  * The renderer's bridge into the helper. TBD Chat talks to exactly one agent:
@@ -127,19 +128,15 @@ export function registerIpc(): void {
     });
   }));
   ipcMain.handle("studio:saveAgentProfile", () => undefined);
-  ipcMain.handle("studio:agentInfo", (_e, agentId: string) => {
+  ipcMain.handle("studio:agentInfo", async (_e, agentId: string) => {
     requireDefaultAgent(agentId);
-    return {
-      name: "TBD",
-      harness: "tbd-default",
-      protocol: "tealbrick-native",
-      native: true,
-      capabilities: ["chat", "resume", "cancel", "timeline", "transcripts"],
-      tools: [
-        { name: "Companion timeline", description: "Your screen-activity timeline on this Mac." },
-        { name: "Listening", description: "Your local transcripts, meetings and dictations." },
-      ],
-    };
+    const model = await nativeCall("agentModelName").catch(() => null);
+    return tbdAgentInfo(typeof model === "string" && model ? model : null);
+  });
+  // Restart TBD's local agent process (Agent panel). It starts again with the current model route.
+  ipcMain.handle("studio:restartAgent", async (_e, agentId: string) => {
+    requireDefaultAgent(agentId);
+    await getServices().agent.restart();
   });
   // First-run checks (PARITY WP5): what Chat still needs before TBD's agent can answer.
   ipcMain.handle("studio:firstRun", async () => {

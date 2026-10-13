@@ -12,6 +12,8 @@ import {
   toCron,
 } from "@/lib/schedule";
 import { useStore, type PanelView } from "@/lib/store";
+import { CHAT_COMES_NEXT, drawerView, workspaceAgentSubtitle } from "@/lib/workspaceAgents";
+import { RESTARTED, TBD_AGENT_ID, restartFailed } from "@/lib/agentModel";
 import { Avatar, Icon, Toggle } from "./primitives";
 
 /**
@@ -448,6 +450,8 @@ function Settings(): ReactNode {
 
         <AgentFoldersCard />
 
+        {agent.id === TBD_AGENT_ID ? <RestartAgentCard agentId={agent.id} /> : null}
+
         <div className="card stack-row">
           <div style={{ flex: 1 }}>
             <div>Start a fresh conversation</div>
@@ -507,6 +511,49 @@ function Settings(): ReactNode {
   );
 }
 
+/** Restart TBD's local agent process (it starts again with the model set in Settings → Models). */
+function RestartAgentCard({ agentId }: { agentId: string }): ReactNode {
+  const [state, setState] = useState<{ busy: boolean; message: string | null }>({ busy: false, message: null });
+  const restart = (): void => {
+    setState({ busy: true, message: null });
+    void window.studio.restartAgent(agentId).then(
+      () => setState({ busy: false, message: RESTARTED }),
+      (e: unknown) => setState({ busy: false, message: restartFailed(e) }),
+    );
+  };
+  return (
+    <div className="card stack-row">
+      <div style={{ flex: 1 }}>
+        <div>Restart agent</div>
+        <div className="muted">{state.message ?? "Stops TBD's agent on this Mac and starts it again. A running reply ends."}</div>
+      </div>
+      <button type="button" className="btn" disabled={state.busy} onClick={restart}>{state.busy ? "Restarting…" : "Restart"}</button>
+    </div>
+  );
+}
+
+function WorkspaceProfile(): ReactNode {
+  const { agents, activeAgentId, setPanel } = useStore();
+  const agent = agents.find((a) => a.id === activeAgentId);
+  if (!agent?.workspace) return null;
+  return (
+    <>
+      <Head title="Profile" onClose={() => setPanel("none")} />
+      <div className="panel__body">
+        <div className="agent-portrait">
+          <Avatar name={agent.name} accent={agent.accent} src={agent.avatar} size={62} />
+          <div>{agent.name}</div>
+        </div>
+        <div className="card">
+          <div>{workspaceAgentSubtitle(agent.workspace)}</div>
+          {agent.workspace.purpose ? <div className="muted" style={{ marginTop: 6 }}>{agent.workspace.purpose}</div> : null}
+          <div className="muted" style={{ marginTop: 6 }}>{CHAT_COMES_NEXT}</div>
+        </div>
+      </div>
+    </>
+  );
+}
+
 export function Panel(): ReactNode {
   const panel = useStore((s) => s.panel);
   /**
@@ -536,14 +583,22 @@ export function Panel(): ReactNode {
   }, [panel, shown]);
 
   if (shown === "none") return null;
+  return <PanelBody shown={shown} closing={closing} />;
+}
+
+/** A workspace agent (C127) gets its read-only profile, never TBD's own cards. */
+function PanelBody({ shown, closing }: { shown: PanelView; closing: boolean }): ReactNode {
+  const agent = useStore((s) => s.agents.find((a) => a.id === s.activeAgentId));
+  const view = drawerView(agent, shown);
   return (
     <aside className={`panel${closing ? " panel--closing" : ""}`}>
       {/* Gated on `shown`, not `panel`: `panel` is already "none" while the
           drawer animates out, so gating on it blanked the contents instantly
           and slid an empty box off screen — defeating the very hold above. */}
-      {shown === "overview" ? <Overview /> : null}
-      {shown === "routine" ? <RoutineView /> : null}
-      {shown === "settings" ? <Settings /> : null}
+      {view === "workspace-profile" ? <WorkspaceProfile /> : null}
+      {view === "overview" ? <Overview /> : null}
+      {view === "routine" ? <RoutineView /> : null}
+      {view === "settings" ? <Settings /> : null}
     </aside>
   );
 }

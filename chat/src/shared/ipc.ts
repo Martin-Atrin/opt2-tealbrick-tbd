@@ -262,6 +262,8 @@ export interface StudioApi {
   agentInfo(agentId: string): Promise<AgentInfo | null>;
   /** Whether the agent itself answers right now. See `agentHealth` in main. */
   agentHealth(agentId: string): Promise<boolean>;
+  /** Restart TBD's local agent process (Agent panel). */
+  restartAgent(agentId: string): Promise<void>;
 
   /** A remote agent wants to do something on this machine. */
   onLocalAsk(handler: (ask: LocalAsk) => void): () => void;

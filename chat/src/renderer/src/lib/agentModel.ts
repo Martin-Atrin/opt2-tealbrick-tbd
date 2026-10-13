@@ -33,6 +33,15 @@ export function modelGate(agentId: string, state: AgentModelState): ModelGate {
   return { blocked: true, note: state.note?.trim() || FALLBACK };
 }
 
+export const RESTARTED = "TBD's agent restarted.";
+
+/** Restart failed: the plain reason (no model set reads as the setup sentence). */
+export function restartFailed(error: unknown): string {
+  const text = error instanceof Error ? error.message : String(error);
+  const plain = text.replace(/^Error invoking remote method '[^']+': /, "").replace(/^Error: /, "").trim();
+  return `Restart failed: ${plain || "the agent did not start"}`;
+}
+
 /** The reply shown when a message to an agent without a model is not sent. */
 export function notSentReply(note: string | undefined): string {
   return `Not sent: ${note?.trim() || FALLBACK}`;

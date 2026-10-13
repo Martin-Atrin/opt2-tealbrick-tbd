@@ -41,10 +41,13 @@ final class TBDFileQueue: ObservableObject {
         enqueue(files: panel.urls)
     }
 
+    /// The "Transcribe a link" explanation. TBD downloads and updates its own yt-dlp (WP3), so nothing has to be installed first.
+    static let linkPromptText = "Paste a video or Apple Podcasts link, or type a podcast name and episode (for example “hard fork 120”). Podcasts are found with the Apple Podcasts directory; other videos are downloaded with TBD's own yt-dlp, which TBD installs and updates by itself."
+
     func promptForURL() {
         let alert = NSAlert()
         alert.messageText = "Transcribe a link"
-        alert.informativeText = "Paste a video or Apple Podcasts link, or type a podcast name and episode (for example “hard fork 120”). Podcasts are found with the Apple Podcasts directory; other videos use the yt-dlp already installed on this Mac."
+        alert.informativeText = Self.linkPromptText
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 360, height: 24))
         field.placeholderString = "https://… or podcast name and episode"
         if let clip = NSPasteboard.general.string(forType: .string), TBDLinkDownloader.validate(clip) != nil { field.stringValue = clip }

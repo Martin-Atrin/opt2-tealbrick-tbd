@@ -11,7 +11,7 @@ struct TBDCompanionSetup: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 20) {
       Text("Companion setup").font(.title2)
-      Text("Timeline, focus sessions and nudges. Capture stays paused until you enable it.")
+      Text("Your screen-activity timeline and Daily recap. Capture stays paused until you enable it.")
         .foregroundStyle(theme.textSecondary)
       HStack {
         Label(screenAccess ? "Screen access granted" : "Screen access not granted", systemImage: screenAccess ? "checkmark.circle" : "display")

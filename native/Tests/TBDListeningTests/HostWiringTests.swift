@@ -38,7 +38,7 @@ final class HostWiringTests: XCTestCase {
         let expected: [TBDListeningAction: TBDListeningAction.Effect] = [
             .dictation: .toggleDictation,
             .meeting: .toggleMeeting,
-            .meetingPanel: .show(page: "meetings"),
+            .meetingPanel: .meetingControls,
             .transcribeFile: .pickFiles,
             .transcribeURL: .promptForURL,
             .history: .show(page: "dictations"),
@@ -49,6 +49,12 @@ final class HostWiringTests: XCTestCase {
         for action in TBDListeningAction.allCases {
             XCTAssertEqual(action.effect, expected[action], "\(action)")
         }
+    }
+
+    func testMeetingControlsOpenTheFloatingPanelWhileRecording() {
+        XCTAssertEqual(TBDListeningAction.meetingControlsTarget(isRecording: true), .floatingPanel)
+        XCTAssertEqual(TBDListeningAction.meetingControlsTarget(isRecording: false), .meetingsPage)
+        XCTAssertEqual(TBDListeningTab(rawValue: "meetings"), .meetings)
     }
 
     func testEveryPageAnActionShowsExists() {

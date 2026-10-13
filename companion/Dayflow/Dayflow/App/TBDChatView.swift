@@ -349,6 +349,8 @@ final class TBDChatRuntime: NSObject, ObservableObject, WKScriptMessageHandler, 
       try? await center.add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)); return NSNull()
     // TBD's default agent: the model route the person chose for the "agent" task (Settings → Models).
     case "agentModelStatus": _ = try Self.agentModel(); return NSNull()
+    // The model id only (agent panel); never the key.
+    case "agentModelName": return (try? Self.agentModel())?.model ?? NSNull()
     case "agentModel":
       let config = try Self.agentModel()
       return ["model": config.model, "baseUrl": config.baseURL.absoluteString, "apiKey": config.apiKey ?? ""]

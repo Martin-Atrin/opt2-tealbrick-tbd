@@ -145,6 +145,11 @@ export function createDefaultAgent(deps: DefaultAgentDeps) {
       setTimeout(() => c.kill("SIGTERM"), 1000).unref();
       failAll("The agent was stopped.");
     },
+    /** Stop the agent process (open turns end with an error) and start it again with the current model route. */
+    async restart(): Promise<void> {
+      this.stop();
+      await ensure();
+    },
     running: () => child !== null,
   };
 }
