@@ -45,7 +45,7 @@ final class TBDTranscriptDetailModel: ObservableObject {
         projection = try? env.database?.projectedTranscription(id: id)
         item = projection?.item
         summaries = (try? env.database?.summaries(for: id)) ?? []
-        summaryPrompts = (try? env.database?.prompts(category: .result, visibleOnly: true)) ?? []
+        summaryPrompts = (try? env.database?.availableResultPrompts(for: id)) ?? []
         if !notesDirty { notes = item?.userNotes ?? "" }
         ask.load()
     }
@@ -256,6 +256,7 @@ struct TBDTranscriptDetailView: View {
             }
         }
         .onChange(of: env.revision) { _, _ in model.load() }
+        .onChange(of: model.item?.title) { _, new in if let new { title = new } }
     }
 
     private func header(_ item: TBDTranscription) -> some View {
@@ -265,6 +266,7 @@ struct TBDTranscriptDetailView: View {
             TextField("Title", text: $title).textFieldStyle(.plain)
                 .font(TBDTokens.Typography.title).foregroundStyle(TBDTokens.ink)
                 .onSubmit { model.rename(title) }
+            TBDTranscriptLabelsBar(transcriptionID: item.id)
             if let link = item.sourceURL, let url = URL(string: link) {
                 Link(link, destination: url).font(.system(size: 11)).lineLimit(1)
             }
