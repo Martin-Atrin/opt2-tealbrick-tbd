@@ -16,6 +16,7 @@ import { buildMessage, fromWire } from "../shared/message";
 import { createTurnRouter, type InputResponse } from "./turns";
 import type { DeviceStart } from "@opt2-tealbrick/spec/routes";
 import { checkForUpdate } from "./updates";
+import { agentModelReadiness, requireAgentModel } from "./agentModelGuard";
 
 /**
  * The renderer's bridge into the helper. TBD Chat talks to exactly one agent:
@@ -29,15 +30,12 @@ let startingSignIn = false;
 
 /** Whether the agent has a model route; the note the UI shows when it does not. */
 async function agentReadiness(): Promise<{ ready: boolean; note?: string }> {
-  try {
-    await nativeCall("agentModelStatus");
-    const connection = getServices().agentIdentity.connection();
-    return connection
-      ? { ready: true }
-      : { ready: true, note: "TBD's agent works with your timeline and transcripts. Connect it to your workspace in its Settings to use Teal Brick apps." };
-  } catch (error) {
-    return { ready: false, note: error instanceof Error ? error.message : "Choose a model for TBD's agent in Settings → Models." };
-  }
+  const model = await agentModelReadiness(() => nativeCall("agentModelStatus"));
+  if (!model.ready) return model;
+  const connection = getServices().agentIdentity.connection();
+  return connection
+    ? { ready: true }
+    : { ready: true, note: "TBD's agent works with your timeline and transcripts. Connect it to your workspace in its Settings to use Teal Brick apps." };
 }
 
 async function defaultAgentRow(): Promise<RemoteAgent> {
@@ -135,9 +133,7 @@ export function registerIpc(): void {
   });
   // First-run checks (PARITY WP5): what Chat still needs before TBD's agent can answer.
   ipcMain.handle("studio:firstRun", async () => {
-    let model: { ready: boolean; note?: string };
-    try { await nativeCall("agentModelStatus"); model = { ready: true }; }
-    catch (error) { model = { ready: false, note: error instanceof Error ? error.message : "Choose a model for TBD's agent in Settings → Models." }; }
+    const model = await agentModelReadiness(() => nativeCall("agentModelStatus"));
     return { model, agentConnected: Boolean(getServices().agentIdentity.connection()) };
   });
   // Deep links into native Settings; only these two sections.
@@ -248,6 +244,8 @@ export function registerIpc(): void {
       requireDefaultAgent(input.agentId);
       sendTo = e.sender;
       if (input.inputResponses?.length) return turns.answer({ streamId: input.streamId, responses: input.inputResponses });
+      // No model: refuse at once with the sentence to show (never a message that goes nowhere).
+      await requireAgentModel(() => nativeCall("agentModelStatus"));
       const folder = typeof input.clientContext?.workingFolder === "string" ? `\n\n(Working folder: ${input.clientContext.workingFolder})` : "";
       const files = (input.attachments ?? []).map(fromWire);
       const message = buildMessage(`${input.text}${folder}`, files, saveAttachment);

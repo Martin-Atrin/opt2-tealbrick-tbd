@@ -147,6 +147,15 @@ public final class TBDModelRegistry: @unchecked Sendable {
     }
 
     public func configuration(for task: TBDModelTask) throws -> TBDModelConfig? { try configuration(for: task.rawValue) }
+
+    /// Whether a key is stored for a connection (the key itself stays in the Keychain).
+    public func hasKey(for connectionID: String) -> Bool { storedKey(for: connectionID) != nil }
+
+    /// The stored key, for a request to that connection's own endpoint only.
+    func storedKey(for connectionID: String) -> String? {
+        guard let key = (try? credentials.get(connectionID)) ?? nil, !key.isEmpty else { return nil }
+        return key
+    }
 }
 
 /// Per-feature switches for transcript cleanup. Both are off by default.

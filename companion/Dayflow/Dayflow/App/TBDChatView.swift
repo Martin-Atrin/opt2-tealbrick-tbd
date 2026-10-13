@@ -310,14 +310,9 @@ final class TBDChatRuntime: NSObject, ObservableObject, WKScriptMessageHandler, 
   }
 
   /// The "agent" model route; must be an Anthropic connection with a key (Claude Agent SDK).
+  /// The error text is what Chat shows on the TBD row and in the composer ("No model set").
   static func agentModel() throws -> TBDModelConfig {
-    guard let config = try TBDModelRegistry().configuration(for: .agent) else {
-      throw NSError(domain: "TBD.Agent", code: 1, userInfo: [NSLocalizedDescriptionKey: "Choose a model for TBD's agent in Settings → Models (an Anthropic connection with your key)."])
-    }
-    guard config.kind == .anthropic, let key = config.apiKey, !key.isEmpty else {
-      throw NSError(domain: "TBD.Agent", code: 2, userInfo: [NSLocalizedDescriptionKey: "TBD's agent needs an Anthropic connection with an API key in Settings → Models."])
-    }
-    return config
+    try TBDAgentModelSetup.resolve(TBDModelRegistry())
   }
 
   private func native(_ method: String, args: [Any]) async throws -> Any {

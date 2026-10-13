@@ -11,9 +11,11 @@ export function FirstRunChecks({ conversationEmpty }: { conversationEmpty: boole
   const [state, setState] = useState<FirstRunState | null>(null);
   const setPanel = useStore((s) => s.setPanel);
   const refreshAgents = useStore((s) => s.refreshAgents);
+  const checkAgentModel = useStore((s) => s.checkAgentModel);
+  // One check feeds this card and the "No model set" note on the row and in the composer.
   const check = useCallback((): void => {
-    void window.studio.firstRun().then(setState).catch(() => setState(null));
-  }, []);
+    void checkAgentModel().then(setState);
+  }, [checkAgentModel]);
   useEffect(() => {
     check();
     window.addEventListener("focus", check);

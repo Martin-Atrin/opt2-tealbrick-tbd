@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { PendingAttachment } from "./attachments";
-import type { AgentSummary } from "@shared/ipc";
+import type { AgentSummary, FirstRunState } from "@shared/ipc";
+import { NO_AGENT_NOTE, modelGate, notSentReply, type AgentModelState } from "./agentModel";
 import { summarize } from "./agentInfo";
 import type { Agent, Block, PeerEvent } from "@shared/types";
 import { reconcile } from "@shared/sessionReplay";
@@ -548,6 +549,10 @@ interface State {
   openRoutine(id: string): void;
   setPaletteOpen(open: boolean): void;
 
+  /** Whether TBD's agent has a model (studio:firstRun); null until checked. Drives "No model set". */
+  agentModel: AgentModelState;
+  /** Re-check the first-run state (model, connection); also refreshes `agentModel`. */
+  checkAgentModel(): Promise<FirstRunState | null>;
   send(agentId: string, text: string, fromQueue?: boolean, attachments?: PendingAttachment[]): void;
   /** Ask the agent to stop the turn it is running. */
   stopTurn(agentId: string): void;
@@ -638,6 +643,7 @@ export const useStore = create<State>((set, get) => ({
   conversations: {},
 
   activeAgentId: "",
+  agentModel: null,
   panel: "none",
   activeRoutineId: null,
   paletteOpen: false,
@@ -832,8 +838,21 @@ export const useStore = create<State>((set, get) => ({
   closeExchange: () => set({ exchange: null }),
 
 
+  checkAgentModel: async () => {
+    if (!window.studio) return null;
+    try {
+      const state = await window.studio.firstRun();
+      set({ agentModel: state.model });
+      return state;
+    } catch {
+      return null;
+    }
+  },
+
   send: (agentId, text, fromQueue, attachments) => {
     const at = Date.now();
+    // No model: the message is not sent, and the conversation says so (never a send that goes nowhere).
+    const gate = modelGate(agentId, get().agentModel);
     // A queued message was already shown when the user typed it. Adding it again
     // on flush is how one message becomes two identical bubbles.
     if (!fromQueue) {
@@ -863,6 +882,18 @@ export const useStore = create<State>((set, get) => ({
     // Save the question immediately. If the app dies mid-turn, losing the answer
     // is annoying; losing what you asked is worse.
     get().persist();
+
+    if (gate.blocked) {
+      const id = `a${at}`;
+      set((s) => ({
+        conversations: {
+          ...s.conversations,
+          [agentId]: [...(s.conversations[agentId] ?? []), { kind: "text", id, role: "agent", at: Date.now(), text: notSentReply(gate.note) }],
+        },
+      }));
+      get().persist();
+      return;
+    }
 
     const agent = get().agents.find((a) => a.id === agentId);
 
@@ -1276,7 +1307,7 @@ export const useStore = create<State>((set, get) => ({
         set({
           agents: [], activeAgentId: "",
           authError:
-            "No connected agents in this workspace yet. Bind an agent identity in the portal canvas, then refresh.",
+            NO_AGENT_NOTE,
         });
         return;
       }
@@ -1363,6 +1394,7 @@ export const useStore = create<State>((set, get) => ({
       // showing, never worth making someone wait for, and one unreachable host
       // must not hold up the whole sidebar behind its timeout.
       void get().refreshLiveness();
+      void get().checkAgentModel();
     } catch (e) {
       if (get().portalWorkspaceId !== workspaceId) return;
       get().stopWatching();

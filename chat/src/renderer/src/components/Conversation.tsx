@@ -12,6 +12,7 @@ import * as composerDom from "@/lib/composerDom";
 import { Autocomplete, type Suggestion } from "./Autocomplete";
 import { LocalAskCard } from "./LocalAsk";
 import { FirstRunChecks } from "./FirstRun";
+import { NO_MODEL_TITLE, SET_UP_MODEL, modelGate } from "@/lib/agentModel";
 import { Markdown } from "./Markdown";
 import { record, type Recorder } from "../lib/dictation";
 import { DeliveredFiles } from "./DeliveredFiles";
@@ -296,8 +297,19 @@ export function Conversation(): ReactNode {
     workspaces,
     chooseWorkspace,
     setWorkspace,
+    agentModel,
   } = useStore();
   const agent = agents.find((a) => a.id === activeAgentId);
+  // No model for TBD's agent: Send becomes "Set up a model" and the draft stays.
+  const gate = modelGate(activeAgentId, agentModel);
+  const openModelSetup = (): void => { void window.studio?.openSettings("engine"); };
+  const checkAgentModel = useStore((s) => s.checkAgentModel);
+  // Settings opens in the same window, so a focus event may never come: re-check while blocked.
+  useEffect(() => {
+    if (!gate.blocked) return;
+    const timer = setInterval(() => { void checkAgentModel(); }, 5000);
+    return () => clearInterval(timer);
+  }, [gate.blocked, checkAgentModel]);
   const sessions = useStore((s) => s.sessions);
   // Who this agent can be asked to talk to — the control plane's list, reused
   // for both the @ menu and for drawing mentions in what was sent.
@@ -573,6 +585,7 @@ export function Conversation(): ReactNode {
     // A file with no words is still a message — dragging a document in and
     // pressing enter means "look at this", and refusing it as empty is wrong.
     if (!text && pending.length === 0) return;
+    if (gate.blocked) { openModelSetup(); return; }
     if (agent) send(agent.id, text, false, pending.length > 0 ? pending : undefined);
     setDraft("");
     setPending([]);
@@ -756,6 +769,11 @@ export function Conversation(): ReactNode {
             ))}
           </div>
         ) : null}
+        {gate.blocked ? (
+          <div className="composer__attach-error" role="status">
+            <strong>{NO_MODEL_TITLE}.</strong> {gate.note}
+          </div>
+        ) : null}
         {attachError ? <div className="composer__attach-error">{attachError}</div> : null}
         {voiceError ? <div className="composer__attach-error">{voiceError}</div> : null}
         {voice === "recording" ? (
@@ -892,6 +910,9 @@ export function Conversation(): ReactNode {
               }
             }}
           />
+          {gate.blocked && !running ? (
+            <button type="button" className="btn btn--primary" onClick={openModelSetup}>{SET_UP_MODEL}</button>
+          ) : (
           <button
             className={`icon-btn${running || draft.trim() ? " icon-btn--filled" : ""}`}
             title={running ? "Stop" : draft.trim() ? "Send" : "Dictate"}
@@ -919,6 +940,7 @@ export function Conversation(): ReactNode {
               <Icon name={draft.trim() || pending.length > 0 ? "arrowUp" : "mic"} />
             )}
           </button>
+          )}
         </div>
         {model || busy ? (
           <div className="composer__meta">
