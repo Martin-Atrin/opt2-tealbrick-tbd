@@ -56,7 +56,7 @@ extension TBDListeningPreferences {
         case "diarize": return .bool(diarize)
         case "calendarReminders": return .bool(calendarReminders)
         case "calendarAutoStart": return .bool(calendarAutoStart)
-        // The v1 push-to-talk key (the old single key moved there, see migrateDictationHotkeys).
+        // `dictationHotkey` in the CLI names the v1 push-to-talk key.
         case "dictationHotkey": return .string(hotkey(for: .pushToTalk)?.serialized ?? "")
         case "transformHotkey": return optional(transformHotkey.isEmpty ? nil : transformHotkey)
         case "microphoneUID": return optional(microphoneUID)
@@ -150,7 +150,6 @@ extension TBDListeningPreferences {
     var keepsAllFreshAudio: Bool { TBDRetentionKind.allCases.allSatisfy(keepsAudio) }
 
     func setKeepsAllFreshAudio(_ keep: Bool) {
-        keepAudio = keep
         var settings = retention
         for kind in TBDRetentionKind.allCases where kind.modes.contains(.deleteAudioAfterTranscription) {
             switch (keep, settings[kind].mode) {

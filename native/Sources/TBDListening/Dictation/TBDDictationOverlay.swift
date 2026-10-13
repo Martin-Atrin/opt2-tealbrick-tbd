@@ -61,7 +61,7 @@ final class TBDDictationOverlay {
     /// Shows the idle pill when it is on and nothing else is on screen; hides it otherwise.
     func refreshIdle() {
         if preferences.showIdlePill, model.phase == .hidden {
-            idle.show(placement: preferences.dictationOverlayPlacement, hotkeyName: (try? TBDHotkey.parse(preferences.dictationHotkey))?.displayName)
+            idle.show(placement: preferences.dictationOverlayPlacement, hotkeyName: (preferences.hotkey(for: .pushToTalk) ?? preferences.hotkey(for: .handsFree))?.displayName)
         } else {
             idle.hide()
         }

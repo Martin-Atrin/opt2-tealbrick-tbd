@@ -208,35 +208,9 @@ final class HotkeyPolicyTests: XCTestCase {
         }
     }
 
-    func testMigrationMovesTheSingleHotkeyIntoBothKeysOnce() throws {
+    func testRepairWithoutStoredHotkeysWritesV1Defaults() throws {
         try withDefaults { defaults, prefs in
-            defaults.set("right_option", forKey: "tbd.listening.dictationHotkey")
-            prefs.migrateDictationHotkeys()
-            XCTAssertEqual(defaults.string(forKey: "tbd.listening.hotkeyTrigger"), "right_option")
-            XCTAssertEqual(defaults.string(forKey: "tbd.listening.pushToTalkHotkeyTrigger"), "right_option")
-            XCTAssertEqual(TBDDictationHotkeyPlan.make(handsFree: prefs.hotkey(for: .handsFree), pushToTalk: prefs.hotkey(for: .pushToTalk)).specs,
-                           [.init(hotkey: key("right_option"), gestureMode: .doubleTapAndHold, holdToTalkStopTailMs: 200)])
-            // Once: a later change is not overwritten by the old key.
-            prefs.setHotkey(key("f13"), for: .pushToTalk)
-            prefs.migrateDictationHotkeys()
-            XCTAssertEqual(defaults.string(forKey: "tbd.listening.pushToTalkHotkeyTrigger"), "f13")
-            XCTAssertEqual(defaults.string(forKey: "tbd.listening.hotkeyTrigger"), "right_option")
-        }
-    }
-
-    func testMigrationOfAnInvalidOldHotkeyKeepsDictationOff() throws {
-        try withDefaults { defaults, prefs in
-            defaults.set("hyper+x", forKey: "tbd.listening.dictationHotkey")
-            prefs.migrateDictationHotkeys()
-            XCTAssertEqual(defaults.string(forKey: "tbd.listening.hotkeyTrigger"), "")
-            XCTAssertEqual(defaults.string(forKey: "tbd.listening.pushToTalkHotkeyTrigger"), "")
-            XCTAssertNil(prefs.hotkey(for: .handsFree))
-        }
-    }
-
-    func testMigrationWithoutAnOldHotkeyWritesV1Defaults() throws {
-        try withDefaults { defaults, prefs in
-            prefs.migrateDictationHotkeys()
+            prefs.repairDictationHotkeys()
             XCTAssertEqual(defaults.string(forKey: "tbd.listening.hotkeyTrigger"), "fn")
             XCTAssertEqual(defaults.string(forKey: "tbd.listening.pushToTalkHotkeyTrigger"), "fn")
         }

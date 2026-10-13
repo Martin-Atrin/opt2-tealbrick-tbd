@@ -93,7 +93,7 @@ final class TBDHotkeyCoordinator {
 
     /// Rebuilds every hotkey from preferences (v1 `refreshAllHotkeys`). Skipped while a recorder is open.
     func refreshAll() {
-        if !migrated { preferences.migrateDictationHotkeys(); migrated = true }
+        if !migrated { preferences.repairDictationHotkeys(); migrated = true }
         guard suspendCount == 0 else { return }
         stopAll()
         setupAll()

@@ -50,13 +50,13 @@ final class RetentionTests: XCTestCase {
         XCTAssertFalse(TBDRetentionKind.meetingTranscripts.modes.contains(.deleteAudioAfterTranscription))
     }
 
-    func testSettingsMigrateFromKeepAudioAndPersist() throws {
+    func testSettingsDefaultToKeepAndPersist() throws {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: "retention-\(UUID().uuidString)"))
         let prefs = TBDListeningPreferences(defaults: defaults)
+        // No stored retention: every kind keeps audio; an earlier single "keep audio" key is not read (C133).
+        defaults.set(false, forKey: "tbd.listening.keepAudio")
         XCTAssertTrue(prefs.keepsAudio(.meetingAudio))
-        prefs.keepAudio = false
-        XCTAssertFalse(prefs.keepsAudio(.dictations))
-        XCTAssertFalse(prefs.keepsAudio(.meetingAudio))
+        XCTAssertTrue(prefs.keepsAudio(.dictations))
         XCTAssertEqual(prefs.retention[.meetingTranscripts].mode, .keepForever)
         var settings = prefs.retention
         settings[.dictations] = TBDRetentionPolicy(mode: .deleteAfterDays, days: 14)

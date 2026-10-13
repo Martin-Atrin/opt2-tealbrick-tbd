@@ -33,11 +33,9 @@ public struct TBDListeningPreferences: @unchecked Sendable {
         static let dictationLivePreview = "tbd.listening.dictationLivePreview"
         static let meetingLivePreview = "tbd.listening.meetingLivePreview"
         static let microphoneUID = "tbd.listening.microphoneUID"
-        static let keepAudio = "tbd.listening.keepAudio"
         static let keepHistory = "tbd.listening.keepHistory"
         static let removeFillers = "tbd.listening.removeFillers"
         static let dictationCleanup = "tbd.listening.dictationCleanup"
-        static let dictationHotkey = "tbd.listening.dictationHotkey"
         static let transformHotkey = "tbd.listening.transformHotkey"
         static let transformPrompts = "tbd.listening.transformPrompts"
         static let transformPromptID = "tbd.listening.transformPromptID"
@@ -164,11 +162,6 @@ public struct TBDListeningPreferences: @unchecked Sendable {
         get { defaults.string(forKey: Key.microphoneUID).flatMap { $0.isEmpty ? nil : $0 } }
         nonmutating set { defaults.set(newValue, forKey: Key.microphoneUID) }
     }
-    /// Legacy single switch for keeping audio; seeds `retention` until that is saved.
-    public var keepAudio: Bool {
-        get { bool(Key.keepAudio, default: true) }
-        nonmutating set { defaults.set(newValue, forKey: Key.keepAudio) }
-    }
     /// Save dictations to history.
     public var keepHistory: Bool {
         get { bool(Key.keepHistory, default: true) }
@@ -182,10 +175,6 @@ public struct TBDListeningPreferences: @unchecked Sendable {
     public var dictationCleanup: Bool {
         get { bool(Key.dictationCleanup, default: false) }
         nonmutating set { defaults.set(newValue, forKey: Key.dictationCleanup) }
-    }
-    public var dictationHotkey: String {
-        get { defaults.string(forKey: Key.dictationHotkey) ?? "fn" }
-        nonmutating set { defaults.set(newValue, forKey: Key.dictationHotkey) }
     }
     /// Empty string disables the transform hotkey.
     public var transformHotkey: String {
@@ -219,12 +208,12 @@ public struct TBDListeningPreferences: @unchecked Sendable {
         get { bool(Key.diarize, default: true) }
         nonmutating set { defaults.set(newValue, forKey: Key.diarize) }
     }
-    /// Retention per kind. Until set, derived from the older "keep audio" switch.
+    /// Retention per kind. Until set, every kind keeps its audio and text.
     public var retention: TBDRetentionSettings {
         get {
             guard let data = defaults.data(forKey: Key.retention),
                   let settings = try? JSONDecoder().decode(TBDRetentionSettings.self, from: data) else {
-                return .migrated(keepAudio: keepAudio)
+                return TBDRetentionSettings()
             }
             return settings
         }
@@ -508,17 +497,8 @@ public struct TBDListeningPreferences: @unchecked Sendable {
         (hotkey(for: .pushToTalk) ?? hotkey(for: .handsFree))?.shortSymbol ?? "none"
     }
 
-    /// One-time move of the single `dictationHotkey` (hold to talk, tap for hands-free) into v1's two keys.
-    /// Both get the same key, which is v1's shared gesture: hold to talk, double-tap for hands-free.
-    /// An unparsable old value had disabled dictation, so both stay off. Then v1's stored-value repair runs.
-    public func migrateDictationHotkeys() {
-        let hasHandsFree = defaults.object(forKey: HotkeyKey.handsFree) != nil
-        let hasPushToTalk = defaults.object(forKey: HotkeyKey.pushToTalk) != nil
-        if !hasHandsFree, !hasPushToTalk, let legacy = defaults.string(forKey: Key.dictationHotkey) {
-            let value = TBDHotkey.stored(legacy)?.serialized ?? ""
-            defaults.set(value, forKey: HotkeyKey.handsFree)
-            defaults.set(value, forKey: HotkeyKey.pushToTalk)
-        }
+    /// v1's stored-value repair of the two dictation hotkeys (`resolveStored`), run once per start.
+    public func repairDictationHotkeys() {
         func stored(_ key: String) -> TBDHotkey?? {
             defaults.string(forKey: key).map { TBDHotkey.stored($0) }
         }

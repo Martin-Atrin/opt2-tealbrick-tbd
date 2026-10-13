@@ -102,16 +102,6 @@ public struct TBDRetentionSettings: Codable, Sendable, Equatable {
         set { policies[kind] = newValue }
     }
 
-    /// Defaults derived from the older single "keep audio" switch.
-    public static func migrated(keepAudio: Bool) -> TBDRetentionSettings {
-        var settings = TBDRetentionSettings()
-        guard !keepAudio else { return settings }
-        for kind in TBDRetentionKind.allCases where kind.modes.contains(.deleteAudioAfterTranscription) {
-            settings[kind] = TBDRetentionPolicy(mode: .deleteAudioAfterTranscription)
-        }
-        return settings
-    }
-
     /// True when the sweep has something to do.
     public var sweeps: Bool { policies.values.contains { $0.mode == .deleteAfterDays } }
 }
