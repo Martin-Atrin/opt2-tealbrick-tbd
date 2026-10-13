@@ -11,7 +11,10 @@
     "typecheck:web": "tsc -p tsconfig.web.json --noEmit",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "test": "node --test \"test/**/*.test.ts\"",
-    "lint": "biome check ."
+    "lint": "biome check . && node scripts/design-tokens.ts --check && node scripts/design-guard.ts",
+    "design:proof": "node scripts/design-proof.ts",
+    "design:tokens": "node scripts/design-tokens.ts",
+    "design:guard": "node scripts/design-guard.ts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.296",

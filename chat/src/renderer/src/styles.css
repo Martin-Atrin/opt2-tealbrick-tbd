@@ -85,7 +85,7 @@
 html, body, #root { height: 100%; margin: 0; }
 
 body {
-  font-family: var(--font);
+  font-family: var(--tb-font);
   font-size: var(--fs-base);
   line-height: 1.5;
   color: var(--ink);
@@ -237,7 +237,7 @@ input, textarea { font: inherit; color: inherit; }
 .bubble--agent { background: var(--bubble-agent); align-self: flex-start; }
 .bubble--user { background: var(--bubble-user); color: var(--ink-inverse); align-self: flex-end; max-width: 78%; }
 .bubble code {
-  font-family: var(--font-mono); font-size: 0.88em;
+  font-family: var(--tb-font-mono); font-size: 0.88em;
   padding: 1px 5px; border-radius: 5px;
   background: rgba(127, 127, 127, 0.18); color: #c7254e;
 }
@@ -260,7 +260,7 @@ input, textarea { font: inherit; color: inherit; }
   display: inline-flex; align-items: center;
   line-height: 1; vertical-align: 0.22em;
   padding: 3px 7px 3px 4px;
-  border: none; border-radius: 6px;
+  border: none; border-radius: var(--tb-radius-pill); min-height: 28px;
   background: var(--bubble-agent); color: var(--ink);
   font: inherit; font-size: var(--fs-sm);
   cursor: pointer; white-space: nowrap;
@@ -413,8 +413,8 @@ input, textarea { font: inherit; color: inherit; }
   top: 6px;
 }
 .icon-btn {
-  width: 30px; height: 30px; border-radius: 50%; flex: none;
-  display: grid; place-items: center; color: var(--ink-secondary);
+  width: 36px; height: 36px; border-radius: var(--tb-radius-brick); flex: none;
+  display: grid; place-items: center; color: var(--tb-secondary-on);
 }
 .icon-btn:hover { background: var(--hover); }
 .icon-btn--filled { background: var(--bubble-user); color: var(--ink-inverse); }
@@ -625,7 +625,7 @@ input, textarea { font: inherit; color: inherit; }
 /* A button now, because the code is the one thing worth copying — but it must
    still read as a displayed code rather than an action. */
 .signin__code {
-  font-family: var(--font-mono); font-size: 26px; letter-spacing: 0.1em;
+  font-family: var(--tb-font-mono); font-size: 26px; letter-spacing: 0.1em;
   padding: 12px 20px; border-radius: 12px; background: var(--bubble-agent);
   border: 0; color: inherit; cursor: pointer; display: block; width: 100%;
 }
@@ -636,13 +636,13 @@ input, textarea { font: inherit; color: inherit; }
 .signin__actions {
   display: flex; gap: 8px; justify-content: center; margin-top: 14px;
 }
-.signin__actions .btn { height: 30px; padding: 0 14px; border-radius: 999px; }
+.signin__actions .btn { min-height: 36px; padding: 0 var(--tb-control-pad); border-radius: var(--tb-radius-brick); }
 .signin__hint { color: var(--ink-tertiary); font-size: var(--fs-sm); margin: 12px 0 0; }
 .signin__error {
   display: flex; align-items: center; gap: 6px; margin-top: 18px;
   color: var(--danger); font-size: var(--fs-sm); text-align: left;
 }
-.signin__issuer { margin-top: 30px; font-size: var(--fs-xs); color: var(--ink-tertiary); font-family: var(--font-mono); }
+.signin__issuer { margin-top: 30px; font-size: var(--fs-xs); color: var(--ink-tertiary); font-family: var(--tb-font-mono); }
 .signin__issuer-btn {
   margin-left: 8px; background: none; border: 0; padding: 0;
   color: var(--accent-deep); font-size: inherit; text-decoration: underline;
@@ -656,14 +656,14 @@ input, textarea { font: inherit; color: inherit; }
   box-shadow: var(--shadow-menu);
 }
 .account-menu__issuer {
-  padding: 6px 9px 3px; font-size: var(--fs-xs); color: var(--ink-tertiary); font-family: var(--font-mono);
+  padding: 6px 9px 3px; font-size: var(--fs-xs); color: var(--ink-tertiary); font-family: var(--tb-font-mono);
 }
 
 /* ── Activity ──────────────────────────────────────────────────────── */
 
 .spinner {
   display: inline-block; user-select: none;
-  font-family: var(--font-mono); line-height: 1; letter-spacing: 1px;
+  font-family: var(--tb-font-mono); line-height: 1; letter-spacing: 1px;
 }
 
 /*
@@ -692,7 +692,7 @@ input, textarea { font: inherit; color: inherit; }
   display: flex; align-items: center; gap: 10px; padding: 0 6px;
 }
 .composer__model {
-  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.06em;
+  font-family: var(--tb-font-mono); font-size: 10px; letter-spacing: 0.06em;
   color: var(--ink-tertiary); text-transform: lowercase;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
@@ -710,7 +710,7 @@ input, textarea { font: inherit; color: inherit; }
 .ask__title { flex: 1; font-weight: 600; font-size: var(--fs-base); }
 .ask__detail {
   margin: 9px 0 0; padding: 8px 10px; border-radius: 8px;
-  background: var(--surface); font-family: var(--font-mono);
+  background: var(--surface); font-family: var(--tb-font-mono);
   font-size: var(--fs-sm); word-break: break-all;
 }
 .ask__who { margin-top: 9px; font-size: var(--fs-sm); color: var(--ink-secondary); }
@@ -744,7 +744,7 @@ input, textarea { font: inherit; color: inherit; }
   padding: 5px 10px; background: var(--hover);
   font-size: var(--fs-xs); color: var(--ink-tertiary);
 }
-.code__lang { flex: 1; font-family: var(--font-mono); }
+.code__lang { flex: 1; font-family: var(--tb-font-mono); }
 .code__copy {
   display: flex; align-items: center; gap: 4px;
   font-size: var(--fs-xs); color: var(--ink-secondary);
@@ -753,7 +753,7 @@ input, textarea { font: inherit; color: inherit; }
 .code__copy:hover { background: var(--selected); }
 .code__body {
   margin: 0; padding: 11px 12px; overflow-x: auto;
-  font-family: var(--font-mono); font-size: var(--fs-sm); line-height: 1.55;
+  font-family: var(--tb-font-mono); font-size: var(--fs-sm); line-height: 1.55;
 }
 .code__body code { background: none; padding: 0; color: inherit; }
 
@@ -762,7 +762,7 @@ input, textarea { font: inherit; color: inherit; }
 .workspace {
   -webkit-app-region: no-drag;
   display: flex; align-items: center; gap: 6px;
-  height: 26px; padding: 0 10px; border-radius: 999px;
+  min-height: 36px; padding: 0 var(--tb-control-pad); border-radius: var(--tb-radius-brick);
   background: var(--hover); font-size: var(--fs-sm); color: var(--ink-secondary);
   max-width: 260px; overflow: hidden; white-space: nowrap;
 }
@@ -775,7 +775,7 @@ input, textarea { font: inherit; color: inherit; }
 .crash { height: 100%; display: grid; place-items: center; background: var(--surface-sidebar); }
 .crash__card { width: 420px; text-align: center; display: flex; flex-direction: column; gap: 12px; align-items: center; }
 .crash__title { font-size: 16px; font-weight: 620; }
-.crash__detail { font-family: var(--font-mono); font-size: var(--fs-sm); color: var(--danger); word-break: break-word; }
+.crash__detail { font-family: var(--tb-font-mono); font-size: var(--fs-sm); color: var(--danger); word-break: break-word; }
 .crash__hint { font-size: var(--fs-sm); color: var(--ink-tertiary); }
 
 .modal__banner {
@@ -837,7 +837,7 @@ input, textarea { font: inherit; color: inherit; }
   display: flex; align-items: center; gap: 5px; flex: none;
   color: var(--accent-deep); font-size: var(--fs-sm);
 }
-.pl__row .btn { flex: none; height: 27px; padding: 0 14px; border-radius: 999px; }
+.pl__row .btn { flex: none; min-height: 36px; padding: 0 var(--tb-control-pad); border-radius: var(--tb-radius-brick); }
 
 .sched { display: flex; flex-wrap: wrap; gap: 7px; }
 .sched .input { flex: 1; min-width: 132px; height: 32px; padding: 0 9px; }
@@ -866,7 +866,7 @@ input, textarea { font: inherit; color: inherit; }
 .thread__when:first-child { margin-top: var(--sp-2); }
 
 .ask__code {
-  font-family: var(--font-mono); font-size: var(--fs-lg); letter-spacing: 0.08em;
+  font-family: var(--tb-font-mono); font-size: var(--fs-lg); letter-spacing: 0.08em;
   padding: 6px 10px; border-radius: var(--radius-sm); background: var(--surface-raised);
   border: 0.5px solid var(--stroke); user-select: all;
 }
@@ -876,7 +876,7 @@ input, textarea { font: inherit; color: inherit; }
 .pl__icon--logo { background: #fff; padding: 5px; border: 0.5px solid var(--stroke); }
 .pl__icon--logo img { width: 100%; height: 100%; object-fit: contain; display: block; }
 
-.foot-row__note { font-size: var(--fs-xs); color: var(--ink-tertiary); font-family: var(--font-mono); }
+.foot-row__note { font-size: var(--fs-xs); color: var(--ink-tertiary); font-family: var(--tb-font-mono); }
 .foot-row--accent { color: var(--accent-deep); font-weight: 560; }
 
 /* ── Rooms: more than one agent in a conversation ──────────────────────── */
@@ -941,7 +941,7 @@ input, textarea { font: inherit; color: inherit; }
 .cd__acct:hover { background: var(--hover); }
 .cd__acctName { flex: 1; min-width: 0; font-size: 14px; }
 .cd__acctActions { display: flex; gap: 6px; flex: none; }
-.cd__acct .btn { height: 27px; padding: 0 14px; border-radius: 999px; }
+.cd__acct .btn { min-height: 36px; padding: 0 var(--tb-control-pad); border-radius: var(--tb-radius-brick); }
 
 /* Status earns a colour only when it is not the ordinary case: green for every
    working account is noise, red for a broken one is the whole point. */
@@ -954,7 +954,7 @@ input, textarea { font: inherit; color: inherit; }
 
 .cd__add { display: flex; gap: 8px; align-items: center; margin-top: 2px; }
 .cd__add .input { flex: 1; min-width: 0; }
-.cd__add .btn { flex: none; height: 30px; padding: 0 16px; border-radius: 999px; }
+.cd__add .btn { flex: none; min-height: 36px; padding: 0 var(--tb-control-pad); border-radius: var(--tb-radius-brick); }
 .cd__hint { margin-top: 8px; max-width: 62ch; }
 
 /* Attachments ------------------------------------------------------------- */
@@ -970,7 +970,7 @@ input, textarea { font: inherit; color: inherit; }
   display: inline-flex; align-items: center; gap: 6px;
   background: var(--bubble-agent);
   border: 1px solid var(--border);
-  border-radius: 14px; padding: 3px 5px 3px 9px;
+  border-radius: var(--tb-radius-pill); padding: 3px 5px 3px 9px;
   font-size: 12px; max-width: 260px;
 }
 .chip-file__name {
@@ -980,7 +980,7 @@ input, textarea { font: inherit; color: inherit; }
 .chip-file__x {
   flex: none; border: 0; background: none; cursor: pointer;
   color: var(--ink-dim); font-size: 14px; line-height: 1;
-  padding: 0 3px; border-radius: 8px;
+  padding: 0 3px; border-radius: var(--tb-radius-pill);
 }
 .chip-file__x:hover { background: var(--hover); color: var(--ink); }
 

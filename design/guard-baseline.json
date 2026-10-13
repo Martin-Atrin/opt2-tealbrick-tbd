@@ -1,0 +1,543 @@
+{
+  "note": "Design debt allowed per file and kind (C139). It may only shrink: run `cd chat && node scripts/design-guard.ts --update` after removing debt. Never raise a count by hand without review.",
+  "totals": {
+    "colour": 1052,
+    "radius": 93,
+    "font": 725
+  },
+  "files": {
+    "chat/src/renderer/src/components/Autocomplete.tsx": {
+      "colour": 1
+    },
+    "chat/src/renderer/src/components/Panel.tsx": {
+      "colour": 1
+    },
+    "chat/src/renderer/src/components/Sidebar.tsx": {
+      "colour": 1
+    },
+    "chat/src/renderer/src/lib/store.ts": {
+      "colour": 8
+    },
+    "chat/src/renderer/src/styles.css": {
+      "colour": 52,
+      "radius": 51
+    },
+    "companion/Dayflow/Dayflow/App/DayflowApp.swift": {
+      "colour": 4
+    },
+    "companion/Dayflow/Dayflow/App/TBDCompanionSetup.swift": {
+      "font": 1
+    },
+    "companion/Dayflow/Dayflow/App/TBDPermissions.swift": {
+      "font": 2,
+      "colour": 2
+    },
+    "companion/Dayflow/Dayflow/App/TBDWorkspaceView.swift": {
+      "font": 7,
+      "colour": 1
+    },
+    "companion/Dayflow/Dayflow/Core/AI/ClaudeTranscriptionInputBuilder.swift": {
+      "colour": 3,
+      "font": 1
+    },
+    "companion/Dayflow/Dayflow/Core/Net/FaviconService.swift": {
+      "colour": 1
+    },
+    "companion/Dayflow/Dayflow/Core/Recording/RecordingPrivacyPlaceholder.swift": {
+      "colour": 2,
+      "font": 2
+    },
+    "companion/Dayflow/Dayflow/Core/Weekly/WeeklyDashboardBuilder+Interactions.swift": {
+      "colour": 2
+    },
+    "companion/Dayflow/Dayflow/Menu/StatusMenuView.swift": {
+      "font": 8
+    },
+    "companion/Dayflow/Dayflow/Utilities/DayflowTheme.swift": {
+      "colour": 232
+    },
+    "companion/Dayflow/Dayflow/Utilities/LightWindowGradient.swift": {
+      "colour": 3
+    },
+    "companion/Dayflow/Dayflow/Utilities/StylePreview.swift": {
+      "colour": 3
+    },
+    "companion/Dayflow/Dayflow/Utilities/TealbrickCompanion.swift": {
+      "colour": 13
+    },
+    "companion/Dayflow/Dayflow/Views/Components/CardsToReviewBadge.swift": {
+      "font": 3,
+      "colour": 11,
+      "radius": 3
+    },
+    "companion/Dayflow/Dayflow/Views/Components/CategoryDonutChart.swift": {
+      "colour": 5,
+      "font": 5,
+      "radius": 2
+    },
+    "companion/Dayflow/Dayflow/Views/Components/CategoryPickerOverlay.swift": {
+      "colour": 21,
+      "font": 3
+    },
+    "companion/Dayflow/Dayflow/Views/Components/CategoryPickerView.swift": {
+      "colour": 12,
+      "font": 6
+    },
+    "companion/Dayflow/Dayflow/Views/Components/CategorySetupCards.swift": {
+      "font": 7,
+      "colour": 31
+    },
+    "companion/Dayflow/Dayflow/Views/Components/ColorWheelPicker.swift": {
+      "colour": 16,
+      "radius": 3,
+      "font": 1
+    },
+    "companion/Dayflow/Dayflow/Views/Components/ConfettiBurstView.swift": {
+      "colour": 10,
+      "radius": 1
+    },
+    "companion/Dayflow/Dayflow/Views/Components/DayCategorySelectionEditor.swift": {
+      "font": 3,
+      "colour": 1
+    },
+    "companion/Dayflow/Dayflow/Views/Components/DayDistractionSummarySection.swift": {
+      "font": 2
+    },
+    "companion/Dayflow/Dayflow/Views/Components/DayFocusSummarySection.swift": {
+      "font": 6
+    },
+    "companion/Dayflow/Dayflow/Views/Components/DayGoalDurationPicker.swift": {
+      "font": 2
+    },
+    "companion/Dayflow/Dayflow/Views/Components/DayGoalFlowView.swift": {
+      "font": 4
+    },
+    "companion/Dayflow/Dayflow/Views/Components/DayGoalHeader.swift": {
+      "colour": 13,
+      "font": 12
+    },
+    "companion/Dayflow/Dayflow/Views/Components/DayGoalReviewComponents.swift": {
+      "font": 5,
+      "colour": 5
+    },
+    "companion/Dayflow/Dayflow/Views/Components/DayGoalSetupComponents.swift": {
+      "font": 7,
+      "colour": 1
+    },
+    "companion/Dayflow/Dayflow/Views/Components/DaySummaryView.swift": {
+      "font": 2,
+      "colour": 1
+    },
+    "companion/Dayflow/Dayflow/Views/Components/DayflowButton.swift": {
+      "font": 1,
+      "colour": 6
+    },
+    "companion/Dayflow/Dayflow/Views/Components/DistractionSummaryCard.swift": {
+      "colour": 4,
+      "font": 4
+    },
+    "companion/Dayflow/Dayflow/Views/Components/LongestFocusCard.swift": {
+      "colour": 5,
+      "font": 4
+    },
+    "companion/Dayflow/Dayflow/Views/Components/SplashWindow.swift": {
+      "font": 1
+    },
+    "companion/Dayflow/Dayflow/Views/Components/TimelineCardColorPicker.swift": {
+      "colour": 30,
+      "font": 13
+    },
+    "companion/Dayflow/Dayflow/Views/Components/TimelineReviewSummaryCard.swift": {
+      "colour": 13,
+      "font": 4
+    },
+    "companion/Dayflow/Dayflow/Views/Onboarding/APIKeyInputView.swift": {
+      "font": 8,
+      "colour": 12
+    },
+    "companion/Dayflow/Dayflow/Views/Onboarding/ChatCLIDetectionViews.swift": {
+      "colour": 27,
+      "font": 15
+    },
+    "companion/Dayflow/Dayflow/Views/Onboarding/ChatCLITestView.swift": {
+      "colour": 8,
+      "font": 5
+    },
+    "companion/Dayflow/Dayflow/Views/Onboarding/LLMProviderSetupView.swift": {
+      "font": 43,
+      "colour": 37
+    },
+    "companion/Dayflow/Dayflow/Views/Onboarding/LocalLLMTestView.swift": {
+      "colour": 3,
+      "font": 5
+    },
+    "companion/Dayflow/Dayflow/Views/Onboarding/ScreenRecordingPermissionView.swift": {
+      "colour": 17,
+      "font": 15
+    },
+    "companion/Dayflow/Dayflow/Views/Onboarding/SetupContinueButton.swift": {
+      "font": 2
+    },
+    "companion/Dayflow/Dayflow/Views/Onboarding/SetupSidebarView.swift": {
+      "colour": 3,
+      "font": 3
+    },
+    "companion/Dayflow/Dayflow/Views/Onboarding/TerminalCommandView.swift": {
+      "font": 5,
+      "colour": 8
+    },
+    "companion/Dayflow/Dayflow/Views/UI/CanvasActivityCard.swift": {
+      "font": 6,
+      "colour": 3
+    },
+    "companion/Dayflow/Dayflow/Views/UI/CanvasTimelineDataView.swift": {
+      "font": 4,
+      "colour": 2
+    },
+    "companion/Dayflow/Dayflow/Views/UI/DailyStandupComponents.swift": {
+      "font": 6
+    },
+    "companion/Dayflow/Dayflow/Views/UI/DailyView+Provider.swift": {
+      "font": 6
+    },
+    "companion/Dayflow/Dayflow/Views/UI/DailyView+Standup.swift": {
+      "font": 13
+    },
+    "companion/Dayflow/Dayflow/Views/UI/DailyView+Workflow.swift": {
+      "font": 6,
+      "colour": 2
+    },
+    "companion/Dayflow/Dayflow/Views/UI/DailyView.swift": {
+      "font": 2
+    },
+    "companion/Dayflow/Dayflow/Views/UI/DailyWorkflowGrid.swift": {
+      "font": 11,
+      "colour": 3,
+      "radius": 2
+    },
+    "companion/Dayflow/Dayflow/Views/UI/DayflowUIStyles.swift": {
+      "colour": 1
+    },
+    "companion/Dayflow/Dayflow/Views/UI/MainView/ActivityCard.swift": {
+      "font": 21,
+      "colour": 26
+    },
+    "companion/Dayflow/Dayflow/Views/UI/MainView/DateNavigationControls.swift": {
+      "font": 4,
+      "colour": 3
+    },
+    "companion/Dayflow/Dayflow/Views/UI/MainView/Layout+Panels.swift": {
+      "font": 5
+    },
+    "companion/Dayflow/Dayflow/Views/UI/MainView/Layout+TimelineHeader.swift": {
+      "font": 5,
+      "colour": 1
+    },
+    "companion/Dayflow/Dayflow/Views/UI/MainView/Layout.swift": {
+      "font": 12,
+      "colour": 2
+    },
+    "companion/Dayflow/Dayflow/Views/UI/MainView/ReviewCardsView.swift": {
+      "font": 1
+    },
+    "companion/Dayflow/Dayflow/Views/UI/MainView/ScreenshotSlideshow.swift": {
+      "font": 6,
+      "colour": 19
+    },
+    "companion/Dayflow/Dayflow/Views/UI/MainView/SidebarView.swift": {
+      "font": 2
+    },
+    "companion/Dayflow/Dayflow/Views/UI/MainView/TabFilterBar.swift": {
+      "colour": 1,
+      "font": 1,
+      "radius": 2
+    },
+    "companion/Dayflow/Dayflow/Views/UI/MainView/TimelineCalendarPopover.swift": {
+      "font": 4
+    },
+    "companion/Dayflow/Dayflow/Views/UI/MainView/WeekTimelineActivityCard.swift": {
+      "font": 3,
+      "colour": 1
+    },
+    "companion/Dayflow/Dayflow/Views/UI/MainView/WeekTimelineGridPreview.swift": {
+      "font": 2,
+      "colour": 4
+    },
+    "companion/Dayflow/Dayflow/Views/UI/MainView/WeekTimelineGridView.swift": {
+      "font": 4,
+      "colour": 1
+    },
+    "companion/Dayflow/Dayflow/Views/UI/MainView/WeekTimelineStatusCard.swift": {
+      "font": 3,
+      "colour": 1
+    },
+    "companion/Dayflow/Dayflow/Views/UI/PausePillView.swift": {
+      "colour": 6
+    },
+    "companion/Dayflow/Dayflow/Views/UI/ProgressRingView.swift": {
+      "font": 1,
+      "radius": 1,
+      "colour": 1
+    },
+    "companion/Dayflow/Dayflow/Views/UI/ScrubberView.swift": {
+      "font": 1,
+      "colour": 7
+    },
+    "companion/Dayflow/Dayflow/Views/UI/Settings/SettingsAccountSection.swift": {
+      "font": 5,
+      "colour": 1
+    },
+    "companion/Dayflow/Dayflow/Views/UI/Settings/SettingsAgentAccessTabView.swift": {
+      "font": 4
+    },
+    "companion/Dayflow/Dayflow/Views/UI/Settings/SettingsComponents.swift": {
+      "colour": 23,
+      "font": 13
+    },
+    "companion/Dayflow/Dayflow/Views/UI/Settings/SettingsDataTabView.swift": {
+      "font": 18,
+      "colour": 1
+    },
+    "companion/Dayflow/Dayflow/Views/UI/Settings/SettingsProvidersTabView.swift": {
+      "font": 32,
+      "colour": 14
+    },
+    "companion/Dayflow/Dayflow/Views/UI/Settings/SettingsRecordingPrivacyTabView.swift": {
+      "font": 6,
+      "colour": 4
+    },
+    "companion/Dayflow/Dayflow/Views/UI/Settings/SettingsStorageTabView.swift": {
+      "font": 7
+    },
+    "companion/Dayflow/Dayflow/Views/UI/Settings/TBDAboutView.swift": {
+      "font": 6
+    },
+    "companion/Dayflow/Dayflow/Views/UI/Settings/TBDModelsView.swift": {
+      "font": 6,
+      "colour": 1
+    },
+    "companion/Dayflow/Dayflow/Views/UI/Settings/TBDUpdatesSection.swift": {
+      "font": 5
+    },
+    "companion/Dayflow/Dayflow/Views/UI/SettingsView.swift": {
+      "font": 1
+    },
+    "companion/Dayflow/Dayflow/Views/UI/SunriseGlassPillToggleStyle.swift": {
+      "colour": 1
+    },
+    "companion/Dayflow/Dayflow/Views/UI/TimelineDataModels.swift": {
+      "font": 1,
+      "colour": 2
+    },
+    "companion/Dayflow/Dayflow/Views/UI/TimelineFeedbackModal.swift": {
+      "font": 10,
+      "colour": 28,
+      "radius": 2
+    },
+    "companion/Dayflow/Dayflow/Views/UI/TimelineRateSummaryView.swift": {
+      "colour": 12,
+      "font": 3
+    },
+    "companion/Dayflow/Dayflow/Views/UI/TimelineReviewCard.swift": {
+      "colour": 4,
+      "font": 3
+    },
+    "companion/Dayflow/Dayflow/Views/UI/TimelineReviewChrome.swift": {
+      "font": 11,
+      "colour": 13
+    },
+    "companion/Dayflow/Dayflow/Views/UI/TimelineReviewMediaViews.swift": {
+      "colour": 3
+    },
+    "companion/Dayflow/Dayflow/Views/UI/TimelineReviewOverlay.swift": {
+      "colour": 11,
+      "font": 7
+    },
+    "companion/Dayflow/Dayflow/Views/UI/TimelineReviewScrubber.swift": {
+      "colour": 4,
+      "font": 1
+    },
+    "companion/Dayflow/Dayflow/Views/UI/TimelineReviewTypes.swift": {
+      "colour": 19
+    },
+    "companion/Dayflow/Dayflow/Views/UI/VideoPlayerModal.swift": {
+      "colour": 30,
+      "font": 10
+    },
+    "companion/Dayflow/Dayflow/Views/UI/VideoThumbnailView.swift": {
+      "colour": 4,
+      "font": 1
+    },
+    "companion/Dayflow/Dayflow/Views/UI/Weekly/Sections/WeeklyApplicationInteractionsSection.swift": {
+      "font": 13,
+      "colour": 27,
+      "radius": 4
+    },
+    "companion/Dayflow/Dayflow/Views/UI/Weekly/Sections/WeeklyContextChartsSection.swift": {
+      "font": 14,
+      "colour": 9,
+      "radius": 4
+    },
+    "companion/Dayflow/Dayflow/Views/UI/Weekly/Sections/WeeklyContextShiftComparisonSection.swift": {
+      "colour": 3,
+      "font": 6
+    },
+    "companion/Dayflow/Dayflow/Views/UI/Weekly/Sections/WeeklyDonutSection.swift": {
+      "font": 8,
+      "colour": 5,
+      "radius": 1
+    },
+    "companion/Dayflow/Dayflow/Views/UI/Weekly/Sections/WeeklyFocusHeatmapSection.swift": {
+      "font": 6,
+      "radius": 1,
+      "colour": 2
+    },
+    "companion/Dayflow/Dayflow/Views/UI/Weekly/Sections/WeeklyHighlightsSection.swift": {
+      "font": 3,
+      "radius": 2
+    },
+    "companion/Dayflow/Dayflow/Views/UI/Weekly/Sections/WeeklyInteractionGraphGlyphs.swift": {
+      "colour": 28,
+      "font": 5,
+      "radius": 5
+    },
+    "companion/Dayflow/Dayflow/Views/UI/Weekly/Sections/WeeklyInteractionGraphModels.swift": {
+      "colour": 5
+    },
+    "companion/Dayflow/Dayflow/Views/UI/Weekly/Sections/WeeklyInteractionGraphPrototypeSection.swift": {
+      "font": 2,
+      "colour": 1
+    },
+    "companion/Dayflow/Dayflow/Views/UI/Weekly/Sections/WeeklyOverviewSection.swift": {
+      "font": 11,
+      "radius": 4,
+      "colour": 1
+    },
+    "companion/Dayflow/Dayflow/Views/UI/Weekly/Sections/WeeklySankeyComponents.swift": {
+      "colour": 11,
+      "font": 6,
+      "radius": 2
+    },
+    "companion/Dayflow/Dayflow/Views/UI/Weekly/Sections/WeeklySankeySection.swift": {
+      "font": 2
+    },
+    "companion/Dayflow/Dayflow/Views/UI/Weekly/Sections/WeeklySuggestionsSection.swift": {
+      "font": 4
+    },
+    "companion/Dayflow/Dayflow/Views/UI/Weekly/Sections/WeeklyTreemapComponents.swift": {
+      "font": 8
+    },
+    "companion/Dayflow/Dayflow/Views/UI/Weekly/Sections/WeeklyTreemapModels.swift": {
+      "colour": 2
+    },
+    "companion/Dayflow/Dayflow/Views/UI/Weekly/Sections/WeeklyTreemapPreview.swift": {
+      "colour": 3,
+      "font": 1
+    },
+    "companion/Dayflow/Dayflow/Views/UI/Weekly/Sections/WeeklyTreemapSection.swift": {
+      "font": 1
+    },
+    "companion/Dayflow/Dayflow/Views/UI/Weekly/Sections/WeeklyWorkflowSection.swift": {
+      "font": 7,
+      "colour": 2
+    },
+    "companion/Dayflow/Dayflow/Views/UI/Weekly/WeeklyHeader.swift": {
+      "font": 1,
+      "colour": 3
+    },
+    "companion/Dayflow/Dayflow/Views/UI/Weekly/WeeklyView.swift": {
+      "colour": 2,
+      "font": 8
+    },
+    "companion/Dayflow/Dayflow/Views/UI/WhiteBGVideoPlayer.swift": {
+      "colour": 2
+    },
+    "native/Sources/TBDListening/Dictation/TBDDictationOverlay.swift": {
+      "colour": 18,
+      "font": 4
+    },
+    "native/Sources/TBDListening/Dictation/TBDIdlePill.swift": {
+      "colour": 2,
+      "font": 1
+    },
+    "native/Sources/TBDListening/Knowledge/TBDKnowledgeViews.swift": {
+      "font": 2
+    },
+    "native/Sources/TBDListening/Library/TBDDictationHistoryView.swift": {
+      "font": 1
+    },
+    "native/Sources/TBDListening/Library/TBDDictationStatsView.swift": {
+      "font": 6,
+      "radius": 1
+    },
+    "native/Sources/TBDListening/Library/TBDExportViews.swift": {
+      "font": 4
+    },
+    "native/Sources/TBDListening/Library/TBDLibraryView.swift": {
+      "font": 6
+    },
+    "native/Sources/TBDListening/Library/TBDListeningView.swift": {
+      "font": 2
+    },
+    "native/Sources/TBDListening/Library/TBDMeetingPanes.swift": {
+      "font": 4
+    },
+    "native/Sources/TBDListening/Library/TBDPracticeDictation.swift": {
+      "font": 5
+    },
+    "native/Sources/TBDListening/Library/TBDPromptsView.swift": {
+      "font": 6
+    },
+    "native/Sources/TBDListening/Library/TBDTranscribeView.swift": {
+      "font": 5
+    },
+    "native/Sources/TBDListening/Library/TBDTranscriptDetailView.swift": {
+      "colour": 1,
+      "font": 10
+    },
+    "native/Sources/TBDListening/Library/TBDTranscriptFindBar.swift": {
+      "font": 4
+    },
+    "native/Sources/TBDListening/Library/TBDTranscriptPlayer.swift": {
+      "font": 4,
+      "radius": 2
+    },
+    "native/Sources/TBDListening/Library/TBDTransformsView.swift": {
+      "font": 6
+    },
+    "native/Sources/TBDListening/Meetings/TBDMeetingAutoStop.swift": {
+      "colour": 7,
+      "font": 2
+    },
+    "native/Sources/TBDListening/Meetings/TBDMeetingClassificationViews.swift": {
+      "font": 13
+    },
+    "native/Sources/TBDListening/Meetings/TBDMeetingCountdown.swift": {
+      "colour": 9,
+      "font": 3
+    },
+    "native/Sources/TBDListening/Meetings/TBDMeetingPanel.swift": {
+      "font": 7,
+      "colour": 8
+    },
+    "native/Sources/TBDListening/Meetings/TBDMeetingPill.swift": {
+      "colour": 13,
+      "font": 7
+    },
+    "native/Sources/TBDListening/Meetings/TBDMeetingsView.swift": {
+      "font": 2
+    },
+    "native/Sources/TBDListening/Settings/TBDDictationBehaviorSettings.swift": {
+      "font": 2
+    },
+    "native/Sources/TBDListening/Settings/TBDHotkeyRecorderView.swift": {
+      "font": 5
+    },
+    "native/Sources/TBDListening/Settings/TBDListeningSettingsView.swift": {
+      "font": 4
+    },
+    "native/Sources/TBDListening/Vocabulary/TBDVocabularyView.swift": {
+      "font": 8
+    }
+  }
+}

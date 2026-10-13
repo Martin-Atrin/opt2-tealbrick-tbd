@@ -30,16 +30,15 @@ final class TBDChatRuntime: NSObject, ObservableObject, WKScriptMessageHandler, 
   private var reloadOnReady = false
 
   private var appearanceName = "light"
-  private var accentHex = "#034A4A"
 
+  /// Chat reads every colour from its generated kit tokens (tbd-tokens.css); the host only says light or dark.
   func updateAppearance(dark: Bool, palette: String) {
     appearanceName = dark ? "dark" : "light"
-    accentHex = palette == "burgundy" ? (dark ? "#813F3B" : "#552522") : (dark ? "#17544F" : "#034A4A")
     webView.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
     applyAppearance()
   }
   private func applyAppearance() {
-    webView.evaluateJavaScript("document.documentElement.dataset.appearance='\(appearanceName)';document.documentElement.style.colorScheme='\(appearanceName)';document.documentElement.style.setProperty('--tb-teal','\(accentHex)');", completionHandler: nil)
+    webView.evaluateJavaScript("document.documentElement.dataset.appearance='\(appearanceName)';document.documentElement.style.colorScheme='\(appearanceName)';", completionHandler: nil)
   }
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { applyAppearance() }
 

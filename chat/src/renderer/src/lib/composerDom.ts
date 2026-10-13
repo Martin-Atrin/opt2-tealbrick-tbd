@@ -61,7 +61,6 @@ export function chipElement(mention: MentionRef): HTMLElement {
   // here pins a pixel height.
   const avatar = document.createElement("span");
   avatar.className = "mention__icon";
-  avatar.style.background = mention.accent ?? "#7c6cf0";
   avatar.textContent = mention.name.trim().charAt(0).toUpperCase() || "?";
 
   chip.append(avatar, document.createTextNode(mention.name));

@@ -37,8 +37,7 @@ public struct TBDBrickEmblem: View {
             .frame(width: Self.tileSize.width * Self.scale, height: Self.tileSize.height * Self.scale)
             .offset(x: -x * Self.scale, y: -top * Self.scale)
             .frame(width: Self.width, height: Self.height, alignment: .topLeading)
-            .clipShape(RoundedRectangle(cornerRadius: 2))
+            .clipShape(RoundedRectangle(cornerRadius: TBDKit.radiusSwatch))
             .contentShape(Rectangle())
-            .shadow(color: .black.opacity(0.18), radius: 0, x: 1.5, y: 1.5)
     }
 }

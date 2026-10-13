@@ -33,14 +33,16 @@ private struct TBDSearchDialog: View {
     @Environment(\.dismiss) private var dismiss
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text(prompt).font(.custom("Switzer", size: 20).weight(.semibold))
+            Text(prompt).font(TBDTokens.Typography.title).foregroundStyle(TBDColor.ink)
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass")
-                TextField(prompt, text: $draft).textFieldStyle(.plain)
+                TextField(prompt, text: $draft).textFieldStyle(.plain).font(TBDTokens.Typography.control).focusEffectDisabled()
                     .focused($focused).onSubmit(apply)
             }
-            .padding(14).background(TBDTokens.paper, in: RoundedRectangle(cornerRadius: TBDTokens.Radius.base))
-            .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.base).strokeBorder(TBDTokens.border))
+            .padding(.horizontal, 14).frame(minHeight: TBDTokens.Control.largeHeight)
+            .background(TBDColor.fieldFill, in: TBDBrickShape())
+            .overlay(TBDBrickShape().strokeBorder(TBDColor.fieldEdge, lineWidth: TBDKit.hair))
+            .tbdFocusRing(focused, offset: TBDKit.focusOffsetTight)
             HStack {
                 Button("Clear") { draft = ""; focused = true }.buttonStyle(TBDActionStyle(subtle: true))
                 Spacer()

@@ -130,7 +130,7 @@ function Row({
       {tooltip.label}
       <Avatar name={agent.name} accent={agent.accent} src={agent.avatar} size={37} />
       {gate.blocked ? (
-        <span className="rail-agent-status" title={`${NO_MODEL_TITLE}: ${gate.note ?? ""}`} aria-hidden="true">!</span>
+        <span className="rail-agent-status rail-agent-status--alert" title={`${NO_MODEL_TITLE}: ${gate.note ?? ""}`} aria-hidden="true">!</span>
       ) : agent.workspace?.state === "paused" ? (
         <span className="rail-agent-status" title="Paused" aria-hidden="true">‖</span>
       ) : agent.status === "offline" ? <span className="rail-agent-status" title="Not answering" aria-label="Not answering">○</span> : null}
@@ -187,7 +187,7 @@ export function Sidebar(): ReactNode {
 
   return (
     <aside className="sidebar">
-      <div className="tb-sidebar-brand"><img src="./brand/teal-brick-colour.png" alt="" /> <span>Teal Brick</span></div>
+      <div className="tb-sidebar-brand"><img src="./brand/teal-brick-colour.png" alt="" /> <span>Tealbrick</span></div>
       <div className="sidebar__search">
         <button className="search search--button" onClick={() => setPaletteOpen(true)}>
           <Icon name="search" size={14} />

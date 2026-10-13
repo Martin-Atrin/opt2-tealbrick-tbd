@@ -90,7 +90,7 @@ function PeerActivity({
           onClick={() => openExchange(agentId, blockId)}
         >
           {/* Same markup as a mention chip, so both read as one design. */}
-          <span className="mention__icon" style={{ background: peer.accent }}>
+          <span className="mention__icon">
             {peer.name.trim().charAt(0).toUpperCase()}
           </span>
           {peer.name}
@@ -179,7 +179,7 @@ function QuestionCard({
   if (block.answered) {
     return (
       <div className="ask ask--done">
-        <div className="ask__title" style={{ fontWeight: 500 }}>{block.prompt}</div>
+        <div className="ask__title">{block.prompt}</div>
         <div className="ask__answered">
           <Icon name="check" size={13} /> {block.answered}
         </div>
@@ -247,7 +247,7 @@ function AuthorizationCard({
   if (settled) {
     return (
       <div className="ask ask--done">
-        <div className="ask__title" style={{ fontWeight: 500 }}>
+        <div className="ask__title">
           {good ? `${block.name} connected` : `${block.name} was not connected`}
         </div>
         {!good ? <div className="muted">{block.outcome}</div> : null}

@@ -1,7 +1,6 @@
 # Teal Brick assets
 
 Original Teal Brick brick mark.
-Switzer Variable and JetBrains Mono Regular are unmodified upstream font binaries.
-Switzer: Indian Type Foundry, Fontshare Free Font License (Switzer-FFL.txt), https://www.fontshare.com/fonts/switzer.
-JetBrains Mono: JetBrains, SIL Open Font License (JetBrainsMono-OFL.txt), https://github.com/JetBrains/JetBrainsMono.
+Nunito Variable is an unmodified upstream font binary (Nunito-VariableFont_wght.ttf).
+Nunito: Vernon Adams and The Nunito Project Authors, SIL Open Font License 1.1 (Nunito-OFL.txt), https://github.com/googlefonts/nunito.
 Upstream application notices and package identities are retained in the source repository.

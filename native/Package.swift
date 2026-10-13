@@ -11,6 +11,7 @@ let package = Package(
         .library(name: "TBDSpeech", targets: ["TBDSpeech"]),
         .library(name: "TBDListening", targets: ["TBDListening"]),
         .executable(name: "tbd-listen", targets: ["TBDListenCLI"]),
+        .executable(name: "tbd-design-shots", targets: ["TBDDesignShots"]),
     ],
     dependencies: [
         // SQLite storage for the Listening library (MIT).
@@ -25,7 +26,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.3.0"),
     ],
     targets: [
-        .target(name: "TBDDesign"),
+        .target(name: "TBDDesign", resources: [.copy("Fonts")]),
         .target(name: "TBDModels"),
         .target(name: "TBDSpeechObjC"),
         .target(name: "TBDSpeech", dependencies: [
@@ -41,6 +42,9 @@ let package = Package(
             "TBDSpeech",
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
         ], exclude: ["README.md"]),
+        // Renders the design proof screens and the component sheet to PNG (light/dark): `swift run tbd-design-shots <dir>`.
+        .executableTarget(name: "TBDDesignShots", dependencies: ["TBDDesign", "TBDListening", "TBDModels"]),
+        .testTarget(name: "TBDDesignTests", dependencies: ["TBDDesign"]),
         .testTarget(name: "TBDModelsTests", dependencies: ["TBDModels"]),
         // Host wiring: every Settings section and menu action the host sends resolves (PARITY WP1).
         .testTarget(name: "TBDListeningTests", dependencies: ["TBDListening"]),

@@ -14,10 +14,7 @@ public enum TBDRailMetrics {
 public enum TBDDesign {
     // Recording overlays keep a dark surface in both appearances so white source/status
     // indicators remain readable over arbitrary desktop content.
-    public static var recordingSurface: Color {
-        UserDefaults.standard.string(forKey: "tealbrickPalette") == "burgundy"
-            ? Color(red: 0.24, green: 0.10, blue: 0.12) : Color(red: 0.04, green: 0.18, blue: 0.17)
-    }
+    public static var recordingSurface: Color { TBDColor.overlayFill }
     public static let sidebarWidth: CGFloat = TBDRailMetrics.width
     public static var canvas: Color { TBDTokens.canvas }
     public static var paper: Color { TBDTokens.paper }
@@ -37,9 +34,9 @@ public struct TBDRailHeader: View {
     public init(_ title: String) { self.title = title }
     public var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("tealbrick").font(.custom("Switzer", size: 25).weight(.semibold)).tracking(-1)
-            Rectangle().fill(TBDDesign.border).frame(height: 1)
-            Text(title.uppercased()).font(.system(size: 10, design: .monospaced)).tracking(1).foregroundStyle(TBDDesign.muted)
+            Text("Tealbrick").font(TBDFonts.nunito(TBDKit.textH2, TBDKit.weightHead)).tracking(TBDTokens.Typography.displayTracking)
+            Rectangle().fill(TBDColor.ink).frame(height: TBDKit.hair)
+            Text(title).font(TBDTokens.Typography.label).foregroundStyle(TBDColor.muted)
         }
         .foregroundStyle(TBDDesign.ink)
         .padding(.horizontal, 18).padding(.top, 26).padding(.bottom, 14)
@@ -65,13 +62,13 @@ public struct TBDRailRow: View {
                         .frame(width: TBDRailMetrics.icon, height: TBDRailMetrics.icon)
                         .frame(width: TBDRailMetrics.iconBox, height: TBDRailMetrics.iconBox)
                         .background { if selected { TBDRailSelection() } }
-                    if badge { RoundedRectangle(cornerRadius: TBDTokens.Radius.base).fill(TBDTokens.accent).frame(width: 7, height: 7) }
+                    if badge { Capsule().fill(TBDColor.countFill).frame(width: 8, height: 8).tbdPillEdge(TBDColor.paper) }
                 }
-                Text(title).font(.custom("Switzer", size: TBDRailMetrics.label)).lineLimit(1).minimumScaleFactor(0.65)
+                Text(title).font(TBDFonts.nunito(TBDRailMetrics.label, selected ? TBDKit.weightLabel : TBDKit.weightNav)).lineLimit(1).minimumScaleFactor(0.65)
             }
             .frame(width: TBDRailMetrics.row, height: TBDRailMetrics.row).contentShape(Rectangle())
         }
-        .foregroundStyle(selected ? TBDTokens.ink : TBDTokens.muted)
+        .foregroundStyle(selected ? TBDColor.tealInk : TBDColor.muted)
         .buttonStyle(.plain)
         .help(title)
         .accessibilityAddTraits(selected ? .isSelected : [])
@@ -83,8 +80,7 @@ private struct TBDRailButtonStyle: ButtonStyle {
     @State private var hovered = false
     func makeBody(configuration: Configuration) -> some View {
         configuration.label.foregroundStyle(TBDDesign.ink)
-            .background(selected ? TBDDesign.selected : hovered || configuration.isPressed ? TBDDesign.hover : .clear)
-            .overlay(alignment: .leading) { Rectangle().fill(selected ? TBDDesign.ink : .clear).frame(width: 2) }
+            .background(selected ? TBDDesign.selected : hovered || configuration.isPressed ? TBDDesign.hover : .clear, in: TBDBrickShape())
             .onHover { hovered = $0 }
     }
 }

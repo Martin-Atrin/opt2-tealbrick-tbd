@@ -61,12 +61,12 @@ export function Icon({ name, size = 16 }: { name: string; size?: number }): Reac
  */
 export function Avatar({
   name,
-  accent,
   size = 34,
   src,
 }: {
   name: string;
-  accent: string;
+  /** Kept in the data model; not painted. The mark is drawn from the kit pairs in CSS. */
+  accent?: string;
   size?: number;
   /** A picture for this agent. Falls back to the lettered mark when absent. */
   src?: string;
@@ -90,7 +90,7 @@ export function Avatar({
   return (
     <div
       className="avatar"
-      style={{ width: size, height: size, background: accent, fontSize: size * 0.42 }}
+      style={{ width: size, height: size, fontSize: size * 0.42 }}
       title={name}
     >
       {initial}
@@ -120,7 +120,7 @@ export function Toggle({ on, onChange }: { on: boolean; onChange(next: boolean):
  * feature that will not happen. Longest names first, so "@Chief of Staff" is
  * not matched as "@Chief".
  */
-export function Mention({ name, accent }: { name: string; accent?: string }): ReactNode {
+export function Mention({ name }: { name: string; accent?: string }): ReactNode {
   return (
     <span className="mention">
       {/* Not <Avatar>: that takes a pixel size and writes it as an inline
@@ -128,7 +128,7 @@ export function Mention({ name, accent }: { name: string; accent?: string }): Re
           a 14px square against 13px text in a bubble and 14px text in the
           composer. The icon here is sized in `em`, so it is always exactly as
           tall as the type it sits in and the chip stays the height of a line. */}
-      <span className="mention__icon" style={{ background: accent ?? "#7c6cf0" }}>
+      <span className="mention__icon">
         {name.trim().charAt(0).toUpperCase() || "?"}
       </span>
       {name}
