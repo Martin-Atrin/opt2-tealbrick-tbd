@@ -148,6 +148,10 @@ public final class TBDListeningDatabase: @unchecked Sendable {
                 t.column("summary", .text).notNull()
             }
         }
+        // Snippets can carry a key action ("return") instead of text, as in v1 vocabulary backups.
+        migrator.registerMigration("v6-transcribe-vocab") { db in
+            try db.alter(table: "snippet") { t in t.add(column: "action", .text) }
+        }
         return migrator
     }
 

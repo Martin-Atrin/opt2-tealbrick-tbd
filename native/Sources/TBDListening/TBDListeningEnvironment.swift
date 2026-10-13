@@ -15,7 +15,7 @@ final class TBDListeningEnvironment: ObservableObject {
     @Published var revision = 0
     /// Set to open a library item (for example after a file finishes).
     @Published var selectedTranscriptionID: String?
-    @Published var selectedTab: TBDListeningTab = .library
+    @Published var selectedTab: TBDListeningTab = .transcribe
     /// Dictation search text (shared so library search can hand a query over).
     @Published var dictationQuery = ""
 
@@ -44,14 +44,17 @@ final class TBDListeningEnvironment: ObservableObject {
     }
 }
 
+/// Listening pages, in the rail order of v1 (Transcribe, Library, Dictations, Meetings, Prompts, Transforms, Vocabulary).
 enum TBDListeningTab: String, CaseIterable, Identifiable {
-    case library, dictations, meetings
+    case transcribe, library, dictations, meetings, vocabulary
     var id: String { rawValue }
     var title: String {
         switch self {
+        case .transcribe: "Transcribe"
         case .library: "Library"
         case .dictations: "Dictations"
         case .meetings: "Meetings"
+        case .vocabulary: "Vocabulary"
         }
     }
 }

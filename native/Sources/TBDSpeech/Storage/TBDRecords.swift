@@ -115,6 +115,12 @@ public struct TBDCustomWord: Codable, Sendable, Equatable, Identifiable, Fetchab
     }
 }
 
+/// A key press a snippet can simulate after the paste instead of inserting text. Raw values are the v1 names.
+public enum TBDKeyAction: String, Codable, Sendable, CaseIterable, Equatable {
+    case returnKey = "return"
+    public var label: String { "Return" }
+}
+
 /// Text expansion: saying the trigger inserts the expansion.
 public struct TBDSnippet: Codable, Sendable, Equatable, Identifiable, FetchableRecord, PersistableRecord {
     public static let databaseTableName = "snippet"
@@ -124,8 +130,11 @@ public struct TBDSnippet: Codable, Sendable, Equatable, Identifiable, FetchableR
     public var isEnabled: Bool
     public var useCount: Int
     public var createdAt: Date
-    public init(id: String = tbdNewID(), trigger: String, expansion: String, isEnabled: Bool = true) {
+    /// Key press this snippet simulates. Such snippets never expand to text (v1: `action != nil`).
+    public var action: TBDKeyAction?
+    public init(id: String = tbdNewID(), trigger: String, expansion: String, isEnabled: Bool = true, action: TBDKeyAction? = nil) {
         self.id = id; self.trigger = trigger; self.expansion = expansion; self.isEnabled = isEnabled; useCount = 0; createdAt = Date()
+        self.action = action
     }
 }
 

@@ -52,6 +52,9 @@ public struct TBDListeningPreferences: @unchecked Sendable {
         static let calendarSkips = "tbd.listening.calendarSkips"
         static let practiceCompleted = "tbd.listening.practiceCompleted"
         static let lastRetentionSweep = "tbd.listening.lastRetentionSweep"
+        // MARK: transcribe-vocab
+        static let processingMode = "tbd.listening.processingMode"
+        static let spokenPunctuation = "tbd.listening.spokenPunctuation"
     }
 
     /// In-memory override of both routes for this process only (argument domain; nothing is written).
@@ -297,5 +300,40 @@ public struct TBDListeningPreferences: @unchecked Sendable {
     public var youtubeAudioQuality: TBDYtDlpAudioQuality {
         get { TBDYtDlpAudioQuality(rawValue: defaults.string(forKey: LinkKey.youtubeAudioQuality) ?? "") ?? .m4a }
         nonmutating set { defaults.set(newValue.rawValue, forKey: LinkKey.youtubeAudioQuality) }
+    }
+
+    // MARK: transcribe-vocab
+
+    /// v1's own keys (same defaults domain), read once so an upgrade keeps the person's choice.
+    static let v1ProcessingModeKey = "processingMode"
+    static let v1SpokenPunctuationKey = "spokenPunctuationEnabled"
+
+    /// Raw: text as spoken, no cleanup. Clean: fillers, vocabulary, snippets, spoken punctuation.
+    /// First read decides once and stores the result, so nobody's behaviour changes on upgrade:
+    /// a v1 upgrade keeps its v1 mode; an existing opt2 install (which always cleaned) gets Clean;
+    /// a fresh install gets Raw, v1's default.
+    public var processingMode: TBDProcessingMode {
+        get {
+            if let stored = defaults.string(forKey: Key.processingMode).flatMap(TBDProcessingMode.init(rawValue:)) { return stored }
+            let initial = Self.initialProcessingMode(defaults)
+            defaults.set(initial.rawValue, forKey: Key.processingMode)
+            return initial
+        }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Key.processingMode) }
+    }
+
+    static func initialProcessingMode(_ defaults: UserDefaults) -> TBDProcessingMode {
+        if let v1 = defaults.string(forKey: v1ProcessingModeKey).flatMap(TBDProcessingMode.init(rawValue:)) { return v1 }
+        let existingInstall = defaults.dictionaryRepresentation().keys.contains { $0.hasPrefix("tbd.listening.") && $0 != Key.processingMode }
+        return existingInstall ? .clean : .raw
+    }
+
+    /// "question mark" becomes "?" in Clean mode (v1 default: on; a v1 upgrade keeps its v1 choice).
+    public var spokenPunctuation: Bool {
+        get {
+            if let value = defaults.object(forKey: Key.spokenPunctuation) as? Bool { return value }
+            return defaults.object(forKey: Self.v1SpokenPunctuationKey) as? Bool ?? true
+        }
+        nonmutating set { defaults.set(newValue, forKey: Key.spokenPunctuation) }
     }
 }

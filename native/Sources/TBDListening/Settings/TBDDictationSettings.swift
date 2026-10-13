@@ -2,17 +2,11 @@ import SwiftUI
 import TBDDesign
 import TBDSpeech
 
-/// Hotkeys, text pipeline, vocabulary and snippets.
+/// Hotkeys and dictation behaviour. Words, snippets and the text pipeline live on the Vocabulary page.
 struct TBDDictationSettings: View {
     let context: TBDListeningContext
     @EnvironmentObject private var env: TBDListeningEnvironment
     @State private var tick = 0
-    @State private var words: [TBDCustomWord] = []
-    @State private var snippets: [TBDSnippet] = []
-    @State private var newWord = ""
-    @State private var newReplacement = ""
-    @State private var newTrigger = ""
-    @State private var newExpansion = ""
 
     private static let presets = ["fn", "right_option", "right_command", "ctrl+opt", "f13", "f14", "f15", "f16", "f17", "f18", "f19", "ctrl+opt+space"]
 
@@ -35,9 +29,6 @@ struct TBDDictationSettings: View {
                 }
                 .pickerStyle(.segmented).labelsHidden().frame(width: 160)
             }
-            TBDSettingsRow("Remove filler words", help: "Drops “um”, “uh” and similar from dictation.") {
-                Toggle("", isOn: tbdBinding({ prefs.removeFillers }, { prefs.removeFillers = $0 }, refresh: { tick += 1 })).labelsHidden().toggleStyle(.switch)
-            }
             TBDSettingsRow("Accessibility", help: "Needed for global hotkeys and pasting into other apps.") {
                 if TBDPasteService.isTrusted && !context.hotkeyPermissionMissing {
                     TBDChip("Allowed")
@@ -46,68 +37,12 @@ struct TBDDictationSettings: View {
                         .buttonStyle(TBDButtonStyle(.secondary))
                 }
             }
-            TBDLabel("Vocabulary").padding(.top, TBDTokens.Space.xl)
-            Text("Fix words the engine gets wrong. Leave the replacement empty to fix capitalisation only.")
-                .foregroundStyle(TBDTokens.muted).padding(.vertical, TBDTokens.Space.xs)
-            HStack(spacing: TBDTokens.Space.sm) {
-                TextField("Heard as", text: $newWord).tbdField()
-                TextField("Replace with", text: $newReplacement).tbdField()
-                Button("Add") { addWord() }.buttonStyle(TBDButtonStyle(.secondary)).disabled(newWord.trimmingCharacters(in: .whitespaces).isEmpty)
-            }
-            ForEach(words) { word in
-                HStack {
-                    Toggle("", isOn: Binding(get: { word.isEnabled }, set: { var w = word; w.isEnabled = $0; try? env.database?.save(w); reload() }))
-                        .labelsHidden().toggleStyle(.checkbox)
-                    Text(word.word)
-                    Image(systemName: "arrow.right").foregroundStyle(TBDTokens.muted)
-                    Text(word.replacement ?? word.word).foregroundStyle(TBDTokens.ink)
-                    Spacer()
-                    Button { try? env.database?.deleteCustomWord(id: word.id); reload() } label: { Image(systemName: "trash") }
-                        .buttonStyle(TBDButtonStyle(.icon)).accessibilityLabel("Delete \(word.word)")
-                }
-            }
-            TBDLabel("Snippets").padding(.top, TBDTokens.Space.xl)
-            Text("Say the trigger phrase to insert the text.").foregroundStyle(TBDTokens.muted).padding(.vertical, TBDTokens.Space.xs)
-            HStack(spacing: TBDTokens.Space.sm) {
-                TextField("Trigger, e.g. my address", text: $newTrigger).tbdField()
-                TextField("Text to insert", text: $newExpansion).tbdField()
-                Button("Add") { addSnippet() }.buttonStyle(TBDButtonStyle(.secondary))
-                    .disabled(newTrigger.trimmingCharacters(in: .whitespaces).isEmpty || newExpansion.isEmpty)
-            }
-            ForEach(snippets) { snippet in
-                HStack {
-                    Toggle("", isOn: Binding(get: { snippet.isEnabled }, set: { var s = snippet; s.isEnabled = $0; try? env.database?.save(s); reload() }))
-                        .labelsHidden().toggleStyle(.checkbox)
-                    Text(snippet.trigger)
-                    Image(systemName: "arrow.right").foregroundStyle(TBDTokens.muted)
-                    Text(snippet.expansion).lineLimit(1)
-                    Spacer()
-                    Text("used \(snippet.useCount)×").font(.system(size: 11)).foregroundStyle(TBDTokens.muted)
-                    Button { try? env.database?.deleteSnippet(id: snippet.id); reload() } label: { Image(systemName: "trash") }
-                        .buttonStyle(TBDButtonStyle(.icon)).accessibilityLabel("Delete \(snippet.trigger)")
-                }
+            TBDSettingsRow("Vocabulary", help: "Processing mode, filler removal, custom words, snippets, spoken punctuation and backup are on the Vocabulary page.") {
+                Button("Open Vocabulary") { env.selectedTab = .vocabulary; context.bringToFront() }
+                    .buttonStyle(TBDButtonStyle(.secondary))
             }
         }
         .id(tick)
-        .onAppear(perform: reload)
-    }
-
-    private func reload() {
-        words = (try? env.database?.customWords()) ?? []
-        snippets = (try? env.database?.snippets()) ?? []
-    }
-
-    private func addWord() {
-        let replacement = newReplacement.trimmingCharacters(in: .whitespaces)
-        try? env.database?.save(TBDCustomWord(word: newWord.trimmingCharacters(in: .whitespaces), replacement: replacement.isEmpty ? nil : replacement))
-        newWord = ""; newReplacement = ""
-        reload()
-    }
-
-    private func addSnippet() {
-        try? env.database?.save(TBDSnippet(trigger: newTrigger.trimmingCharacters(in: .whitespaces), expansion: newExpansion))
-        newTrigger = ""; newExpansion = ""
-        reload()
     }
 }
 
