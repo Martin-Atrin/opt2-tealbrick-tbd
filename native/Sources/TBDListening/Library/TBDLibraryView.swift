@@ -7,6 +7,8 @@ struct TBDLibraryView: View {
     let context: TBDListeningContext
     /// Restrict to one source kind (the Meetings tab), or nil for everything.
     let kind: TBDSourceKind?
+    /// Show only items that carry ANY of these labels (empty: everything).
+    var labelFilter: Set<String> = []
     @EnvironmentObject private var env: TBDListeningEnvironment
     @State private var query = ""
     @State private var filter: TBDSourceKind?
@@ -71,11 +73,12 @@ struct TBDLibraryView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .task(id: "\(query)|\(String(describing: filter))|\(sort)|\(env.revision)") {
+        .task(id: "\(query)|\(String(describing: filter))|\(sort)|\(env.revision)|\(labelFilter.sorted())") {
             // Debounce typing.
             try? await Task.sleep(for: .milliseconds(150))
             guard !Task.isCancelled else { return }
             items = (try? env.database?.transcriptions(kind: kind ?? filter, matching: query, sort: sort)) ?? []
+            if let labelled = try? env.database?.transcriptionIDs(withAnyLabel: labelFilter) { items = items.filter { labelled.contains($0.id) } }
             dictationMatches = kind == nil ? ((try? env.database?.dictationMatchCount(query)) ?? 0) : 0
             if env.selectedTranscriptionID == nil || !items.contains(where: { $0.id == env.selectedTranscriptionID }) && kind != nil {
                 env.selectedTranscriptionID = items.first?.id
@@ -108,6 +111,7 @@ struct TBDLibraryRow: View {
                 Text(item.sourceKind.label.uppercased()).font(TBDTokens.Typography.label).tracking(TBDTokens.Typography.labelTracking)
                 Text(item.createdAt.formatted(date: .abbreviated, time: .shortened))
                 if item.durationMs > 0 { Text(TBDExport.clock(item.durationMs)) }
+                TBDLabelBadges(transcriptionID: item.id)
                 switch item.status {
                 case .processing: Text("Processing").foregroundStyle(TBDTokens.accent)
                 case .failed: Text("Failed").foregroundStyle(TBDTokens.alert)

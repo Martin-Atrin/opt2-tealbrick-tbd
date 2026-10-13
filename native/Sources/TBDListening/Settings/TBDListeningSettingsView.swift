@@ -367,6 +367,10 @@ struct TBDMeetingSettings: View {
                 Toggle("", isOn: tbdBinding({ prefs.autoSummarizeMeetings }, { prefs.autoSummarizeMeetings = $0 }, refresh: { tick += 1 }))
                     .labelsHidden().toggleStyle(.switch)
             }
+            TBDSettingsRow("Auto-title meetings", help: "When a meeting transcript is saved, name it from what was said. Only replaces the automatic \"Meeting <date>\" title, never one you set. Needs a model on the Analysis route.") {
+                Toggle("", isOn: tbdBinding({ prefs.autoGenerateMeetingTitles }, { prefs.autoGenerateMeetingTitles = $0 }, refresh: { tick += 1 }))
+                    .labelsHidden().toggleStyle(.switch)
+            }
             TBDSettingsRow("Notify when transcript is ready", help: "Plays a chime and shows a notification when a meeting finishes transcribing in the background.") {
                 Toggle("", isOn: tbdBinding({ prefs.notifyOnMeetingEnd }, { prefs.notifyOnMeetingEnd = $0 }, refresh: { tick += 1 })).labelsHidden().toggleStyle(.switch)
             }

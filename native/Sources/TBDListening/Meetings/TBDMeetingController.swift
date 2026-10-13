@@ -175,10 +175,11 @@ final class TBDMeetingController: ObservableObject {
                                                 currentFinalEngine: currentFinalEngine) { stage in
                 Task { @MainActor [weak self] in if self?.finalizingStage != nil { self?.finalizingStage = stage } }
             }
-            if select { env.selectedTranscriptionID = item.id }
+            let named = await titled(item, database: database)
+            if select { env.selectedTranscriptionID = named.id }
             onMessage?("Meeting transcript saved")
-            env.transcriptSaved.publish(item)
-            summarizeAutomatically(item)
+            env.transcriptSaved.publish(named)
+            summarizeAutomatically(named)
         } catch is CancellationError {
         } catch {
             onMessage?("Meeting transcription failed: \(error.localizedDescription). The audio is kept; use Transcribe again.")
@@ -186,12 +187,23 @@ final class TBDMeetingController: ObservableObject {
         env.changed()
     }
 
+    /// Names a meeting from its transcript when the title is still the fallback ("Meeting <date>") and the setting is on
+    /// (v1 order: before the saved announcement, so auto-save, Knowledge and summaries see the final title).
+    private func titled(_ item: TBDTranscription, database: TBDListeningDatabase) async -> TBDTranscription {
+        guard env.preferences.autoGenerateMeetingTitles, TBDMeetingAsk.available, TBDMeetingTitle.shouldReplaceFallback(item.title) else { return item }
+        finalizingStage = "Naming meeting…"
+        guard let title = try? await TBDMeetingTitle.generate(transcript: item.text, currentTitle: item.title),
+              (try? database.applyGeneratedMeetingTitle(title, to: item.id)) == true else { return item }
+        env.changed()
+        return (try? database.transcription(id: item.id)) ?? item
+    }
+
     /// Runs every transcript prompt set to auto-run for meetings (Prompts page) when a model is assigned.
     private func summarizeAutomatically(_ item: TBDTranscription) {
         let prefs = env.preferences
         guard prefs.autoSummarizeMeetings, TBDMeetingAsk.available, !item.text.isEmpty, let database = env.database,
               ((try? database.summaries(for: item.id)) ?? []).isEmpty else { return }
-        let prompts = (try? database.autoRunPrompts(for: .meeting)) ?? []
+        let prompts = (try? database.autoRunPrompts(for: .meeting, labelIDs: database.labelIDs(for: item.id))) ?? []
         guard !prompts.isEmpty else { return }
         Task {
             for prompt in prompts {

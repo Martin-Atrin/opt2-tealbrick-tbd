@@ -23,6 +23,7 @@ struct TBDMeetingButton: View {
 struct TBDMeetingsView: View {
     let context: TBDListeningContext
     @ObservedObject private var meetings: TBDMeetingController
+    @State private var labelFilter: Set<String> = []
 
     init(context: TBDListeningContext) {
         self.context = context
@@ -39,11 +40,12 @@ struct TBDMeetingsView: View {
                 Text(warning).font(TBDTokens.Typography.body).foregroundStyle(TBDTokens.alert)
             }
             HStack {
+                TBDLabelFilterBar(selection: $labelFilter)
                 Spacer()
                 Button { meetings.importMeeting() } label: { Label("Import recording…", systemImage: "square.and.arrow.down") }
                     .buttonStyle(TBDButtonStyle(.quiet)).help("Import an audio or video file as a meeting")
             }
-            TBDLibraryView(context: context, kind: .meeting)
+            TBDLibraryView(context: context, kind: .meeting, labelFilter: labelFilter)
         }
     }
 

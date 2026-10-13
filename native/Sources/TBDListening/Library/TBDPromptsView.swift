@@ -267,6 +267,7 @@ struct TBDPromptEditor: View {
         TBDSettingsRow("Include meeting notes as context") {
             Toggle("", isOn: Binding(get: { prompt.includeMeetingNotes }, set: { model.setNotes(prompt, $0) })).labelsHidden().toggleStyle(.switch)
         }
+        TBDPromptLabelTargets(promptID: prompt.id)
     }
 
     @ViewBuilder private func history(_ prompt: TBDPrompt) -> some View {
