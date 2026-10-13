@@ -176,6 +176,10 @@ public final class TBDListeningDatabase: @unchecked Sendable {
         }
         // Labels on transcripts and prompts aimed at labels (see `TBDMeetingClassification`).
         migrator.registerMigration("v7-meeting-classification") { db in try TBDMeetingClassification.migrate(db) }
+        // Capture notice kept with a transcript (C124: "System audio is not recorded — only your microphone").
+        migrator.registerMigration("v7-capture-notice") { db in
+            try db.alter(table: "transcription") { t in t.add(column: "captureNotice", .text) }
+        }
         return migrator
     }
 

@@ -247,7 +247,7 @@ final class MeetingLabelTests: XCTestCase {
         let db = try TBDListeningDatabase(inMemory: ())
         let names = try db.writer.read { try String.fetchAll($0, sql: "SELECT identifier FROM grdb_migrations ORDER BY rowid") }
         let knowledge = try XCTUnwrap(names.firstIndex(of: "v6-knowledge"))
-        XCTAssertEqual(names[knowledge + 1], "v7-meeting-classification")
+        XCTAssertEqual(Array(names[(knowledge + 1)...]), ["v7-favorites", "v7-meeting-classification", "v7-capture-notice"])
         let tables = try db.writer.read { try String.fetchAll($0, sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('meetingLabel','transcriptionLabel','promptLabelPolicy') ORDER BY name") }
         XCTAssertEqual(tables, ["meetingLabel", "promptLabelPolicy", "transcriptionLabel"])
     }
@@ -561,7 +561,30 @@ final class MeetingLabelImportTests: XCTestCase {
         XCTAssertEqual(try db.promptLabelPolicies(promptIds: [TBDPrompt.summaryID]).map(\.scopeKind), [.all, .label])
 
         let marker = try db.writer.read { try String.fetchOne($0, sql: "SELECT summary FROM legacyImport") }
-        XCTAssertEqual(marker, "dictations=0 transcripts=0 meetings=2 summaries=0 conversations=0 customWords=0 snippets=0 labels=2 labelAssignments=3 labelPolicies=2 alreadyPresent=1 skipped=5 errors=0")
+        XCTAssertEqual(marker, "dictations=0 transcripts=0 meetings=2 summaries=0 conversations=0 customWords=0 snippets=0 labels=2 labelAssignments=3 labelPolicies=2 alreadyPresent=1 skipped=5 errors=0 favorites=0")
+    }
+
+    func testBackfillBringsLabelsOnceToAnImportMadeBeforeLabels() throws {
+        try makeLegacyLibrary()
+        let db = try TBDListeningDatabase(inMemory: ())
+        try db.preparePromptLibrary(preferences: TBDListeningPreferences(defaults: defaults))
+        try TBDLegacyImport.run(legacyURL: legacyURL, into: db, now: t0.addingTimeInterval(9_000))
+        // Make it look like an import from before WP4: no labels, a marker without the new counts.
+        try db.writer.write { db in
+            try db.execute(sql: "DELETE FROM promptLabelPolicy")
+            try db.execute(sql: "DELETE FROM transcriptionLabel")
+            try db.execute(sql: "DELETE FROM meetingLabel")
+            try db.execute(sql: "UPDATE legacyImport SET summary = 'dictations=0 transcripts=0 meetings=2 alreadyPresent=0 skipped=1 errors=0'")
+        }
+        XCTAssertEqual(try TBDLegacyImport.backfillLibraryMeta(legacyURL: legacyURL, into: db), 8)
+        XCTAssertEqual(try db.meetingLabels(includeArchived: true).map(\.name), ["Customer", "Internal", "budget"])
+        XCTAssertEqual(try db.labelIDs(for: meetingB.lowercased()).count, 1)
+        let marker = try db.writer.read { try String.fetchOne($0, sql: "SELECT summary FROM legacyImport") }
+        XCTAssertEqual(marker, "dictations=0 transcripts=0 meetings=2 alreadyPresent=0 skipped=1 errors=0 labels=3 labelAssignments=3 labelPolicies=2 favorites=0")
+        // Runs once: a label the person deleted later stays deleted.
+        try db.writer.write { try $0.execute(sql: "DELETE FROM transcriptionLabel") }
+        XCTAssertEqual(try TBDLegacyImport.backfillLibraryMeta(legacyURL: legacyURL, into: db), 0)
+        XCTAssertEqual(try db.writer.read { try Int.fetchOne($0, sql: "SELECT COUNT(*) FROM transcriptionLabel") }, 0)
     }
 
     func testImportingAgainDoesNotDuplicateLabelsOrRules() throws {
@@ -602,6 +625,6 @@ final class MeetingLabelImportTests: XCTestCase {
         XCTAssertEqual(report.skipped, [:])
         XCTAssertEqual(try db.meetingLabels(includeArchived: true), [])
         let marker = try db.writer.read { try String.fetchOne($0, sql: "SELECT summary FROM legacyImport") }
-        XCTAssertEqual(marker, "dictations=0 transcripts=0 meetings=1 summaries=0 conversations=0 customWords=0 snippets=0 alreadyPresent=0 skipped=0 errors=0")
+        XCTAssertEqual(marker, "dictations=0 transcripts=0 meetings=1 summaries=0 conversations=0 customWords=0 snippets=0 alreadyPresent=0 skipped=0 errors=0 favorites=0")
     }
 }

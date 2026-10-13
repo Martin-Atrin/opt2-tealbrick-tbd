@@ -94,6 +94,8 @@ public struct TBDTranscription: Codable, Sendable, Equatable, Identifiable, Fetc
     public var userNotes: String?
     /// Starred by the person (Library star, Favorites filter).
     public var isFavorite = false
+    /// A capture problem kept with the transcript, e.g. the C124 notice that system audio was not recorded.
+    public var captureNotice: String?
 
     public init(id: String = tbdNewID(), title: String, sourceKind: TBDSourceKind, sourcePath: String? = nil, sourceURL: String? = nil,
                 status: TBDTranscriptionStatus = .processing) {

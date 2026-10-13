@@ -31,16 +31,8 @@ public struct TBDMeetingManifest: Codable, Sendable, Equatable {
         return (try? Data(contentsOf: folder.appendingPathComponent(fileName))).flatMap { try? decoder.decode(Self.self, from: $0) }
     }
 
-    /// The system-audio notice kept with a saved meeting, found by transcript id (nil when the meeting had system audio
-    /// or its folder is gone). The transcript detail shows it.
-    public static func systemAudioNotice(transcriptionID: String, root: URL = TBDListeningPaths.meetings) -> String? {
-        let folders = (try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? []
-        for folder in folders {
-            guard let manifest = read(from: folder), manifest.transcriptionID == transcriptionID else { continue }
-            return manifest.systemAudioMissing == true ? TBDMeetingWarnings.systemAudioMissing : nil
-        }
-        return nil
-    }
+    /// The notice the saved transcript keeps (`TBDTranscription.captureNotice`): nil when system audio was recorded.
+    public var captureNotice: String? { systemAudioMissing == true ? TBDMeetingWarnings.systemAudioMissing : nil }
 }
 
 public enum TBDMeetingStartError: Error, LocalizedError, Equatable {
@@ -379,6 +371,7 @@ public final class TBDMeetingRecorder: @unchecked Sendable {
             ?? TBDTranscription(id: manifest.transcriptionID ?? tbdNewID(), title: manifest.title, sourceKind: .meeting)
         item.createdAt = manifest.startedAt
         if item.userNotes == nil { item.userNotes = manifest.notes }
+        if let notice = manifest.captureNotice { item.captureNotice = notice }
         item.status = .processing
         item.errorMessage = nil
         item.audioPaths = tracks.map(\.path)

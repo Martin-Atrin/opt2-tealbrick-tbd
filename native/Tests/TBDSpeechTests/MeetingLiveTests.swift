@@ -499,19 +499,17 @@ final class SystemAudioFallbackNoticeTests: XCTestCase {
     }
 
     func testTheNoticeIsKeptWithTheSavedMeeting() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("tbd-notice-\(UUID().uuidString)")
-        defer { try? FileManager.default.removeItem(at: root) }
-        func save(folder: String, transcription: String, missing: Bool?) throws {
-            let url = root.appendingPathComponent(folder, isDirectory: true)
-            try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-            var manifest = TBDMeetingManifest(id: folder, title: "M", startedAt: Date(), state: .done, durationMs: 0, transcriptionID: transcription)
-            manifest.systemAudioMissing = missing
-            try manifest.write(to: url)
-        }
-        try save(folder: "a", transcription: "t-missing", missing: true)
-        try save(folder: "b", transcription: "t-full", missing: nil)
-        XCTAssertEqual(TBDMeetingManifest.systemAudioNotice(transcriptionID: "t-missing", root: root), "System audio is not recorded — only your microphone")
-        XCTAssertNil(TBDMeetingManifest.systemAudioNotice(transcriptionID: "t-full", root: root))
-        XCTAssertNil(TBDMeetingManifest.systemAudioNotice(transcriptionID: "unknown", root: root))
+        var manifest = TBDMeetingManifest(id: "a", title: "M", startedAt: Date(), state: .done, durationMs: 0, transcriptionID: "t")
+        XCTAssertNil(manifest.captureNotice)
+        manifest.systemAudioMissing = true
+        XCTAssertEqual(manifest.captureNotice, "System audio is not recorded — only your microphone")
+
+        let database = try TBDListeningDatabase(inMemory: ())
+        var missing = TBDTranscription(id: "t-missing", title: "M", sourceKind: .meeting, status: .completed)
+        missing.captureNotice = manifest.captureNotice
+        try database.save(missing)
+        try database.save(TBDTranscription(id: "t-full", title: "M", sourceKind: .meeting, status: .completed))
+        XCTAssertEqual(try database.transcription(id: "t-missing")?.captureNotice, "System audio is not recorded — only your microphone")
+        XCTAssertNil(try database.transcription(id: "t-full")?.captureNotice)
     }
 }

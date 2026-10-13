@@ -139,8 +139,8 @@ public enum TBDLegacyImport {
         do {
             let report = try run(legacyURL: legacyURL, into: database)
             var changed = report.totalImported > 0
-            // An import from before favorites existed has no stars: copy them once.
-            if report.status == .alreadyImported { changed = try backfillFavorites(legacyURL: legacyURL, into: database) > 0 }
+            // An import from before favorites and labels existed: copy them once.
+            if report.status == .alreadyImported { changed = try backfillLibraryMeta(legacyURL: legacyURL, into: database) > 0 }
             return StartOutcome(message: report.message, changed: changed)
         } catch {
             let message = "Could not import Listening data from the earlier TBD version: \(error.localizedDescription) TBD tries again at next start."
@@ -181,10 +181,11 @@ public enum TBDLegacyImport {
         }
     }
 
-    /// Copies the stars of an earlier import made before favorites were imported, once: the marker's summary
-    /// gains `favorites=N`, which new imports write from the start. Returns the number of items starred.
+    /// Brings over what an earlier import (made before WP4) had no place for, once: the stars, the labels, the
+    /// labels on transcripts and the prompts aimed at labels. The marker's summary then gains `favorites=N`, which
+    /// new imports write from the start. Label rows already here are left as they are. Returns the rows changed.
     @discardableResult
-    public static func backfillFavorites(legacyURL: URL = defaultLegacyURL, into database: TBDListeningDatabase) throws -> Int {
+    public static func backfillLibraryMeta(legacyURL: URL = defaultLegacyURL, into database: TBDListeningDatabase) throws -> Int {
         let summary = try database.writer.read { try String.fetchOne($0, sql: "SELECT summary FROM legacyImport WHERE source = ?", arguments: [source]) }
         guard let summary, !summary.contains(" favorites="), FileManager.default.fileExists(atPath: legacyURL.path) else { return 0 }
         var configuration = Configuration()
@@ -192,18 +193,26 @@ public enum TBDLegacyImport {
         configuration.busyMode = .timeout(2)
         let legacy = try DatabaseQueue(path: legacyURL.path, configuration: configuration)
         defer { try? legacy.close() }
-        let ids: [String] = try legacy.read { old in
-            guard try old.tableExists("transcriptions"), try old.columns(in: "transcriptions").contains(where: { $0.name == "isFavorite" }) else { return [] }
-            return try Row.fetchAll(old, sql: "SELECT id FROM transcriptions WHERE isFavorite = 1").compactMap { uuid($0, "id") }
-        }
-        return try database.writer.write { db in
-            var starred = 0
-            for id in ids {
-                try db.execute(sql: "UPDATE transcription SET isFavorite = 1 WHERE id = ? AND isFavorite = 0", arguments: [id])
-                starred += db.changesCount
+        return try legacy.read { old in
+            let ids: [String]
+            if try old.tableExists("transcriptions"), try old.columns(in: "transcriptions").contains(where: { $0.name == "isFavorite" }) {
+                ids = try Row.fetchAll(old, sql: "SELECT id FROM transcriptions WHERE isFavorite = 1").compactMap { uuid($0, "id") }
+            } else {
+                ids = []
             }
-            try db.execute(sql: "UPDATE legacyImport SET summary = summary || ? WHERE source = ?", arguments: [" favorites=\(starred)", source])
-            return starred
+            return try database.writer.write { db in
+                var starred = 0
+                for id in ids {
+                    try db.execute(sql: "UPDATE transcription SET isFavorite = 1 WHERE id = ? AND isFavorite = 0", arguments: [id])
+                    starred += db.changesCount
+                }
+                var labels = Report(status: .imported)
+                try importLabels(old, db, &labels)
+                let extra = [Kind.labels, .labelAssignments, .labelPolicies].filter { labels.count($0) > 0 }
+                    .map { " \($0.rawValue)=\(labels.count($0))" }.joined()
+                try db.execute(sql: "UPDATE legacyImport SET summary = summary || ? WHERE source = ?", arguments: [extra + " favorites=\(starred)", source])
+                return starred + labels.totalImported
+            }
         }
     }
 

@@ -285,6 +285,9 @@ struct TBDTranscriptDetailView: View {
                 .font(TBDTokens.Typography.title).foregroundStyle(TBDTokens.ink)
                 .onSubmit { model.rename(title) }
             TBDTranscriptLabelsBar(transcriptionID: item.id)
+            if let notice = item.captureNotice {
+                Label(notice, systemImage: "exclamationmark.triangle.fill").font(.system(size: 11)).foregroundStyle(.orange)
+            }
             if let link = item.sourceURL, let url = URL(string: link) {
                 Link(link, destination: url).font(.system(size: 11)).lineLimit(1)
             }

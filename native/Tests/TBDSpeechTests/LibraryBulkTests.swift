@@ -189,7 +189,7 @@ final class LibraryBulkTests: XCTestCase {
         // Runs once: a star the person removed later stays removed.
         let talk = try XCTUnwrap(try db.transcriptions(favoritesOnly: true, sort: .title).last)
         try db.setFavorite(id: talk.id, false)
-        XCTAssertEqual(try TBDLegacyImport.backfillFavorites(legacyURL: legacy, into: db), 0)
+        XCTAssertEqual(try TBDLegacyImport.backfillLibraryMeta(legacyURL: legacy, into: db), 0)
         XCTAssertEqual(try db.transcriptions(favoritesOnly: true).map(\.title), ["Starred meeting"])
     }
 
