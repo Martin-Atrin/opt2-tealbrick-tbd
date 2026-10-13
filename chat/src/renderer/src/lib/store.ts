@@ -57,6 +57,18 @@ let crossDeviceReady = false;
  * is far below the threshold where a conversation feels broken and far above
  * the rate at which polling costs anything.
  */
+let rosterRefreshReady = false;
+
+/** The roster follows Portal (C127): again on window focus and every 60 s. Workspace switches reload it directly. */
+export const ROSTER_REFRESH_MS = 60_000;
+function startRosterRefresh(get: () => State): void {
+  if (rosterRefreshReady) return;
+  rosterRefreshReady = true;
+  const refresh = (): void => { if (get().portalWorkspaceId) void get().refreshAgents(); };
+  window.addEventListener("focus", refresh);
+  setInterval(refresh, ROSTER_REFRESH_MS);
+}
+
 function startCrossDeviceRefresh(get: () => State): void {
   if (crossDeviceReady) return;
   crossDeviceReady = true;
@@ -549,6 +561,8 @@ interface State {
   openRoutine(id: string): void;
   setPaletteOpen(open: boolean): void;
 
+  /** Why the workspace's other agents are missing (Portal error); shown as a notice, never blocking. */
+  rosterNotice: string | null;
   /** Whether TBD's agent has a model (studio:firstRun); null until checked. Drives "No model set". */
   agentModel: AgentModelState;
   /** Re-check the first-run state (model, connection); also refreshes `agentModel`. */
@@ -643,6 +657,7 @@ export const useStore = create<State>((set, get) => ({
   conversations: {},
 
   activeAgentId: "",
+  rosterNotice: null,
   agentModel: null,
   panel: "none",
   activeRoutineId: null,
@@ -850,6 +865,8 @@ export const useStore = create<State>((set, get) => ({
   },
 
   send: (agentId, text, fromQueue, attachments) => {
+    // Workspace agents are listed only (C127); there is no chat transport to them yet.
+    if (get().agents.find((a) => a.id === agentId)?.workspace) return;
     const at = Date.now();
     // No model: the message is not sent, and the conversation says so (never a send that goes nowhere).
     const gate = modelGate(agentId, get().agentModel);
@@ -1311,7 +1328,8 @@ export const useStore = create<State>((set, get) => ({
         });
         return;
       }
-      set({ authError: null });
+      set({ authError: null, rosterNotice: remote[0]?.rosterNotice ?? null });
+      startRosterRefresh(get);
       // Keep local presentation (accent, pin) but let the control plane own the
       // set: an agent whose grant was revoked must disappear from the sidebar.
       const palette = ["#2ec4a6", "#f0883e", "#7c6cf0", "#4f9cf0", "#e0609a"];
@@ -1350,13 +1368,19 @@ export const useStore = create<State>((set, get) => ({
             // "unknown" until something asks the agent itself. Holding an
             // address is not being alive, and calling it "online" here is what
             // made a registration whose machine was long gone look healthy.
-            status: (r.hasUrl ?? r.reachable) ? (prior?.status ?? "unknown") : "offline",
+            // Workspace agents: the card's state is the status (paused shows as offline plus its label).
+            status: r.workspace
+              ? (r.workspace.state === "online" ? "online" : "offline")
+              : (r.hasUrl ?? r.reachable) ? (prior?.status ?? "unknown") : "offline",
+            workspace: r.workspace,
             title: prior?.title,
-            description: prior?.description,
+            description: r.workspace ? r.workspace.purpose : prior?.description,
             lastMessageAt: prior?.lastMessageAt,
-            lastMessagePreview: (r.hasUrl ?? r.reachable)
-              ? prior?.lastMessagePreview
-              : "Registered, but no URL on file in the control plane.",
+            lastMessagePreview: r.workspace
+              ? r.workspace.purpose
+              : (r.hasUrl ?? r.reachable)
+                ? prior?.lastMessagePreview
+                : "Registered, but no URL on file in the control plane.",
           };
         }),
         // Stay where the person is. This used to be `remote[0]?.id ?? current`,
@@ -1413,7 +1437,7 @@ export const useStore = create<State>((set, get) => ({
   refreshLiveness: async () => {
     if (!window.studio) return;
     const targets = get()
-      .agents.filter((a) => a.url)
+      .agents.filter((a) => a.url && !a.workspace)
       .map((a) => ({ id: a.id }));
     await Promise.all(
       targets.map(async ({ id }) => {
@@ -1429,6 +1453,8 @@ export const useStore = create<State>((set, get) => ({
 
   loadAgentInfo: async (agentId) => {
     const agent = get().agents.find((a) => a.id === agentId);
+    // A workspace agent's card is all TBD knows about it (C127): nothing to load, nothing failed.
+    if (agent?.workspace) { if (get().activeAgentId === agentId) set({ infoError: null }); return; }
     if (!window.studio || !agent?.url) {
       if (get().activeAgentId === agentId) set({ infoError: "This agent has no desktop endpoint configured in the portal. Routines cannot be loaded until it is connected." });
       return;

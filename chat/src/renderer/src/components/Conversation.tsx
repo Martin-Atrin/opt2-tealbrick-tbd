@@ -298,6 +298,7 @@ export function Conversation(): ReactNode {
     chooseWorkspace,
     setWorkspace,
     agentModel,
+    rosterNotice,
   } = useStore();
   const agent = agents.find((a) => a.id === activeAgentId);
   // No model for TBD's agent: Send becomes "Set up a model" and the draft stays.
@@ -738,6 +739,7 @@ export function Conversation(): ReactNode {
         </div>
       </div>
 
+      {rosterNotice ? <div className="composer__attach-error" role="status" style={{ margin: "0 16px" }}>{rosterNotice}</div> : null}
       <div className="composer">
         <LocalAskCard />
         {suggestions.length > 0 ? (

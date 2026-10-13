@@ -4,6 +4,7 @@ import type { Agent, Block } from "@shared/types";
 import { useStore } from "@/lib/store";
 import { workspaceFooterLabel } from "@/lib/workspaceLabel";
 import { NO_MODEL_TITLE, modelGate } from "@/lib/agentModel";
+import { workspaceAgentSubtitle } from "@/lib/workspaceAgents";
 import { Avatar, Icon, timeLabel } from "./primitives";
 
 function useRailTooltip(name: string): { events: { onMouseEnter: (event: React.MouseEvent<HTMLDivElement>) => void; onMouseLeave: () => void; onFocus: (event: React.FocusEvent<HTMLDivElement>) => void; onBlur: () => void }; label: ReactNode } {
@@ -106,13 +107,16 @@ function Row({
 }): ReactNode {
   const { activeAgentId, select, agentModel } = useStore();
   const gate = modelGate(agent.id, agentModel);
-  const tooltip = useRailTooltip(gate.blocked ? `${agent.name} — ${NO_MODEL_TITLE}` : agent.name);
+  const tooltip = useRailTooltip(
+    gate.blocked ? `${agent.name} — ${NO_MODEL_TITLE}`
+      : agent.workspace ? `${agent.name} — ${workspaceAgentSubtitle(agent.workspace)}` : agent.name,
+  );
   const active = agent.id === activeAgentId;
 
   return (
     <div
       {...tooltip.events}
-      role="button" tabIndex={0} aria-label={gate.blocked ? `${agent.name}, ${NO_MODEL_TITLE}` : agent.name}
+      role="button" tabIndex={0} aria-label={gate.blocked ? `${agent.name}, ${NO_MODEL_TITLE}` : agent.workspace ? `${agent.name}, ${workspaceAgentSubtitle(agent.workspace)}` : agent.name}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(agent.id); } }}
       className={`row row--agent${active ? " row--active" : ""}`}
       onClick={() => select(agent.id)}
@@ -127,6 +131,8 @@ function Row({
       <Avatar name={agent.name} accent={agent.accent} src={agent.avatar} size={37} />
       {gate.blocked ? (
         <span className="rail-agent-status" title={`${NO_MODEL_TITLE}: ${gate.note ?? ""}`} aria-hidden="true">!</span>
+      ) : agent.workspace?.state === "paused" ? (
+        <span className="rail-agent-status" title="Paused" aria-hidden="true">‖</span>
       ) : agent.status === "offline" ? <span className="rail-agent-status" title="Not answering" aria-label="Not answering">○</span> : null}
       {agent.unread ? <span className="row__unread rail-agent-unread" aria-label="Unread messages" /> : null}
       {agent.pinned ? <span className="rail-agent-pin" aria-label="Pinned"><Icon name="pin" size={10} /></span> : null}

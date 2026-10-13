@@ -1,5 +1,8 @@
 import type {
   AccountMe,
+  AgentCard,
+  AgentList,
+  HarnessOptionList,
   DeviceStart,
   DeviceStartOwnerInput,
   DeviceToken,
@@ -184,6 +187,22 @@ export function createPortal(deps: PortalDeps) {
     me: () => read<AccountMe>("/me"),
     workspaces: () => read<WorkspaceList>("/workspaces?limit=200"),
     instances: (ws: string) => read<InstanceList>(`/workspaces/${encodeURIComponent(ws)}/instances`),
+
+    /** agents.list: every agent card of the workspace (C127), all pages (bounded). */
+    async agents(ws: string): Promise<AgentCard[]> {
+      const items: AgentCard[] = [];
+      let cursor: string | null = null;
+      for (let page = 0; page < 10; page++) {
+        const query: string = cursor ? `?limit=200&cursor=${encodeURIComponent(cursor)}` : "?limit=200";
+        const list: AgentList = await read<AgentList>(`/workspaces/${encodeURIComponent(ws)}/agents${query}`);
+        items.push(...list.items);
+        cursor = list.nextCursor;
+        if (!cursor) break;
+      }
+      return items;
+    },
+    /** Harness labels for the agent cards ("Claude Code", …). */
+    harnessOptions: () => read<HarnessOptionList>("/harness-options"),
 
     /** Pending holds per app (count only, S2/C24). The hold pages themselves open in the system browser. */
     async pendingHolds(ws: string): Promise<{ product: string; count: number }[]> {

@@ -46,6 +46,8 @@ export interface Agent {
   notifications?: boolean;
   /** Populated from the transport; never assumed. */
   status?: "online" | "offline" | "unknown";
+  /** Another agent of the Portal workspace (C127): its card. Listed only; no chat yet. */
+  workspace?: import("./ipc").WorkspaceAgentInfo;
   lastMessageAt?: number;
   lastMessagePreview?: string;
 }

@@ -17,6 +17,7 @@ import { createTurnRouter, type InputResponse } from "./turns";
 import type { DeviceStart } from "@opt2-tealbrick/spec/routes";
 import { checkForUpdate } from "./updates";
 import { agentModelReadiness, requireAgentModel } from "./agentModelGuard";
+import { buildRoster } from "./workspaceAgents";
 
 /**
  * The renderer's bridge into the helper. TBD Chat talks to exactly one agent:
@@ -112,9 +113,18 @@ export function registerIpc(): void {
   }));
 
   // The agent directory is TBD's own agent only.
+  // The roster (C127): TBD's own agent first, then the workspace's other agent cards (listing only).
   ipcMain.handle("studio:listAgents", withPerson(async () => {
-    if (!signedIn()) throw new Error("Not signed in.");
-    return [await defaultAgentRow()];
+    const tbd = await defaultAgentRow();
+    let workspace: string | null = null;
+    try { workspace = signedIn() ? selectedPortalWorkspace() : null; } catch { workspace = null; }
+    const own = getServices().agentIdentity.connection();
+    return buildRoster({
+      tbd,
+      workspace,
+      portal: workspace ? getServices().portal : null,
+      ownCardId: own && own.workspaceId === workspace ? own.agentId : null,
+    });
   }));
   ipcMain.handle("studio:saveAgentProfile", () => undefined);
   ipcMain.handle("studio:agentInfo", (_e, agentId: string) => {

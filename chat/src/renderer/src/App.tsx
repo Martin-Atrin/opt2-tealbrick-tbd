@@ -1,6 +1,7 @@
 import { WorkspacePicker } from "./components/WorkspacePicker";
 import { type ReactNode, useEffect } from "react";
 import { Conversation } from "./components/Conversation";
+import { WorkspaceAgentView } from "./components/WorkspaceAgent";
 import { Palette } from "./components/Palette";
 import { Panel } from "./components/Panel";
 import { Sidebar } from "./components/Sidebar";
@@ -16,6 +17,7 @@ export function App(): ReactNode {
 
   // Follow the open thread live while nothing of ours is in flight in it.
   const activeAgentId = useStore((s) => s.activeAgentId);
+  const activeWorkspaceAgent = agents.find((a) => a.id === activeAgentId && a.workspace);
   const activeSession = useStore((s) => (s.activeAgentId ? s.sessions[s.activeAgentId] : undefined));
   const activeInflight = useStore((s) => (s.activeAgentId ? Boolean(s.inflight[s.activeAgentId]) : false));
   const watchActive = useStore((s) => s.watchActive);
@@ -50,7 +52,7 @@ export function App(): ReactNode {
         <h1>Your agents will appear here</h1>
         <p role="status">{authError ?? "Loading the agents available to your account…"}</p>
         <button className="btn" onClick={() => void refreshAgents({ refreshSession: true })}>Refresh agents</button>
-      </main> : <Conversation />}
+      </main> : activeWorkspaceAgent ? <WorkspaceAgentView agent={activeWorkspaceAgent} /> : <Conversation />}
       <Panel />
       <Palette />
     </div>

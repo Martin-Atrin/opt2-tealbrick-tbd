@@ -52,6 +52,22 @@ export interface RemoteAgent {
    * the desktop draw the same picture. Null when they have never chosen.
    */
   profile?: AgentProfile | null;
+  /**
+   * Added by the main process for the OTHER agents of the Portal workspace (C127): what their
+   * card says. Chat with them is not built yet; TBD only lists them.
+   */
+  workspace?: WorkspaceAgentInfo;
+  /** On TBD's own row only: why the workspace agents are missing (shown as a notice, never blocking). */
+  rosterNotice?: string;
+}
+
+export type WorkspaceAgentState = "online" | "offline" | "paused";
+
+export interface WorkspaceAgentInfo {
+  purpose: string;
+  state: WorkspaceAgentState;
+  /** Harness label from Portal's harness options, else the card's harness id; null when the card has none. */
+  harness: string | null;
 }
 
 export interface AgentProfile {
