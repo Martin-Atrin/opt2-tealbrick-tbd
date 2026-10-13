@@ -51,71 +51,34 @@ struct TBDMeetingsView: View {
         VStack(alignment: .leading, spacing: TBDTokens.Space.md) {
             HStack(spacing: TBDTokens.Space.md) {
                 TBDChip(meetings.statusText, color: meetings.phase == .recording ? TBDTokens.alert : TBDTokens.muted)
-                VStack(alignment: .leading, spacing: 2) {
-                    TBDLabel("You")
-                    TBDLevelBars(levels: [meetings.micLevel], color: TBDTokens.accent).frame(width: 60, height: 10)
-                }
-                VStack(alignment: .leading, spacing: 2) {
-                    TBDLabel("Others")
-                    TBDLevelBars(levels: [meetings.systemLevel], color: TBDTokens.accent).frame(width: 60, height: 10)
-                }
+                TBDMeetingLevels(meetings: meetings)
                 Spacer()
                 switch meetings.phase {
-                case .recording:
-                    Button { meetings.pause() } label: { Label("Pause", systemImage: "pause.fill") }.buttonStyle(TBDButtonStyle(.secondary))
-                    Button { meetings.stop() } label: { Label("Stop", systemImage: "stop.fill") }.buttonStyle(TBDButtonStyle(.destructive))
-                case .paused:
-                    Button { meetings.resume() } label: { Label("Resume", systemImage: "play.fill") }.buttonStyle(TBDButtonStyle(.secondary))
-                    Button { meetings.stop() } label: { Label("Stop", systemImage: "stop.fill") }.buttonStyle(TBDButtonStyle(.destructive))
+                case .recording, .paused:
+                    if meetings.canMuteMic {
+                        Button { meetings.toggleMute() } label: {
+                            Label(meetings.isMicMuted ? "Unmute" : "Mute", systemImage: meetings.isMicMuted ? "mic.slash.fill" : "mic.fill")
+                        }
+                        .buttonStyle(TBDButtonStyle(.secondary))
+                        .help(meetings.isMicMuted ? "Unmute your microphone" : "Mute your microphone in this recording. System audio keeps recording.")
+                    }
+                    if meetings.phase == .recording {
+                        Button { meetings.pause() } label: { Label("Pause", systemImage: "pause.fill") }.buttonStyle(TBDButtonStyle(.secondary))
+                    } else {
+                        Button { meetings.resume() } label: { Label("Resume", systemImage: "play.fill") }.buttonStyle(TBDButtonStyle(.secondary))
+                    }
+                    Button { meetings.showPanel() } label: { Label("Pop out", systemImage: "arrow.up.left.and.arrow.down.right") }
+                        .buttonStyle(TBDButtonStyle(.secondary)).help("Open the live panel in a floating window")
+                    TBDStopConfirmButton(labeled: true) { meetings.stop() }
                 case .processing(let stage):
                     ProgressView().controlSize(.small)
                     Text(stage).foregroundStyle(TBDTokens.muted)
                 default: EmptyView()
                 }
             }
-            Picker("", selection: $meetings.liveTab) {
-                ForEach(TBDMeetingController.LiveTab.allCases) { tab in
-                    Text(tab == .ask && meetings.liveAsk.streaming ? "Ask •" : tab.title).tag(tab)
-                }
-            }
-            .pickerStyle(.segmented).labelsHidden().fixedSize()
-            Group {
-                switch meetings.liveTab {
-                case .notes:
-                    TBDNotesEditor(text: Binding(get: { meetings.notes }, set: { meetings.editNotes($0) }),
-                                   elapsedMs: { meetings.elapsedMs }, footnote: "Auto-saved with the recording. Stays on this Mac.")
-                case .transcript: livePreview
-                case .ask: TBDAskView(model: meetings.liveAsk, starters: TBDAskPrompts.starters(context.env.database),
-                                      followUps: TBDAskPrompts.followUps(context.env.database), showsHistory: false)
-                }
-            }
-            .frame(height: 260)
+            TBDMeetingLivePanes(meetings: meetings, database: context.env.database, height: 260)
         }
         .tbdCard(padding: TBDTokens.Space.md)
-    }
-
-    private var livePreview: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: TBDTokens.Space.xs) {
-                    if meetings.preview.isEmpty {
-                        Text("Live preview appears here as people speak.").foregroundStyle(TBDTokens.muted)
-                    }
-                    ForEach(meetings.preview) { line in
-                        HStack(alignment: .firstTextBaseline, spacing: TBDTokens.Space.sm) {
-                            Text(TBDExport.clock(line.startMs)).font(.system(size: 11, design: .monospaced)).foregroundStyle(TBDTokens.muted)
-                            Text(line.source == .me ? "Me" : "Others").font(TBDTokens.Typography.label).foregroundStyle(TBDTokens.accent)
-                            Text(line.text).font(TBDTokens.Typography.body).foregroundStyle(TBDTokens.ink).textSelection(.enabled)
-                        }
-                        .id(line.id)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .onChange(of: meetings.preview.count) { _, _ in
-                if let last = meetings.preview.last { proxy.scrollTo(last.id, anchor: .bottom) }
-            }
-        }
     }
 
     private var upcomingPanel: some View {

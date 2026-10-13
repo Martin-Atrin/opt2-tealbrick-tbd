@@ -35,7 +35,10 @@ final class TBDListeningContext {
         files.onMessage = report
         transforms.onMessage = report
         retention.onMessage = report
-        savedEffects = TBDTranscriptSavedEffects(env: env, notifier: env.notifier, report: report)
+        let meetings = self.meetings
+        savedEffects = TBDTranscriptSavedEffects(env: env, notifier: env.notifier, report: report,
+                                                 canPresentMeetingEnd: { meetings.canPresentMeetingEnd })
+        meetings.onBringToFront = { [weak runtime] in runtime?.bringToFront() }
         dictation.isMeetingRecording = { [weak self] in self?.meetings.isRecording ?? false }
         knowledge.onMessage = report
         // Save to Knowledge auto rule: one more handler on the transcript-saved hub.

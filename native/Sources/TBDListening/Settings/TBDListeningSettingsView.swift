@@ -367,8 +367,31 @@ struct TBDMeetingSettings: View {
                 Toggle("", isOn: tbdBinding({ prefs.autoSummarizeMeetings }, { prefs.autoSummarizeMeetings = $0 }, refresh: { tick += 1 }))
                     .labelsHidden().toggleStyle(.switch)
             }
-            TBDSettingsRow("Notify when transcript is ready", help: "Plays a chime and shows a notification when a meeting finishes transcribing in the background.") {
-                Toggle("", isOn: tbdBinding({ prefs.notifyOnMeetingEnd }, { prefs.notifyOnMeetingEnd = $0 }, refresh: { tick += 1 })).labelsHidden().toggleStyle(.switch)
+            TBDSettingsRow("Show floating meeting controls", help: "Shows the small recording pill while a meeting is active. Turn this off to control recording from the menu bar, hotkey, or Meetings tab.") {
+                Toggle("", isOn: tbdBinding({ prefs.showMeetingRecordingPill }, { prefs.showMeetingRecordingPill = $0 },
+                                            refresh: { tick += 1; context.meetings.refreshPill() })).labelsHidden().toggleStyle(.switch)
+            }
+            TBDSettingsRow("Open app when meeting ends", help: "Brings TBD forward showing the transcript when a recording finishes. Turn this off to keep working. The meeting saves to your library in the background.") {
+                Toggle("", isOn: tbdBinding({ prefs.openAppAfterMeetingEnd }, { prefs.openAppAfterMeetingEnd = $0 }, refresh: { tick += 1 }))
+                    .labelsHidden().toggleStyle(.switch)
+            }
+            TBDSettingsRow("Notify when transcript is ready", help: "Plays a chime and shows a notification when a meeting finishes transcribing in the background. Applies when the app isn't set to open automatically.") {
+                Toggle("", isOn: tbdBinding({ prefs.notifyOnMeetingEnd }, { prefs.notifyOnMeetingEnd = $0 }, refresh: { tick += 1 }))
+                    .labelsHidden().toggleStyle(.switch).disabled(prefs.openAppAfterMeetingEnd)
+            }
+            TBDSettingsRow("Audio sources", help: prefs.meetingAudioSourceMode.detail) {
+                Picker("", selection: tbdBinding({ prefs.meetingAudioSourceMode }, { prefs.meetingAudioSourceMode = $0 }, refresh: { tick += 1 })) {
+                    ForEach(TBDMeetingAudioSource.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
+                .labelsHidden().frame(width: 260)
+            }
+            TBDSettingsRow("Start meetings muted", help: "Begin recording with your microphone off. Unmute from the meeting panel when you want to speak. System-audio-only capture ignores this. Changes apply to your next recording.") {
+                Toggle("", isOn: tbdBinding({ prefs.startMeetingsMuted }, { prefs.startMeetingsMuted = $0 }, refresh: { tick += 1 }))
+                    .labelsHidden().toggleStyle(.switch).disabled(!prefs.meetingAudioSourceMode.capturesMicrophone)
+            }
+            TBDSettingsRow("Stop recording automatically", help: "Stop after a meeting app quits, or both channels stay quiet for a few minutes. A countdown lets you keep recording first.") {
+                Toggle("", isOn: tbdBinding({ prefs.meetingAutoStopEnabled }, { prefs.meetingAutoStopEnabled = $0 }, refresh: { tick += 1 }))
+                    .labelsHidden().toggleStyle(.switch)
             }
             TBDAutoSaveSettings(scope: .meeting)
             TBDSettingsRow("Other participants", help: "Recording system audio needs Screen & System Audio Recording permission for TBD. Without it, only your microphone is recorded.") {
