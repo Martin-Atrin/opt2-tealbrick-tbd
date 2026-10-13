@@ -1,12 +1,13 @@
 import AppKit
 import SwiftUI
+import TBDDesign
 
 struct WeeklyInteractionGraphPrototypeSection: View {
   let snapshot: WeeklyInteractionGraphSnapshot
 
   enum Design {
     static let sectionSize = CGSize(width: 660, height: 631)
-    static let cornerRadius: CGFloat = 6
+    static let cornerRadius: CGFloat = TBDKit.radiusBrick
     static let borderColor = CompanionPalette.surface
     static let background = CompanionPalette.surface
     static let titleColor = CompanionPalette.accent
@@ -32,13 +33,13 @@ struct WeeklyInteractionGraphPrototypeSection: View {
         .fill(Design.background)
 
       Text(snapshot.title)
-        .font(.custom("Switzer-Medium", size: 20))
+        .font(TBDTokens.Typography.title)
         .foregroundStyle(Design.titleColor)
         .offset(x: Design.titleOrigin.x, y: Design.titleOrigin.y)
 
       Text(snapshot.subtitle)
-        .font(.custom("Switzer-Regular", size: 12))
-        .foregroundStyle(.black)
+        .font(WeeklyFont.axis)
+        .foregroundStyle(TBDColor.ink)
         .offset(x: Design.subtitleOrigin.x, y: Design.subtitleOrigin.y)
 
       graphLayer(layout: layout)

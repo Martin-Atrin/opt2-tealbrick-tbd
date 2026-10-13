@@ -26,7 +26,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.3.0"),
     ],
     targets: [
-        .target(name: "TBDDesign", resources: [.copy("Fonts")]),
+        .target(name: "TBDDesign", resources: [.copy("Fonts"), .copy("Apps")]),
         .target(name: "TBDModels"),
         .target(name: "TBDSpeechObjC"),
         .target(name: "TBDSpeech", dependencies: [

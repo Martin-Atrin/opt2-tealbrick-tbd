@@ -5,19 +5,19 @@
 	<key>ATSApplicationFontsPath</key>
 	<string>.</string>
 	<key>CFBundleDisplayName</key>
-	<string>TBD</string>
+	<string>$(TBD_DISPLAY_NAME)</string>
 	<key>CFBundleName</key>
-	<string>TBD</string>
+	<string>$(TBD_DISPLAY_NAME)</string>
 	<key>CFBundleShortVersionString</key>
 	<string>0.1.0</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>com.tealbrick.tbd</string>
+			<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>tealbrick-tbd</string>
+				<string>$(TBD_URL_SCHEME)</string>
 			</array>
 		</dict>
 	</array>

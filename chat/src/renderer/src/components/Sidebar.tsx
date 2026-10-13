@@ -5,17 +5,18 @@ import { useStore } from "@/lib/store";
 import { workspaceFooterLabel } from "@/lib/workspaceLabel";
 import { NO_MODEL_TITLE, modelGate } from "@/lib/agentModel";
 import { profileMenuLabel, workspaceAgentSubtitle } from "@/lib/workspaceAgents";
+import { AgentCard } from "./AgentCard";
 import { Avatar, Icon, timeLabel } from "./primitives";
 
-function useRailTooltip(name: string): { events: { onMouseEnter: (event: React.MouseEvent<HTMLDivElement>) => void; onMouseLeave: () => void; onFocus: (event: React.FocusEvent<HTMLDivElement>) => void; onBlur: () => void }; label: ReactNode } {
+function useRailTooltip(card: ReactNode): { events: { onMouseEnter: (event: React.MouseEvent<HTMLDivElement>) => void; onMouseLeave: () => void; onFocus: (event: React.FocusEvent<HTMLDivElement>) => void; onBlur: () => void }; label: ReactNode } {
   const [top, setTop] = useState<number | null>(null);
   const show = (event: React.MouseEvent<HTMLDivElement> | React.FocusEvent<HTMLDivElement>): void => {
     const rect = event.currentTarget.getBoundingClientRect();
-    setTop(Math.min(window.innerHeight - 52, Math.max(8, rect.top + 12)));
+    setTop(Math.min(window.innerHeight - 148, Math.max(8, rect.top - 6)));
   };
   return {
     events: { onMouseEnter: show, onMouseLeave: () => setTop(null), onFocus: show, onBlur: () => setTop(null) },
-    label: top === null ? null : createPortal(<div className="rail-name-rollout" role="tooltip" style={{ top }}>{name}</div>, document.body),
+    label: top === null ? null : createPortal(<div className="rail-name-rollout rail-name-rollout--card" role="tooltip" style={{ top }}>{card}</div>, document.body),
   };
 }
 
@@ -107,11 +108,9 @@ function Row({
 }): ReactNode {
   const { activeAgentId, select, agentModel } = useStore();
   const gate = modelGate(agent.id, agentModel);
-  const tooltip = useRailTooltip(
-    gate.blocked ? `${agent.name} — ${NO_MODEL_TITLE}`
-      : agent.workspace ? `${agent.name} — ${workspaceAgentSubtitle(agent.workspace)}` : agent.name,
-  );
   const active = agent.id === activeAgentId;
+  // The rail stays a narrow column of avatar bricks; hovering or focusing one rolls out the agent's full card (C146).
+  const tooltip = useRailTooltip(<AgentCard agent={agent} selected={active} />);
 
   return (
     <div

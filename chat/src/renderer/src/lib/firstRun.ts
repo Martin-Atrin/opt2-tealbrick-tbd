@@ -12,6 +12,8 @@ export type FirstRunAction = "models" | "connect";
 
 export interface FirstRunStep {
   id: "signin" | "model" | "connect";
+  /** The short name in the StepFlow step row ("2-Model"). */
+  name: string;
   title: string;
   done: boolean;
   detail?: string;
@@ -21,13 +23,13 @@ export interface FirstRunStep {
 
 export function firstRunSteps(state: FirstRunState): FirstRunStep[] {
   return [
-    { id: "signin", title: "Signed in to Teal Brick, workspace chosen", done: true },
+    { id: "signin", name: "Signed in", title: "Signed in to Teal Brick, workspace chosen", done: true },
     state.model.ready
-      ? { id: "model", title: "Model for TBD's agent", done: true }
-      : { id: "model", title: "Model for TBD's agent", done: false, detail: state.model.note ?? "Choose a model for TBD's agent in Settings → Models.", action: "models" },
+      ? { id: "model", name: "Model", title: "Model for TBD's agent", done: true }
+      : { id: "model", name: "Model", title: "Model for TBD's agent", done: false, detail: state.model.note ?? "Choose a model for TBD's agent in Settings → Models.", action: "models" },
     state.agentConnected
-      ? { id: "connect", title: "TBD's agent connected to your workspace", done: true, optional: true }
-      : { id: "connect", title: "Connect TBD's agent to your workspace", done: false, optional: true, detail: "Optional: lets the agent use Teal Brick apps (memory, connected accounts). Your timeline and transcripts work without it.", action: "connect" },
+      ? { id: "connect", name: "Connect", title: "TBD's agent connected to your workspace", done: true, optional: true }
+      : { id: "connect", name: "Connect", title: "Connect TBD's agent to your workspace", done: false, optional: true, detail: "Optional: lets the agent use Teal Brick apps (memory, connected accounts). Your timeline and transcripts work without it.", action: "connect" },
   ];
 }
 

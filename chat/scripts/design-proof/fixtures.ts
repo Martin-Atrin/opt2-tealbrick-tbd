@@ -41,6 +41,9 @@ const conversations: Record<string, Block[]> = {
 const model = { name: "TBD", harness: "tbd-default", protocol: "tealbrick-native", native: true, model: "claude-sonnet-demo", capabilities: ["chat"], tools: [{ name: "Companion timeline", description: "Your screen-activity timeline." }] };
 const folders = { workspace: "/Users/demo/TBD", folders: [] };
 
+/** A fixture value for a call that never answers (a device-flow approval the person has not given yet). */
+export const PENDING = "__pending__";
+
 /** Return values by method name; anything not listed falls through to harmlessDefault. */
 const fixtures: Partial<Record<keyof StudioApi, unknown>> = {
   controlPlanes: { activeId: "default", profiles: [{ id: "default", name: "Teal Brick", issuer: "https://dev.tealbrick.com", builtIn: true }] },
@@ -72,11 +75,16 @@ export function installStudio(): void {
   const studio = new Proxy({} as Record<string, unknown>, {
     get(_t, prop) {
       if (typeof prop !== "string" || prop === "then") return undefined;
-      if (prop in fixtures) return () => Promise.resolve((fixtures as Record<string, unknown>)[prop]);
+      if (prop in fixtures) return () => { const v = (fixtures as Record<string, unknown>)[prop]; return v === PENDING ? new Promise(() => undefined) : Promise.resolve(v); };
       // Subscriptions (onDelta, onTurn, ...) are synchronous and return an unsubscribe no-op.
       if (/^on[A-Z]/.test(prop)) return () => () => undefined;
       return (...args: unknown[]) => Promise.resolve(harmlessDefault(prop, args));
     },
   });
   (window as unknown as { studio: StudioApi }).studio = studio as unknown as StudioApi;
+}
+
+/** Proof-only: change what a call answers (first-run state, agent connection) between screenshots. */
+export function setFixture(name: keyof StudioApi, value: unknown): void {
+  (fixtures as Record<string, unknown>)[name] = value;
 }

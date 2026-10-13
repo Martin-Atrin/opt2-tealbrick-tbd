@@ -3,6 +3,7 @@ import CryptoKit
 import Foundation
 import OSLog
 import Security
+import TBDModels
 
 // MARK: - Pure logic (unit-tested)
 
@@ -335,6 +336,10 @@ final class TBDUpdater: ObservableObject {
   /// Starts the automatic check (at most once per 24 hours). Never installs by itself.
   func start() {
     guard !started else { return }
+    #if DEBUG
+      // The DEBUG dev identity never checks for or installs releases (an update would replace it with a live build).
+      if TBDIdentity.isDev { return }
+    #endif
     started = true
     checkIfDue()
     timer = Timer.scheduledTimer(withTimeInterval: 6 * 60 * 60, repeats: true) { [weak self] _ in
@@ -381,6 +386,9 @@ final class TBDUpdater: ObservableObject {
   /// Downloads, verifies, replaces the running app and relaunches. Requires a user click.
   func downloadAndInstall() async {
     guard !busy, let offer = latest else { return }
+    #if DEBUG
+      if TBDIdentity.isDev { state = .failed("Updates are off for the TBD Dev build."); return }
+    #endif
     busy = true
     defer { busy = false }
     var work: URL?

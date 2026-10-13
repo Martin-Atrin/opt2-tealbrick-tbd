@@ -7,7 +7,7 @@ struct WeeklySuggestionsSection: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 24) {
       Text(snapshot.title)
-        .font(.custom("Switzer-Medium", size: 24))
+        .font(TBDTokens.Typography.title)
         .foregroundStyle(WeeklyPalette.title)
 
       ViewThatFits(in: .horizontal) {
@@ -41,16 +41,16 @@ struct WeeklySuggestionsSection: View {
     .frame(maxWidth: .infinity, alignment: .topLeading)
     .background(WeeklyPalette.cardFillStrong)
     .overlay(
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base, style: .continuous)
-        .stroke(WeeklyPalette.cardBorder, lineWidth: 1)
+      TBDBrickShape()
+        .strokeBorder(WeeklyPalette.cardBorder, lineWidth: TBDKit.hair)
     )
-    .clipShape(RoundedRectangle(cornerRadius: TBDTokens.Radius.base, style: .continuous))
+    .clipShape(TBDBrickShape())
   }
 
   private func suggestionColumn(title: String, items: [WeeklySuggestionEntry]) -> some View {
     VStack(alignment: .leading, spacing: 12) {
       Text(title)
-        .font(.custom("Switzer-Bold", size: 14))
+        .font(TBDTokens.Typography.control)
         .foregroundStyle(WeeklyPalette.title)
 
       VStack(alignment: .leading, spacing: 12) {
@@ -71,9 +71,9 @@ struct WeeklySuggestionsSection: View {
         .padding(.vertical, 2)
 
       (Text(item.label)
-        .font(.custom("Switzer-Bold", size: 12))
+        .font(TBDTokens.Typography.label)
         + Text(" - \(item.detail)")
-        .font(.custom("Switzer-Regular", size: 12)))
+        .font(TBDTokens.Typography.hint))
         .foregroundStyle(WeeklyPalette.text)
         .lineSpacing(2)
         .frame(maxWidth: .infinity, alignment: .leading)

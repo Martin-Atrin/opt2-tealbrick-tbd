@@ -1,4 +1,5 @@
 import Foundation
+import TBDModels
 
 enum StoragePathMigrator {
   private static let migrationFlagKey = "didMigrateFromSandbox"
@@ -38,7 +39,7 @@ enum StoragePathMigrator {
       return
     }
 
-    let destinationBase = newSupport.appendingPathComponent("TBD/Companion", isDirectory: true)
+    let destinationBase = newSupport.appendingPathComponent(TBDIdentity.folder("TBD") + "/Companion", isDirectory: true)
 
     let normalizedLegacy = legacyBase.standardizedFileURL.path
     let normalizedDestination = destinationBase.standardizedFileURL.path

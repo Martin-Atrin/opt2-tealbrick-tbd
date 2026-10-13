@@ -6,7 +6,7 @@ struct WeeklyTreemapCategoryCard: View {
   let onLeafHover: (WeeklyTreemapHoverState?) -> Void
 
   enum Design {
-    static let cornerRadius: CGFloat = 4
+    static let cornerRadius: CGFloat = TBDKit.radiusBrick
     static let tileGap: CGFloat = 4
     static let horizontalPadding: CGFloat = 8
     static let bottomPadding: CGFloat = 8
@@ -89,7 +89,7 @@ struct WeeklyTreemapCategoryHeader: View {
 
   var titleText: some View {
     Text(category.name)
-      .font(.custom("Switzer-Regular", size: 12))
+      .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
       .foregroundStyle(category.palette.headerText)
       .lineLimit(1)
       .minimumScaleFactor(0.8)
@@ -97,7 +97,7 @@ struct WeeklyTreemapCategoryHeader: View {
 
   var durationText: some View {
     Text(category.formattedDuration)
-      .font(.custom("Switzer-Regular", size: 12))
+      .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody))
       .foregroundStyle(category.palette.headerText)
       .lineLimit(1)
       .minimumScaleFactor(0.8)
@@ -110,7 +110,7 @@ struct WeeklyTreemapLeafTile: View {
   let onHoverChanged: (WeeklyTreemapHoverState?) -> Void
 
   enum Design {
-    static let cornerRadius: CGFloat = 4
+    static let cornerRadius: CGFloat = TBDKit.radiusBrick
   }
 
   var body: some View {
@@ -169,7 +169,7 @@ struct WeeklyTreemapLeafTile: View {
       nameRow(fontSize: typography.nameFontSize)
 
       Text(app.formattedDuration)
-        .font(.custom("Switzer-Regular", size: typography.detailFontSize))
+        .font(TBDFonts.nunito(typography.detailFontSize, TBDKit.weightBody))
         .foregroundStyle(WeeklyPalette.text)
         .lineLimit(1)
         .minimumScaleFactor(0.85)
@@ -185,7 +185,7 @@ struct WeeklyTreemapLeafTile: View {
       nameRow(fontSize: max(typography.nameFontSize - 2, 11))
 
       Text(app.formattedDuration)
-        .font(.custom("Switzer-Regular", size: max(typography.detailFontSize - 1, 10)))
+        .font(TBDFonts.nunito(max(typography.detailFontSize - 1, 10), TBDKit.weightBody))
         .foregroundStyle(WeeklyPalette.text)
         .lineLimit(1)
         .minimumScaleFactor(0.85)
@@ -213,7 +213,7 @@ struct WeeklyTreemapLeafTile: View {
 
   func nameText(fontSize: CGFloat) -> some View {
     Text(app.name)
-      .font(.custom("Switzer-Medium", size: fontSize))
+      .font(TBDFonts.nunito(fontSize, TBDKit.weightNav))
       .foregroundStyle(WeeklyPalette.text)
       .multilineTextAlignment(.center)
       .lineLimit(1)
@@ -252,18 +252,18 @@ struct WeeklyTreemapHoverCard: View {
   let palette: WeeklyTreemapPalette
 
   enum Design {
-    static let cornerRadius: CGFloat = 6
+    static let cornerRadius: CGFloat = TBDKit.radiusBrick
   }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
       Text(app.name)
-        .font(.custom("Switzer-Medium", size: 17))
+        .font(TBDFonts.nunito(TBDKit.textLabel, TBDKit.weightLabel))
         .foregroundStyle(WeeklyPalette.text)
         .lineLimit(1)
 
       Text(app.formattedDuration)
-        .font(.custom("Switzer-Regular", size: 12))
+        .font(TBDTokens.Typography.hint)
         .foregroundStyle(WeeklyPalette.text)
         .lineLimit(1)
 
@@ -285,7 +285,7 @@ struct WeeklyTreemapHoverCard: View {
       RoundedRectangle(cornerRadius: Design.cornerRadius, style: .continuous)
         .stroke(palette.shellBorder.opacity(0.95), lineWidth: 1)
     )
-    .shadow(color: WeeklyPalette.shadow, radius: 14, x: 0, y: 6)
+    .shadow(color: WeeklyPalette.shadow, radius: TBDKit.floatShadowRadius, x: 0, y: TBDKit.floatShadowY)
   }
 }
 
@@ -295,7 +295,7 @@ struct WeeklyTreemapChangeBadge: View {
 
   var body: some View {
     Text(change.text)
-      .font(.system(size: fontSize, design: .monospaced))
+      .font(TBDFonts.mono(fontSize))
       .foregroundStyle(change.color)
       .lineLimit(1)
       .minimumScaleFactor(0.85)

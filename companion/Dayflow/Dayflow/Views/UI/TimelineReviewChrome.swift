@@ -14,12 +14,11 @@ struct TimelineReviewSpeedChip: View {
   var body: some View {
     Button(action: onTap) {
       Text(playbackState.speedLabel)
-        .font(.custom("Switzer", size: 14).weight(.semibold))
-        .foregroundColor(.white)
+        .font(TBDTokens.Typography.tag)
+        .foregroundColor(TBDColor.overlayOn)
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(Color.black.opacity(0.8))
-        .cornerRadius(TBDTokens.Radius.xs)
+        .background(TBDColor.overlayFill, in: TBDBrickShape())
     }
     .buttonStyle(.plain)
     .pointingHandCursor()
@@ -114,7 +113,7 @@ struct TimelineReviewOverlayBadge: View {
         VStack(spacing: 4) {
           TimelineReviewRatingIcon(rating: rating, size: 48)
           Text(rating.title)
-            .font(.custom("Switzer", size: 20).weight(.bold))
+            .font(TBDTokens.Typography.title)
             .foregroundColor(rating.overlayTextColor)
         }
         .frame(width: 140)
@@ -124,6 +123,8 @@ struct TimelineReviewOverlayBadge: View {
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .background(rating.overlayColor)
+    // The badge sits on the card media: it always reads in the kit's dark appearance.
+    .environment(\.colorScheme, .dark)
   }
 }
 
@@ -133,16 +134,15 @@ struct TimelineReviewCategoryPill: View {
 
   var body: some View {
     HStack(spacing: 4) {
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base).fill(color).frame(width: 6, height: 6)
+      Circle().fill(color).frame(width: 6, height: 6)
       Text(name)
-        .font(.custom("Switzer", size: 10).weight(.bold))
-        .foregroundColor(Color(hex: "333333"))
+        .font(TBDTokens.Typography.label)
+        .foregroundColor(TBDColor.ink)
     }
-    .padding(.horizontal, 6)
+    .padding(.horizontal, 8)
     .padding(.vertical, 4)
-    .background(color.opacity(0.1))
-    .cornerRadius(TBDTokens.Radius.xs)
-    .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.xs).stroke(color, lineWidth: 0.75))
+    .background(color.opacity(0.1), in: Capsule())
+    .tbdPillEdge(color)
   }
 }
 
@@ -151,13 +151,12 @@ struct TimelineReviewTimeRangePill: View {
 
   var body: some View {
     Text(timeRange)
-      .font(.custom("Switzer", size: 10).weight(.bold))
-      .foregroundColor(Color(hex: "656565"))
-      .padding(.horizontal, 6)
+      .font(TBDFonts.mono(TBDKit.textHint, TBDKit.weightNav))
+      .foregroundColor(TBDColor.muted)
+      .padding(.horizontal, 8)
       .padding(.vertical, 4)
-      .background(Color(hex: "F5F0E9").opacity(0.9))
-      .cornerRadius(TBDTokens.Radius.xs)
-      .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.xs).stroke(Color(hex: "E4E4E4"), lineWidth: 0.75))
+      .background(TBDColor.tile, in: Capsule())
+      .tbdPillEdge(TBDColor.line)
   }
 }
 
@@ -181,8 +180,8 @@ struct TimelineReviewRatingRow: View {
       VStack(spacing: 6) {
         ZUndoIcon(size: 16)
         Text("Undo")
-          .font(.custom("Switzer", size: 12).weight(.medium))
-          .foregroundColor(Color(hex: "98806D"))
+          .font(TBDTokens.Typography.label)
+          .foregroundColor(TBDColor.muted)
       }
     }
     .buttonStyle(.plain)
@@ -196,8 +195,8 @@ struct TimelineReviewRatingRow: View {
       VStack(spacing: 6) {
         TimelineReviewFooterIcon(rating: rating, size: 16)
         Text(rating.title)
-          .font(.custom("Switzer", size: 12).weight(.medium))
-          .foregroundColor(Color(hex: "98806D"))
+          .font(TBDTokens.Typography.label)
+          .foregroundColor(TBDColor.muted)
       }
     }
     .buttonStyle(.plain)
@@ -209,10 +208,10 @@ struct ZUndoIcon: View {
   let size: CGFloat
   var body: some View {
     ZStack {
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.xs).fill(Color(hex: "D6AB8A").opacity(0.7))
+      TBDBrickShape().fill(TBDColor.plate)
       Text("Z")
-        .font(.custom("Switzer", size: size * 0.525).weight(.bold))
-        .foregroundColor(.white)
+        .font(TBDFonts.mono(size * 0.6, TBDKit.weightLabel))
+        .foregroundColor(TBDColor.ink)
     }
     .frame(width: size, height: size)
   }
@@ -225,14 +224,14 @@ struct TimelineReviewRatingIcon: View {
     switch rating {
     case .distracted:
       Image(systemName: "scribble")
-        .font(.system(size: size * 0.9, weight: .semibold))
+        .font(TBDFonts.symbol(size * 0.9, TBDKit.weightNav))
         .foregroundColor(rating.iconTint)
         .frame(width: size, height: size)
     case .neutral:
       NeutralFaceIcon(size: size, color: rating.iconTint)
     case .focused:
       Image(systemName: "sparkles")
-        .font(.system(size: size * 0.9, weight: .semibold))
+        .font(TBDFonts.symbol(size * 0.9, TBDKit.weightNav))
         .foregroundColor(rating.iconTint)
         .frame(width: size, height: size)
     }
@@ -251,14 +250,14 @@ struct TimelineReviewFooterIcon: View {
   }
   var body: some View {
     ZStack {
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.xs).fill(Color(hex: "D6AB8A").opacity(0.7))
+      TBDBrickShape().fill(TBDColor.plate)
       Path { path in
         path.move(to: CGPoint(x: size * 0.3125, y: size * 0.5))
         path.addLine(to: CGPoint(x: size * 0.59375, y: size * 0.33762))
         path.addLine(to: CGPoint(x: size * 0.59375, y: size * 0.66238))
         path.closeSubpath()
       }
-      .fill(Color.white)
+      .fill(TBDColor.ink)
     }
     .frame(width: size, height: size)
     .rotationEffect(rotation)
@@ -307,10 +306,10 @@ struct SummaryBarRow: View {
       HStack(spacing: spacing) {
         ForEach(ratings) { rating in
           let ratio = summary.ratio(for: rating)
-          RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-            .fill(rating.barGradient)
+          TBDBrickShape()
+            .fill(rating.barFill)
             .frame(width: available * ratio, height: 40)
-            .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.base).stroke(rating.barStroke, lineWidth: 1))
+            .overlay(TBDBrickShape().strokeBorder(rating.barStroke, lineWidth: TBDKit.hair))
         }
       }
       .frame(width: proxy.size.width, height: 40, alignment: .leading)
@@ -329,12 +328,12 @@ struct SummaryLabelRow: View {
           HStack(spacing: 4) {
             TimelineReviewRatingIcon(rating: rating, size: 16)
             Text(rating.title)
-              .font(.custom("Switzer", size: 12).weight(.regular))
+              .font(TBDTokens.Typography.label)
               .foregroundColor(rating.labelColor)
           }
           Text(formatDuration(duration))
-            .font(.custom("Switzer", size: 16).weight(.semibold))
-            .foregroundColor(Color(hex: "333333"))
+            .font(TBDFonts.nunito(TBDKit.textBody, TBDKit.weightLabel))
+            .foregroundColor(TBDColor.ink)
             .padding(.leading, 18)
         }
       }

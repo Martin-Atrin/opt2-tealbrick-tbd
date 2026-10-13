@@ -17,10 +17,16 @@ public struct TBDAgentModelForm: View {
     @State private var result: TBDAgentModelTestResult?
     @State private var status = ""
     @State private var failure = ""
+    @State private var step = 0
 
     /// `registry` is injectable so previews and screenshot checks never touch the person's settings or Keychain.
     public init(registry: TBDModelRegistry = TBDModelRegistry(), saved: @escaping () -> Void) {
         self.registry = registry; self.saved = saved
+        let current = TBDAgentModelSetup.current(registry)
+        _provider = State(initialValue: current.provider)
+        _endpoint = State(initialValue: current.provider == .anthropic ? "" : current.endpoint)
+        _model = State(initialValue: current.model)
+        _hasKey = State(initialValue: current.hasKey)
     }
 
     public var body: some View {
@@ -32,6 +38,26 @@ public struct TBDAgentModelForm: View {
                 Text("TBD's agent runs on the Claude Agent SDK. Chat cannot answer until this is set.")
                     .font(TBDTokens.Typography.body).foregroundStyle(TBDColor.inkSoft).fixedSize(horizontal: false, vertical: true)
             }
+            // The card keeps one fixed size for every step (C126). The key step is left out entirely when the provider needs no key.
+            TBDStepFlow(steps: steps, current: $step, size: CGSize(width: 560, height: 420)) { save() }
+                .overlay(TBDBrickShape().strokeBorder(TBDColor.line, lineWidth: TBDKit.hair))
+                .clipShape(TBDBrickShape())
+        }
+        .frame(maxWidth: 560, alignment: .leading)
+        .onAppear { load() }
+    }
+
+    private var steps: [TBDStep] {
+        var all = [TBDStep("Provider", canAdvance: !endpointValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) { providerStep }]
+        if provider.needsKey {
+            all.append(TBDStep("Key", canAdvance: hasKey || !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) { keyStep })
+        }
+        all.append(TBDStep("Model", nextLabel: "Save", canAdvance: canSubmit) { modelStep })
+        return all
+    }
+
+    private var providerStep: some View {
+        VStack(alignment: .leading, spacing: TBDKit.s4) {
             TBDSegmented(selection: $provider, options: TBDAgentProvider.allCases.map { ($0, $0.title) })
                 .onChange(of: provider) { old, new in
                     result = nil
@@ -46,26 +72,25 @@ public struct TBDAgentModelForm: View {
             if provider == .anthropicCompatible {
                 TBDField("Endpoint", text: $endpoint, prompt: "https://gateway.example/anthropic")
             }
-            if provider.needsKey {
-                TBDField("API key", text: $key, prompt: hasKey ? "Stored in Keychain" : "sk-ant-…", secure: true,
-                         hint: hasKey ? "Leave it empty to keep the stored key." : "Kept in your Keychain, one item per endpoint.")
-                    .onChange(of: key) { _, _ in result = nil }
-            }
+        }
+    }
+
+    private var keyStep: some View {
+        TBDField("API key", text: $key, prompt: hasKey ? "Stored in Keychain" : "sk-ant-…", secure: true,
+                 hint: hasKey ? "Leave it empty to keep the stored key." : "Kept in your Keychain, one item per endpoint.")
+            .onChange(of: key) { _, _ in result = nil }
+    }
+
+    private var modelStep: some View {
+        VStack(alignment: .leading, spacing: TBDKit.s4) {
             TBDField("Model ID", text: $model, hint: "Prefilled with the default model for this provider.")
                 .onChange(of: model) { _, _ in result = nil }
-            HStack(spacing: TBDKit.s3) {
-                Button(testing ? "Testing…" : "Test connection") { test() }
-                    .buttonStyle(TBDButtonStyle(.secondary)).disabled(testing || !canSubmit)
-                Button("Save") { save() }
-                    .buttonStyle(TBDButtonStyle(.primary)).disabled(!canSubmit)
-            }
+            Button(testing ? "Testing…" : "Test connection") { test() }
+                .buttonStyle(TBDButtonStyle(.secondary)).disabled(testing || !canSubmit)
             if let result { TBDNotice(result.message, tone: result.isOK ? .live : .needsYou) }
             if !status.isEmpty { TBDNotice(status, tone: .live) }
             if !failure.isEmpty { TBDNotice(failure, tone: .needsYou) }
         }
-        .frame(maxWidth: 560, alignment: .leading)
-        .tbdCard(padding: TBDKit.s6)
-        .onAppear { load() }
     }
 
     private var endpointValue: String { provider.fixedEndpoint ?? endpoint }
@@ -110,6 +135,7 @@ public struct TBDAgentModelForm: View {
     private func save() {
         do {
             try TBDAgentModelSetup.save(provider: provider, endpoint: endpointValue, apiKey: key, model: model, registry: registry)
+            if !key.isEmpty { result = nil }  // the key field used to clear the test result when it emptied
             key = ""; failure = ""; status = "Saved. TBD's agent uses \(model.trimmingCharacters(in: .whitespacesAndNewlines)). Go back to Chat and send a message."
             load(); saved()
         } catch {

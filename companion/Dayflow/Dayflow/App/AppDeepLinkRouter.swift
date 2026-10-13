@@ -1,4 +1,5 @@
 import Foundation
+import TBDModels
 
 @MainActor
 final class AppDeepLinkRouter {
@@ -38,7 +39,12 @@ final class AppDeepLinkRouter {
   }
 
   private func resolveAction(from url: URL) -> Action? {
-    guard let scheme = url.scheme, scheme.caseInsensitiveCompare("tealbrick-tbd") == .orderedSame else {
+    #if DEBUG
+      let expectedScheme = TBDIdentity.isDev ? "tealbrick-tbd-dev" : "tealbrick-tbd"
+    #else
+      let expectedScheme = "tealbrick-tbd"
+    #endif
+    guard let scheme = url.scheme, scheme.caseInsensitiveCompare(expectedScheme) == .orderedSame else {
       return nil
     }
 

@@ -79,15 +79,18 @@ class ProviderSetupState: ObservableObject {
     return steps[currentStepIndex]
   }
 
-  var canContinue: Bool {
-    switch currentStep.contentType {
+  var canContinue: Bool { canContinue(for: currentStep) }
+
+  /// Whether Next is allowed on `step` (the step flow asks per step, live).
+  func canContinue(for step: SetupStep) -> Bool {
+    switch step.contentType {
     case .apiKeyInput:
       let cleanedKey = apiKey.components(separatedBy: .whitespacesAndNewlines).joined()
       return cleanedKey.count > 20 || (cleanedKey.isEmpty && hasStoredGeminiAPIKey)
     case .cliDetection:
       return isSelectedCLIToolReady
     case .information(_, _):
-      if currentStep.id == "verify" || currentStep.id == "test" {
+      if step.id == "verify" || step.id == "test" {
         return testSuccessful
       }
       return true

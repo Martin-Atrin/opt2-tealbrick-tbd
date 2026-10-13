@@ -7,7 +7,8 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useStore } from "@/lib/store";
 import "@/styles.css";
 import "@/teal-brick.css";
-import { UNREAD_AGENT_ID, installStudio } from "./fixtures";
+import { UNREAD_AGENT_ID, installStudio, setFixture } from "./fixtures";
+import { AppsSample } from "./sample";
 
 // The store only touches window.studio from effects, but install before the first render anyway.
 installStudio();
@@ -15,7 +16,7 @@ installStudio();
 createRoot(document.getElementById("root") as HTMLElement).render(
   <StrictMode>
     <ErrorBoundary>
-      <App />
+      {new URLSearchParams(location.search).get("sample") === "apps" ? <AppsSample /> : <App />}
     </ErrorBoundary>
   </StrictMode>,
 );
@@ -28,3 +29,10 @@ const markUnread = useStore.subscribe((s) => {
   markUnread();
   s.patchAgent(UNREAD_AGENT_ID, { unread: true });
 });
+
+// Handles for design-proof.ts: change fixtures and store state between screenshots.
+(window as unknown as { __proof: unknown }).__proof = {
+  setFixture,
+  panel: (view: "none" | "overview" | "settings") => useStore.getState().setPanel(view),
+  select: (id: string) => useStore.getState().select(id),
+};

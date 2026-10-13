@@ -80,7 +80,8 @@ export const keychainSigner: AgentSigner = {
 
 /** The agent's own working folder (SEC-04): TBD-owned, outside TBD's data, created 0700. */
 export function agentWorkspace(): string {
-  const dir = join(homedir(), "Library", "Application Support", "TBD Agent", "Workspace");
+  // TBD_AGENT_WORKSPACE is set only by the DEBUG dev host (TBD Dev); the live app never sets it.
+  const dir = process.env.TBD_AGENT_WORKSPACE || join(homedir(), "Library", "Application Support", "TBD Agent", "Workspace");
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   return realPath(dir);
 }

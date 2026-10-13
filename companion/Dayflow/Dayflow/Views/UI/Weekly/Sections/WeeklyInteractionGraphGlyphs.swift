@@ -1,4 +1,5 @@
 import SwiftUI
+import TBDDesign
 
 struct WeeklyInteractionGraphNodeBadge: View {
   let node: WeeklyInteractionGraphNodeLayout
@@ -7,19 +8,19 @@ struct WeeklyInteractionGraphNodeBadge: View {
     switch node.category {
     case .work:
       return LinearGradient(
-        colors: [Color(hex: "EEF3FF"), Color(hex: "F8FAFF")],
+        colors: [TBDColor.tealWash, TBDColor.tile],
         startPoint: .top,
         endPoint: .bottom
       )
     case .personal:
       return LinearGradient(
-        colors: [Color(hex: "EFECE8"), Color(hex: "F8F6F4")],
+        colors: [TBDColor.plate, TBDColor.tile],
         startPoint: .top,
         endPoint: .bottom
       )
     case .distraction:
       return LinearGradient(
-        colors: [CompanionPalette.soft, CompanionPalette.surface],
+        colors: [TBDColor.brickWash, TBDColor.tile],
         startPoint: .top,
         endPoint: .bottom
       )
@@ -64,8 +65,8 @@ struct WeeklyInteractionGraphGlyphView: View {
       case .x:
         WeeklyInteractionMonogramGlyph(
           text: String(localized: "X"),
-          background: .black,
-          foreground: .white,
+          background: TBDColor.ink,
+          foreground: TBDColor.paper,
           cornerRadius: diameter * 0.11,
           fontSize: diameter * 0.34
         )
@@ -79,7 +80,7 @@ struct WeeklyInteractionGraphGlyphView: View {
         WeeklyInteractionMonogramGlyph(
           text: String(localized: "r"),
           background: CompanionPalette.accent,
-          foreground: .white,
+          foreground: TBDColor.paper,
           cornerRadius: diameter * 0.5,
           fontSize: diameter * 0.34
         )
@@ -87,15 +88,15 @@ struct WeeklyInteractionGraphGlyphView: View {
         WeeklyInteractionMonogramGlyph(
           text: String(localized: "L"),
           background: CompanionPalette.accent,
-          foreground: .white,
+          foreground: TBDColor.paper,
           cornerRadius: diameter * 0.12,
           fontSize: diameter * 0.34
         )
       case .framer:
         WeeklyInteractionMonogramGlyph(
           text: String(localized: "F"),
-          background: .black,
-          foreground: .white,
+          background: TBDColor.ink,
+          foreground: TBDColor.paper,
           cornerRadius: diameter * 0.12,
           fontSize: diameter * 0.34
         )
@@ -117,8 +118,8 @@ struct WeeklyInteractionGraphGlyphView: View {
       case .monogram(let text, let backgroundHex, let foregroundHex):
         WeeklyInteractionMonogramGlyph(
           text: text,
-          background: Color(hex: backgroundHex),
-          foreground: Color(hex: foregroundHex),
+          background: Color(hex: backgroundHex),  // design-guard: allow (user app colour carried as hex)
+          foreground: Color(hex: foregroundHex),  // design-guard: allow (user app colour carried as hex)
           cornerRadius: diameter * 0.12,
           fontSize: diameter * 0.34
         )
@@ -139,7 +140,7 @@ struct WeeklyInteractionMonogramGlyph: View {
       .fill(background)
       .overlay {
         Text(text)
-          .font(.system(size: fontSize, weight: .semibold, design: .rounded))
+          .font(TBDFonts.nunito(fontSize, TBDKit.weightLabel))
           .foregroundStyle(foreground)
       }
   }
@@ -156,27 +157,27 @@ struct WeeklyInteractionFigmaGlyph: View {
         VStack(spacing: 0) {
           HStack(spacing: 0) {
             RoundedRectangle(cornerRadius: circle * 0.7, style: .continuous)
-              .fill(CompanionPalette.accent)
+              .fill(TBDColor.toneBrick)
               .frame(width: pillWidth, height: circle)
 
             Circle()
-              .fill(Color(hex: "29B6F6"))
+              .fill(TBDColor.toneWood)
               .frame(width: circle, height: circle)
           }
 
           HStack(spacing: 0) {
             RoundedRectangle(cornerRadius: circle * 0.7, style: .continuous)
-              .fill(Color(hex: "A857E8"))
+              .fill(TBDColor.toneTeal)
               .frame(width: pillWidth, height: circle)
 
             Circle()
-              .fill(Color(hex: "29B6F6"))
+              .fill(TBDColor.toneWood)
               .frame(width: circle, height: circle)
           }
 
           HStack(spacing: 0) {
             Circle()
-              .fill(Color(hex: "34C759"))
+              .fill(TBDColor.toneMoss)
               .frame(width: circle, height: circle)
 
             Spacer(minLength: 0)
@@ -196,11 +197,11 @@ struct WeeklyInteractionYouTubeGlyph: View {
       let height = proxy.size.height
 
       RoundedRectangle(cornerRadius: height * 0.22, style: .continuous)
-        .fill(Color(hex: "FF2626"))
+        .fill(TBDColor.brick)
         .overlay {
           Image(systemName: "play.fill")
-            .font(.system(size: width * 0.28, weight: .bold))
-            .foregroundStyle(.white)
+            .font(TBDFonts.symbol(width * 0.28, TBDKit.weightNav))
+            .foregroundStyle(TBDColor.onBrick)
             .offset(x: width * 0.03)
         }
     }
@@ -217,22 +218,22 @@ struct WeeklyInteractionSlackGlyph: View {
 
       ZStack {
         RoundedRectangle(cornerRadius: bar * 0.65, style: .continuous)
-          .fill(Color(hex: "36C5F0"))
+          .fill(TBDColor.toneTeal)
           .frame(width: bar, height: long)
           .offset(x: -bar * 0.9, y: long * 0.2)
 
         RoundedRectangle(cornerRadius: bar * 0.65, style: .continuous)
-          .fill(Color(hex: "2EB67D"))
+          .fill(TBDColor.toneMoss)
           .frame(width: long, height: bar)
           .offset(x: -bar * 0.2, y: bar * 0.9)
 
         RoundedRectangle(cornerRadius: bar * 0.65, style: .continuous)
-          .fill(Color(hex: "E01E5A"))
+          .fill(TBDColor.toneBrick)
           .frame(width: bar, height: long)
           .offset(x: bar * 0.9, y: -long * 0.2)
 
         RoundedRectangle(cornerRadius: bar * 0.65, style: .continuous)
-          .fill(CompanionPalette.accent)
+          .fill(TBDColor.toneWood)
           .frame(width: long, height: bar)
           .offset(x: bar * 0.2, y: -bar * 0.9)
       }
@@ -246,16 +247,16 @@ struct WeeklyInteractionNotionGlyph: View {
   let fontSize: CGFloat
 
   var body: some View {
-    RoundedRectangle(cornerRadius: 3, style: .continuous)
-      .fill(.white)
+    TBDBrickShape()
+      .fill(TBDColor.tile)
       .overlay(
-        RoundedRectangle(cornerRadius: 3, style: .continuous)
-          .stroke(.black, lineWidth: 1.5)
+        TBDBrickShape()
+          .strokeBorder(TBDColor.ink, lineWidth: TBDKit.hair)
       )
       .overlay {
         Text("N")
-          .font(.custom("Switzer-Bold", size: fontSize))
-          .foregroundStyle(.black)
+          .font(TBDFonts.nunito(fontSize, TBDKit.weightLabel))
+          .foregroundStyle(TBDColor.ink)
       }
   }
 }
@@ -264,12 +265,12 @@ struct WeeklyInteractionZoomGlyph: View {
   let fontSize: CGFloat
 
   var body: some View {
-    RoundedRectangle(cornerRadius: 9, style: .continuous)
-      .fill(Color(hex: "4C8BFF"))
+    TBDBrickShape()
+      .fill(TBDColor.tealInk)
       .overlay {
         Image(systemName: "video.fill")
-          .font(.system(size: fontSize, weight: .semibold))
-          .foregroundStyle(.white)
+          .font(TBDFonts.symbol(fontSize, TBDKit.weightNav))
+          .foregroundStyle(TBDColor.paper)
       }
   }
 }
@@ -304,7 +305,7 @@ struct WeeklyInteractionCubeGlyph: View {
         Image(systemName: "shippingbox")
           .resizable()
           .scaledToFit()
-          .foregroundStyle(Color(hex: "A2A2A2"))
+          .foregroundStyle(TBDColor.muted)
           .frame(width: size * 0.78, height: size * 0.78)
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -340,15 +341,15 @@ struct WeeklyInteractionBullseyeGlyph: View {
 
       ZStack {
         Circle()
-          .stroke(Color(hex: "B5C34C"), lineWidth: max(size * 0.1, 2))
+          .stroke(TBDColor.toneMoss, lineWidth: max(size * 0.1, 2))
           .frame(width: size * 0.66, height: size * 0.66)
 
         Circle()
-          .stroke(Color(hex: "69751E"), lineWidth: max(size * 0.08, 1.5))
+          .stroke(TBDColor.toneMossInk, lineWidth: max(size * 0.08, 1.5))
           .frame(width: size * 0.38, height: size * 0.38)
 
         Circle()
-          .fill(Color(hex: "69751E"))
+          .fill(TBDColor.toneMossInk)
           .frame(width: size * 0.12, height: size * 0.12)
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -364,15 +365,15 @@ struct WeeklyInteractionBarsGlyph: View {
 
       HStack(alignment: .bottom, spacing: width * 0.06) {
         RoundedRectangle(cornerRadius: barWidth, style: .continuous)
-          .fill(Color(hex: "7E7E85"))
+          .fill(TBDColor.toneStone)
           .frame(width: barWidth, height: width * 0.34)
 
         RoundedRectangle(cornerRadius: barWidth, style: .continuous)
-          .fill(Color(hex: "606067"))
+          .fill(TBDColor.toneStoneInk)
           .frame(width: barWidth, height: width * 0.54)
 
         RoundedRectangle(cornerRadius: barWidth, style: .continuous)
-          .fill(Color(hex: "7E7E85"))
+          .fill(TBDColor.toneStone)
           .frame(width: barWidth, height: width * 0.24)
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -394,17 +395,17 @@ struct WeeklyInteractionGraphLegend: View {
     title: String
   ) -> some View {
     HStack(spacing: 6) {
-      RoundedRectangle(cornerRadius: 2, style: .continuous)
+      RoundedRectangle(cornerRadius: TBDKit.radiusSwatch, style: .continuous)
         .fill(category.fillColor)
         .overlay(
-          RoundedRectangle(cornerRadius: 2, style: .continuous)
+          RoundedRectangle(cornerRadius: TBDKit.radiusSwatch, style: .continuous)
             .stroke(category.borderColor, lineWidth: 1.75)
         )
         .frame(width: 16, height: 12)
 
       Text(title)
-        .font(.custom("Switzer-Regular", size: 12))
-        .foregroundStyle(.black)
+        .font(WeeklyFont.axis)
+        .foregroundStyle(TBDColor.ink)
     }
   }
 }

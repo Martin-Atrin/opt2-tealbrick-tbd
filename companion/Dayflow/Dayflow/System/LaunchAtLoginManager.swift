@@ -1,6 +1,7 @@
 import Foundation
 import OSLog
 import ServiceManagement
+import TBDModels
 
 @MainActor
 final class LaunchAtLoginManager: ObservableObject {
@@ -58,6 +59,13 @@ final class LaunchAtLoginManager: ObservableObject {
   /// Register or unregister the main app as a login item.
   func setEnabled(_ enabled: Bool) {
     guard enabled != isEnabled else { return }
+    #if DEBUG
+      // The DEBUG dev identity (TBD Dev) never registers itself as a login item.
+      if TBDIdentity.isDev && enabled {
+        logger.info("Launch at login is off for the TBD Dev build")
+        return
+      }
+    #endif
 
     do {
       if enabled {

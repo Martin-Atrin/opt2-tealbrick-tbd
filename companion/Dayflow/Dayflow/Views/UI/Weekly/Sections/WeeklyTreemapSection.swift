@@ -18,7 +18,7 @@ struct WeeklyTreemapSection: View {
 
   enum Design {
     static let sectionSize = CGSize(width: 958, height: 549)
-    static let cornerRadius: CGFloat = 4
+    static let cornerRadius: CGFloat = TBDKit.radiusBrick
     static let borderColor = WeeklyPalette.cardBorder
     @MainActor static var background: Color { WeeklyPalette.cardFill }
     static let titleOrigin = CGPoint(x: 40, y: 34)
@@ -40,7 +40,7 @@ struct WeeklyTreemapSection: View {
         .fill(Design.background)
 
       Text(snapshot.title)
-        .font(.custom("Switzer-Medium", size: 20))
+        .font(TBDTokens.Typography.title)
         .foregroundStyle(WeeklyPalette.title)
         .offset(x: Design.titleOrigin.x, y: Design.titleOrigin.y)
 

@@ -1,5 +1,6 @@
 import Charts
 import SwiftUI
+import TBDDesign
 
 struct WeeklyContextShiftComparisonSection: View {
   let snapshot: WeeklyContextShiftComparisonSnapshot
@@ -16,7 +17,7 @@ struct WeeklyContextShiftComparisonSection: View {
   private enum Design {
     static let sectionWidth: CGFloat = 958
     static let sectionHeight: CGFloat = 414
-    static let cornerRadius: CGFloat = 6
+    static let cornerRadius: CGFloat = TBDKit.radiusBrick
     @MainActor static var background: Color { WeeklyPalette.canvas }
     static let axisColor = WeeklyPalette.axis
     static let labelColor = WeeklyPalette.text
@@ -77,11 +78,11 @@ struct WeeklyContextShiftComparisonSection: View {
       ForEach(snapshot.series) { series in
         HStack(spacing: 6) {
           Circle()
-            .fill(Color(hex: series.colorHex))
+            .fill(series.color)
             .frame(width: 10, height: 10)
 
           Text(series.label)
-            .font(.custom("Switzer-Regular", size: 12))
+            .font(WeeklyFont.axis)
             .foregroundStyle(Design.labelColor)
         }
       }
@@ -91,7 +92,7 @@ struct WeeklyContextShiftComparisonSection: View {
   private var chartColumn: some View {
     VStack(alignment: .leading, spacing: Design.xAxisTopSpacing) {
       Text("Count")
-        .font(.custom("Switzer-Regular", size: 12))
+        .font(WeeklyFont.axis)
         .foregroundStyle(Design.labelColor)
 
       comparisonChart
@@ -99,7 +100,7 @@ struct WeeklyContextShiftComparisonSection: View {
       HStack {
         ForEach(snapshot.dayLabels, id: \.self) { label in
           Text(label)
-            .font(.custom("Switzer-Regular", size: 12))
+            .font(WeeklyFont.axis)
             .foregroundStyle(Design.labelColor)
 
           if label != snapshot.dayLabels.last {
@@ -122,14 +123,14 @@ struct WeeklyContextShiftComparisonSection: View {
           )
           .interpolationMethod(.catmullRom)
           .lineStyle(StrokeStyle(lineWidth: Design.lineWidth))
-          .foregroundStyle(Color(hex: series.colorHex))
+          .foregroundStyle(series.color)
 
           PointMark(
             x: .value("Day Index", point.dayIndex),
             y: .value("Value", point.value)
           )
           .symbolSize(Design.pointSize)
-          .foregroundStyle(Color(hex: series.colorHex))
+          .foregroundStyle(series.color)
         }
       }
     }
@@ -158,41 +159,29 @@ struct WeeklyContextShiftComparisonSection: View {
   private var insightCard: some View {
     VStack(alignment: .leading, spacing: Design.calloutSpacing) {
       Text(snapshot.insightText)
-        .font(.custom("Switzer-Regular", size: 12))
+        .font(TBDTokens.Typography.hint)
         .foregroundStyle(Design.labelColor)
         .fixedSize(horizontal: false, vertical: true)
 
       Button(action: onPinpoint) {
         HStack(spacing: Design.buttonSpacing) {
           Image(systemName: "magnifyingglass")
-            .font(.system(size: 12, weight: .regular))
-            .foregroundStyle(Design.labelColor)
+            .font(TBDFonts.symbol(13, TBDKit.weightNav))
 
           Text(snapshot.callToAction)
-            .font(.custom("Switzer-Regular", size: 12))
-            .foregroundStyle(Design.labelColor)
         }
-        .padding(.horizontal, Design.buttonHorizontalPadding)
-        .padding(.vertical, Design.buttonVerticalPadding)
-        .background(WeeklyPalette.solid)
-        .overlay(
-          Capsule(style: .continuous)
-            .stroke(Design.insightBorder, lineWidth: 1)
-        )
-        .clipShape(Capsule(style: .continuous))
       }
-      .buttonStyle(.plain)
-      .hoverScaleEffect(scale: 1.02)
+      .buttonStyle(TBDButtonStyle(.secondary))
       .pointingHandCursorOnHover(reassertOnPressEnd: true)
     }
     .padding(Design.calloutPadding)
     .frame(width: Design.calloutWidth, alignment: .leading)
     .background(WeeklyPalette.cardFill)
     .overlay(
-      RoundedRectangle(cornerRadius: Design.cornerRadius, style: .continuous)
-        .stroke(WeeklyPalette.cardInnerStroke, lineWidth: 1)
+      TBDBrickShape()
+        .strokeBorder(WeeklyPalette.cardInnerStroke, lineWidth: TBDKit.hair)
     )
-    .clipShape(RoundedRectangle(cornerRadius: Design.cornerRadius, style: .continuous))
+    .clipShape(TBDBrickShape())
   }
 }
 
@@ -208,7 +197,7 @@ struct WeeklyContextShiftComparisonSnapshot {
       WeeklyContextShiftComparisonSeries(
         id: "distractions",
         label: String(localized: "Number of times distracted"),
-        colorHex: "FF8A8A",
+        color: TBDColor.brick,
         points: [
           .init(dayIndex: 0, value: 12),
           .init(dayIndex: 1, value: 9),
@@ -221,7 +210,7 @@ struct WeeklyContextShiftComparisonSnapshot {
       WeeklyContextShiftComparisonSeries(
         id: "context-shifts",
         label: String(localized: "Number of context shifts"),
-        colorHex: "A78CFF",
+        color: TBDColor.teal,
         points: [
           .init(dayIndex: 0, value: 15),
           .init(dayIndex: 1, value: 10),
@@ -241,7 +230,7 @@ struct WeeklyContextShiftComparisonSnapshot {
 struct WeeklyContextShiftComparisonSeries: Identifiable {
   let id: String
   let label: String
-  let colorHex: String
+  let color: Color
   let points: [WeeklyContextShiftComparisonPoint]
 }
 

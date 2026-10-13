@@ -461,11 +461,13 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.tealbrick.tbd;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tealbrick.tbd.dev;
 				PRODUCT_NAME = TBD;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
+				TBD_DISPLAY_NAME = "TBD Dev";
+				TBD_URL_SCHEME = "tealbrick-tbd-dev";
 			};
 			name = Debug;
 		};

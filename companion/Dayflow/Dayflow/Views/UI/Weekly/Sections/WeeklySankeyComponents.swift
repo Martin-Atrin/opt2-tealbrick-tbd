@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import TBDDesign
 
 struct WeeklySankeyCard: View {
   let model: WeeklySankeyModel
@@ -38,7 +39,7 @@ struct WeeklySankeyCard: View {
         let frame = scale.displayFrame(node.bar)
 
         Rectangle()
-          .fill(Color(hex: node.barColorHex))
+          .fill(Color(hex: node.barColorHex))  // design-guard: allow (user category colour)
           .frame(width: frame.width, height: frame.height)
           .offset(x: frame.minX, y: frame.minY)
           .opacity(nodeOpacity(node.id))
@@ -76,7 +77,7 @@ struct WeeklySankeyCard: View {
       }
 
       Text("Weekly breakdown")
-        .font(.custom("Switzer-Medium", size: 20))
+        .font(TBDTokens.Typography.title)
         .foregroundStyle(WeeklyPalette.title)
         .offset(
           x: scale.displayX(72),
@@ -198,30 +199,28 @@ struct WeeklySankeyCard: View {
       return [
         .init(color: CompanionPalette.soft.opacity(0.18), location: 0),
         .init(color: CompanionPalette.surface.opacity(0.16), location: 0.24),
-        .init(color: Color(hex: toColor).opacity(min(0.12, strength * 0.42)), location: 0.58),
-        .init(color: Color(hex: toColor).opacity(min(0.2, strength * 0.72)), location: 0.82),
-        .init(color: Color(hex: toColor).opacity(min(0.32, strength * 1.08)), location: 1),
+        .init(color: toColor.opacity(min(0.12, strength * 0.42)), location: 0.58),
+        .init(color: toColor.opacity(min(0.2, strength * 0.72)), location: 0.82),
+        .init(color: toColor.opacity(min(0.32, strength * 1.08)), location: 1),
       ]
     }
 
     return [
-      .init(color: Color(hex: fromColor).opacity(min(0.2, strength * 0.68)), location: 0),
-      .init(color: Color(hex: fromColor).opacity(min(0.11, strength * 0.4)), location: 0.24),
-      .init(color: Color(hex: toColor).opacity(min(0.05, strength * 0.2)), location: 0.54),
-      .init(color: Color(hex: toColor).opacity(min(0.12, strength * 0.42)), location: 0.78),
-      .init(color: Color(hex: toColor).opacity(min(0.27, strength * 0.9)), location: 1),
+      .init(color: fromColor.opacity(min(0.2, strength * 0.68)), location: 0),
+      .init(color: fromColor.opacity(min(0.11, strength * 0.4)), location: 0.24),
+      .init(color: toColor.opacity(min(0.05, strength * 0.2)), location: 0.54),
+      .init(color: toColor.opacity(min(0.12, strength * 0.42)), location: 0.78),
+      .init(color: toColor.opacity(min(0.27, strength * 0.9)), location: 1),
     ]
   }
 
-  private func sankeyRibbonTint(_ colorHex: String) -> String {
+  private func sankeyRibbonTint(_ colorHex: String) -> Color {
     let normalized = colorHex.replacingOccurrences(of: "#", with: "").uppercased()
-    if normalized == "000000" || normalized == "333333" {
-      return "CAC2BA"
+    // Black and grey app colours would read as dirt on the ribbons: they take the kit's stone tone.
+    if ["000000", "333333", "D9D9D9", "BFB6AE"].contains(normalized) {
+      return TBDColor.toneStone
     }
-    if normalized == "D9D9D9" || normalized == "BFB6AE" {
-      return "CFC8C1"
-    }
-    return normalized
+    return Color(hex: normalized)  // design-guard: allow (user category colour)
   }
 
   private func flowIsRelated(_ flow: WeeklySankeyFlow, _ activeNodeID: String?) -> Bool {
@@ -319,7 +318,7 @@ private struct WeeklySankeyPlainLabel: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 2) {
       Text(node.name)
-        .font(.custom("Switzer-Regular", size: 10))
+        .font(WeeklyFont.micro(10))
         .foregroundStyle(WeeklyPalette.text)
         .lineLimit(1)
 
@@ -342,7 +341,7 @@ private struct WeeklySankeyPlainLabel: View {
         .frame(width: 0.5, height: 11)
       Text(node.percent)
     }
-    .font(.custom("Switzer-Regular", size: fontSize))
+    .font(WeeklyFont.micro(fontSize))
     .foregroundStyle(WeeklyPalette.secondaryText)
     .lineLimit(1)
   }
@@ -362,7 +361,7 @@ private struct WeeklySankeyAppLabel: View {
 
       HStack(alignment: .firstTextBaseline, spacing: 5) {
         Text(node.name)
-          .font(.custom("Switzer-Regular", size: 10))
+          .font(WeeklyFont.micro(10))
           .foregroundStyle(WeeklyPalette.text)
           .lineLimit(1)
 
@@ -373,7 +372,7 @@ private struct WeeklySankeyAppLabel: View {
             .frame(width: 0.5, height: 10)
           Text(node.percent)
         }
-        .font(.custom("Switzer-Regular", size: 9))
+        .font(WeeklyFont.micro(9))
         .foregroundStyle(WeeklyPalette.secondaryText)
         .lineLimit(1)
       }
@@ -416,7 +415,7 @@ private struct WeeklySankeyIconView: View {
         secondaryHost: secondaryHost,
         fallbackRaw: fallbackRaw,
         size: 14,
-        cornerRadius: 3
+        cornerRadius: TBDKit.radiusSwatch
       )
     case .monogram(let text, let backgroundHex, let foregroundHex):
       fallbackMonogram(text, backgroundHex: backgroundHex, foregroundHex: foregroundHex)
@@ -427,15 +426,15 @@ private struct WeeklySankeyIconView: View {
 
   private func fallbackMonogram(
     _ text: String,
-    backgroundHex: String = "111111",
-    foregroundHex: String = "FFFFFF"
+    backgroundHex: String? = nil,
+    foregroundHex: String? = nil
   ) -> some View {
-    RoundedRectangle(cornerRadius: 3, style: .continuous)
-      .fill(Color(hex: backgroundHex))
+    RoundedRectangle(cornerRadius: TBDKit.radiusSwatch, style: .continuous)
+      .fill(backgroundHex.map { Color(hex: $0) } ?? TBDColor.ink)  // design-guard: allow (user app colour carried as hex)
       .overlay {
         Text(text)
-          .font(.custom("Switzer-Bold", size: 8))
-          .foregroundStyle(Color(hex: foregroundHex))
+          .font(WeeklyFont.micro(8, bold: true))
+          .foregroundStyle(foregroundHex.map { Color(hex: $0) } ?? TBDColor.paper)  // design-guard: allow (user app colour carried as hex)
       }
   }
 }

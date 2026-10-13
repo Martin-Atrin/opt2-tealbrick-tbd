@@ -12,8 +12,10 @@ import {
   toCron,
 } from "@/lib/schedule";
 import { useStore, type PanelView } from "@/lib/store";
-import { CHAT_COMES_NEXT, drawerView, workspaceAgentSubtitle } from "@/lib/workspaceAgents";
+import { CHAT_COMES_NEXT, drawerView } from "@/lib/workspaceAgents";
 import { RESTARTED, TBD_AGENT_ID, restartFailed } from "@/lib/agentModel";
+import { AgentCard } from "./AgentCard";
+import { ConnectAgentFlow } from "./ConnectAgentFlow";
 import { Avatar, Icon, Toggle } from "./primitives";
 
 /**
@@ -148,7 +150,7 @@ function Overview(): ReactNode {
       <div className="panel__body">
         <div className="agent-inspector__identity">
           <span className="workspace-home__eyebrow">WORKSPACE AGENT</span>
-          <h2>{agent.name}</h2>
+          <AgentCard agent={agent} selected wide />
         </div>
         <dl className="agent-inspector__metadata">
           <div><dt>Host</dt><dd>{agent.url ? hostOf(agent.url) : "No endpoint configured"}</dd></div>
@@ -307,23 +309,9 @@ function RoutineView(): ReactNode {
  */
 function AgentConnectCard(): ReactNode {
   const [state, setState] = useState<{ connected: boolean } | null>(null);
-  const [code, setCode] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [flow, setFlow] = useState(false);
   const refresh = (): void => { void window.studio.agentConnection().then(setState).catch(() => setState(null)); };
   useEffect(refresh, []);
-  const connect = async (): Promise<void> => {
-    setError(null);
-    try {
-      const start = await window.studio.agentConnect();
-      setCode(start.userCode);
-      await window.studio.awaitAgentConnect();
-      setCode(null);
-      refresh();
-    } catch (e) {
-      setCode(null);
-      setError(e instanceof Error ? e.message : String(e));
-    }
-  };
   return (
     <div className="card">
       <div style={{ marginBottom: 6 }}>Teal Brick workspace</div>
@@ -332,18 +320,13 @@ function AgentConnectCard(): ReactNode {
           <div className="muted" style={{ flex: 1 }}>Connected. Teal Brick apps are available to TBD&apos;s agent.</div>
           <button className="btn" onClick={() => void window.studio.agentDisconnect().then(refresh)}>Disconnect</button>
         </div>
-      ) : code ? (
-        <div className="stack-row">
-          <div className="muted" style={{ flex: 1 }}>Approve in your browser. Code: <span style={{ fontFamily: "var(--font-mono)" }}>{code}</span></div>
-          <button className="btn" onClick={() => { void window.studio.cancelAgentConnect(); setCode(null); }}>Cancel</button>
-        </div>
       ) : (
         <div className="stack-row">
           <div className="muted" style={{ flex: 1 }}>Connect TBD&apos;s agent to your workspace to use memory and connected accounts.</div>
-          <button className="btn btn--primary" onClick={() => void connect()}>Connect</button>
+          <button className="btn btn--primary" onClick={() => setFlow(true)}>Connect</button>
         </div>
       )}
-      {error ? <div className="muted" style={{ color: "var(--danger)", marginTop: 6 }}>{error}</div> : null}
+      {flow ? <ConnectAgentFlow onClose={() => { setFlow(false); refresh(); }} onConnected={refresh} /> : null}
     </div>
   );
 }
@@ -540,13 +523,9 @@ function WorkspaceProfile(): ReactNode {
     <>
       <Head title="Profile" onClose={() => setPanel("none")} />
       <div className="panel__body">
-        <div className="agent-portrait">
-          <Avatar name={agent.name} accent={agent.accent} src={agent.avatar} size={62} />
-          <div>{agent.name}</div>
-        </div>
-        <div className="card">
-          <div>{workspaceAgentSubtitle(agent.workspace)}</div>
-          {agent.workspace.purpose ? <div className="muted" style={{ marginTop: 6 }}>{agent.workspace.purpose}</div> : null}
+        <AgentCard agent={agent} selected wide />
+        <div className="card" style={{ marginTop: 12 }}>
+          {agent.workspace.purpose ? <div className="muted">{agent.workspace.purpose}</div> : null}
           <div className="muted" style={{ marginTop: 6 }}>{CHAT_COMES_NEXT}</div>
         </div>
       </div>

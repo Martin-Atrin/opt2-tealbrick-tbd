@@ -14,7 +14,7 @@ struct WeeklyContextChartsSection: View {
   private enum Design {
     static let height: CGFloat = 300
     static let footerHeight: CGFloat = 58
-    static let cornerRadius: CGFloat = 6
+    static let cornerRadius: CGFloat = TBDKit.radiusBrick
     static let horizontalPadding: CGFloat = 24
     static let topPadding: CGFloat = 16
     static let legendSpacing: CGFloat = 34
@@ -52,13 +52,13 @@ struct WeeklyContextChartsSection: View {
       WeeklyContextLineSeries(
         id: "distractions",
         label: String(localized: "Number of times distracted"),
-        colorHex: "FF8A8A",
+        color: TBDColor.brick,
         values: snapshot.comparison.days.map(\.distracted)
       ),
       WeeklyContextLineSeries(
         id: "context-shifts",
         label: String(localized: "Number of context shifts"),
-        colorHex: "A78CFF",
+        color: TBDColor.teal,
         values: snapshot.comparison.days.map(\.shifts)
       ),
     ]
@@ -73,7 +73,7 @@ struct WeeklyContextChartsSection: View {
     VStack(spacing: 0) {
       VStack(alignment: .leading, spacing: Design.chartTopSpacing) {
         Text("Context shift and distractions comparison")
-          .font(.custom("Switzer-Medium", size: 20))
+          .font(TBDTokens.Typography.title)
           .foregroundStyle(WeeklyPalette.title)
           .lineLimit(1)
           .minimumScaleFactor(0.82)
@@ -108,11 +108,11 @@ struct WeeklyContextChartsSection: View {
       ForEach(series) { item in
         HStack(spacing: 6) {
           Circle()
-            .fill(Color(hex: item.colorHex))
+            .fill(item.color)
             .frame(width: 10, height: 10)
 
           Text(item.label)
-            .font(.custom("Switzer-Regular", size: 12))
+            .font(WeeklyFont.axis)
             .foregroundStyle(Design.labelColor)
             .lineLimit(1)
             .minimumScaleFactor(0.82)
@@ -124,7 +124,7 @@ struct WeeklyContextChartsSection: View {
   private var chartColumn: some View {
     VStack(alignment: .leading, spacing: Design.xAxisTopSpacing) {
       Text("Count")
-        .font(.custom("Switzer-Regular", size: 12))
+        .font(WeeklyFont.axis)
         .foregroundStyle(Design.labelColor)
 
       lineChart
@@ -132,7 +132,7 @@ struct WeeklyContextChartsSection: View {
       HStack {
         ForEach(snapshot.comparison.days) { day in
           Text(day.day)
-            .font(.custom("Switzer-Regular", size: 12))
+            .font(WeeklyFont.axis)
             .foregroundStyle(Design.labelColor)
 
           if day.id != snapshot.comparison.days.last?.id {
@@ -155,14 +155,14 @@ struct WeeklyContextChartsSection: View {
           )
           .interpolationMethod(.catmullRom)
           .lineStyle(StrokeStyle(lineWidth: Design.lineWidth))
-          .foregroundStyle(Color(hex: item.colorHex))
+          .foregroundStyle(item.color)
 
           PointMark(
             x: .value("Day", index),
             y: .value("Count", value)
           )
           .symbolSize(Design.pointSize)
-          .foregroundStyle(Color(hex: item.colorHex))
+          .foregroundStyle(item.color)
         }
       }
     }
@@ -196,7 +196,7 @@ struct WeeklyContextChartsSection: View {
         .padding(.top, 4)
 
       Text(snapshot.comparison.insight)
-        .font(.custom("Switzer-Regular", size: 14))
+        .font(TBDTokens.Typography.hint)
         .foregroundStyle(WeeklyPalette.text)
         .lineLimit(2)
         .minimumScaleFactor(0.82)
@@ -212,7 +212,7 @@ struct WeeklyContextChartsSection: View {
 private struct WeeklyContextLineSeries: Identifiable {
   let id: String
   let label: String
-  let colorHex: String
+  let color: Color
   let values: [Int]
 }
 
@@ -225,8 +225,8 @@ private struct WeeklyContextDistributionCard: View {
     static let height: CGFloat = 427
     static let plotWidth: CGFloat = 216
     static let plotHeight: CGFloat = 283
-    static let contextColor = Color(hex: "B097FF")
-    static let distractionColor = CompanionPalette.accent
+    static let contextColor = TBDColor.teal
+    static let distractionColor = TBDColor.brick
     static let axisColor = WeeklyPalette.axisSoft
   }
 
@@ -249,7 +249,7 @@ private struct WeeklyContextDistributionCard: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
       Text("Context shift and distractions distribution")
-        .font(.custom("Switzer-Medium", size: 18))
+        .font(TBDTokens.Typography.title)
         .foregroundStyle(WeeklyPalette.title)
         .padding(.leading, 25)
         .padding(.top, 18)
@@ -265,7 +265,7 @@ private struct WeeklyContextDistributionCard: View {
         VStack {
           ForEach(hourTicks, id: \.self) { tick in
             Text(tick)
-              .font(.custom("Switzer-Regular", size: 8))
+              .font(WeeklyFont.micro(8))
               .foregroundStyle(WeeklyPalette.text)
 
             if tick != hourTicks.last {
@@ -283,7 +283,7 @@ private struct WeeklyContextDistributionCard: View {
       HStack(spacing: 8) {
         ForEach(snapshot.days, id: \.self) { day in
           Text(day)
-            .font(.custom("Switzer-Regular", size: 10))
+            .font(WeeklyFont.micro(11))
             .foregroundStyle(WeeklyPalette.text)
             .frame(maxWidth: .infinity)
         }
@@ -294,7 +294,7 @@ private struct WeeklyContextDistributionCard: View {
     }
     .frame(width: width, height: Design.height, alignment: .topLeading)
     .background(WeeklyPalette.cardFillStrong)
-    .clipShape(RoundedRectangle(cornerRadius: TBDTokens.Radius.base, style: .continuous))
+    .clipShape(TBDBrickShape())
   }
 
   private var scatterPlot: some View {
@@ -324,7 +324,7 @@ private struct WeeklyContextDistributionCard: View {
         .frame(maxHeight: .infinity, alignment: .bottom)
 
       ForEach(snapshot.events) { event in
-        RoundedRectangle(cornerRadius: 2, style: .continuous)
+        RoundedRectangle(cornerRadius: TBDKit.radiusSwatch, style: .continuous)
           .fill(event.kind == .context ? Design.contextColor : Design.distractionColor)
           .frame(width: 28, height: 1.5)
           .position(point(for: event))
@@ -350,7 +350,7 @@ private struct WeeklyContextDistributionCard: View {
         .frame(width: 9, height: 9)
 
       Text(title)
-        .font(.custom("Switzer-Regular", size: 10))
+        .font(WeeklyFont.axis)
         .foregroundStyle(WeeklyPalette.text)
     }
   }
@@ -382,7 +382,7 @@ private struct WeeklyContextComparisonBarCard: View {
     VStack(spacing: 0) {
       VStack(alignment: .leading, spacing: 0) {
         Text("Context shift and distractions comparison")
-          .font(.custom("Switzer-Medium", size: 18))
+          .font(TBDTokens.Typography.title)
           .foregroundStyle(WeeklyPalette.title)
           .padding(.top, 22)
           .padding(.leading, 25)
@@ -414,15 +414,13 @@ private struct WeeklyContextComparisonBarCard: View {
       ForEach(snapshot.days) { day in
         VStack(spacing: 0) {
           HStack(alignment: .bottom, spacing: 2) {
-            metricBar(
-              value: day.distracted, color: CompanionPalette.accent, softColor: Color(hex: "FF9999"))
-            metricBar(
-              value: day.shifts, color: Color(hex: "A88CFF"), softColor: Color(hex: "A1B7FF"))
+            metricBar(value: day.distracted, color: TBDColor.brick, textColor: TBDColor.brickInk)
+            metricBar(value: day.shifts, color: TBDColor.teal, textColor: TBDColor.tealInk)
           }
           .frame(height: 192, alignment: .bottom)
 
           Text(day.day)
-            .font(.custom("Switzer-Regular", size: 12))
+            .font(WeeklyFont.axis)
             .foregroundStyle(WeeklyPalette.text)
             .padding(.top, 10)
         }
@@ -445,26 +443,20 @@ private struct WeeklyContextComparisonBarCard: View {
     }
   }
 
-  private func metricBar(value: Int, color: Color, softColor: Color) -> some View {
+  private func metricBar(value: Int, color: Color, textColor: Color) -> some View {
     let height = max(CGFloat(2), CGFloat(value) / CGFloat(max(maxValue, 1)) * Design.maxBarHeight)
 
     return VStack(spacing: 4) {
       Text("\(value)")
-        .font(.custom("Switzer-Regular", size: 10))
-        .foregroundStyle(color)
+        .font(WeeklyFont.micro(11, bold: true))
+        .foregroundStyle(textColor)
 
-      RoundedRectangle(cornerRadius: 3, style: .continuous)
-        .fill(
-          LinearGradient(
-            colors: [color.opacity(0.9), softColor.opacity(0.8)],
-            startPoint: .top,
-            endPoint: .bottom
-          )
-        )
+      TBDBrickShape()
+        .fill(color)
         .frame(width: 18, height: height)
         .overlay(
-          RoundedRectangle(cornerRadius: 3, style: .continuous)
-            .stroke(color.opacity(0.72), lineWidth: 0.75)
+          TBDBrickShape()
+            .strokeBorder(color, lineWidth: TBDKit.hair)
         )
     }
   }
@@ -473,21 +465,21 @@ private struct WeeklyContextComparisonBarCard: View {
     HStack(spacing: 24) {
       legendItem(
         String(localized: "Number of times distracted"),
-        color: Color(hex: String(localized: "FF653B")))
+        color: TBDColor.brick)
       legendItem(
         String(localized: "Number of context shifts"),
-        color: Color(hex: String(localized: "A88CFF")))
+        color: TBDColor.teal)
     }
   }
 
   private func legendItem(_ title: String, color: Color) -> some View {
     HStack(spacing: 4) {
-      RoundedRectangle(cornerRadius: 3, style: .continuous)
-        .fill(color.opacity(0.65))
+      RoundedRectangle(cornerRadius: TBDKit.radiusSwatch, style: .continuous)
+        .fill(color)
         .frame(width: 10, height: 10)
 
       Text(title)
-        .font(.custom("Switzer-Regular", size: 10))
+        .font(WeeklyFont.axis)
         .foregroundStyle(WeeklyPalette.text)
     }
   }
@@ -501,7 +493,7 @@ private struct WeeklyContextComparisonBarCard: View {
           .padding(.top, 3)
 
         Text(snapshot.insight)
-          .font(.custom("Switzer-Regular", size: 12))
+          .font(WeeklyFont.axis)
           .foregroundStyle(WeeklyPalette.text)
           .lineSpacing(1)
           .frame(maxWidth: .infinity, alignment: .leading)

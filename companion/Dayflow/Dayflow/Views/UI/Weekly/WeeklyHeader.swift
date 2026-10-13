@@ -15,12 +15,11 @@ struct WeeklyHeader: View {
         onPrevious()
       }
 
-      // Brick: this range title is the Weekly screen's top-level page title, so it
-      // takes the serif display voice (docs/design-language.md).
+      // This range title is the Weekly screen's top-level page title: the kit display voice.
       Text(title)
-        .font(.custom("Georgia", size: stylePreviewAfter ? 28 : 20))
+        .font(TBDTokens.Typography.display)
         .tracking(TBDTokens.Typography.displayTracking)
-        .foregroundStyle(stylePreviewAfter && theme.isDark ? Color.white : Color.black)
+        .foregroundStyle(TBDColor.ink)
         .multilineTextAlignment(.center)
         .frame(width: stylePreviewAfter ? 448 : 344)
 
@@ -52,16 +51,16 @@ private struct WeeklyNavigationButton: View {
       action()
     } label: {
       ZStack {
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-          .fill(TBDTokens.hover)
+        TBDBrickShape()
+          .fill(TBDColor.plate)
           .frame(width: hoverBoxSize, height: hoverBoxSize)
           .opacity(isHovering && isEnabled ? 1 : 0)
 
         Image(assetName)
           .resizable()
-          .renderingMode(stylePreviewAfter && theme.isDark ? .template : .original)
+          .renderingMode(.template)
           .scaledToFit()
-          .foregroundStyle(.white)
+          .foregroundStyle(TBDColor.ink)
           .frame(width: arrowSize, height: arrowSize)
           .opacity(isEnabled ? 1 : 0.35)
       }

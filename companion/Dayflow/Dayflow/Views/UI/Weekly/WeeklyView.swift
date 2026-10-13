@@ -35,7 +35,20 @@ enum WeeklyPalette {
   static var softAccentBorder: Color { CompanionPalette.border }
   static var highlightChipFill: Color { CompanionPalette.soft }
   static var tooltipFill: Color { CompanionPalette.surface }
-  static var shadow: Color { Color.black.opacity(0.08) }
+  static var shadow: Color { TBDColor.shadowInk }
+}
+
+/// Chart type for the Weekly sections: the kit's Nunito at the kit ramp. `micro` is for labels inside fixed chart
+/// geometry (treemap tiles, Sankey nodes, heatmap cells) that are smaller than the kit's smallest text role (13).
+enum WeeklyFont {
+  /// 13/400: axis ticks, legends, secondary chart text.
+  static var axis: Font { TBDFonts.nunito(TBDKit.textHint, TBDKit.weightBody) }
+  /// 13/700: emphasised axis and legend text.
+  static var axisBold: Font { TBDFonts.nunito(TBDKit.textHint, TBDKit.weightNav) }
+  /// Kit face at a size below the kit ramp (regular or bold), for labels that must fit fixed chart geometry.
+  static func micro(_ size: CGFloat, bold: Bool = false) -> Font {
+    TBDFonts.nunito(size, bold ? TBDKit.weightNav : TBDKit.weightBody)
+  }
 }
 
 struct WeeklyView: View {
@@ -381,21 +394,21 @@ private struct WeeklyDataRequirementView: View {
 
   var body: some View {
     ZStack {
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
+      TBDBrickShape()
         .fill(WeeklyPalette.cardFillStrong)
         .overlay(
-          RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
+          TBDBrickShape()
             .strokeBorder(WeeklyPalette.cardInnerStroke, lineWidth: TBDTokens.Stroke.hairline)
         )
 
       VStack(spacing: 18) {
         VStack(spacing: 5) {
           Text("Keep recording to unlock this week")
-            .font(.custom("Switzer-Medium", size: 24))
+            .font(TBDTokens.Typography.title)
             .foregroundStyle(WeeklyPalette.text)
 
           Text("Weekly insights need at least 15 hours of recorded activity for the selected week.")
-            .font(.custom("Switzer-Regular", size: 14))
+            .font(TBDTokens.Typography.hint)
             .foregroundStyle(WeeklyPalette.secondaryText)
             .multilineTextAlignment(.center)
             .lineLimit(2)
@@ -406,7 +419,7 @@ private struct WeeklyDataRequirementView: View {
         WeeklyDataRequirementProgressBar(progress: progress)
 
         Text(remainingText)
-          .font(.custom("Switzer-Medium", size: 13))
+          .font(TBDTokens.Typography.hint)
           .foregroundStyle(WeeklyPalette.secondaryText)
       }
       .padding(.horizontal, 28)
@@ -439,18 +452,18 @@ private struct WeeklyDataRequirementPill: View {
 
   var body: some View {
     Text(text)
-      .font(.custom("Switzer-Medium", size: 22))
+      .font(TBDTokens.Typography.title)
       .foregroundStyle(CompanionPalette.accent)
       .lineLimit(1)
       .minimumScaleFactor(0.75)
       .padding(.horizontal, 24)
       .frame(height: 58)
       .background(
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
+        TBDBrickShape()
           .fill(WeeklyPalette.highlightChipFill)
       )
       .overlay(
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
+        TBDBrickShape()
           .strokeBorder(CompanionPalette.accent.opacity(0.5), lineWidth: TBDTokens.Stroke.hairline)
       )
   }
@@ -465,7 +478,7 @@ private struct WeeklyDataRequirementProgressBar: View {
       let filledWidth = geometry.size.width * clampedProgress
 
       ZStack(alignment: .leading) {
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
+        TBDBrickShape()
           .fill(WeeklyPalette.rowFill)
 
         LinearGradient(
@@ -483,7 +496,7 @@ private struct WeeklyDataRequirementProgressBar: View {
               .renderingMode(.template)
               .resizable()
               .scaledToFit()
-              .foregroundStyle(Color.white)
+              .foregroundStyle(TBDColor.paper)
               .frame(width: 13.5, height: 13.5)
           )
           .offset(x: max(0, min(geometry.size.width - 24, filledWidth - 12)))
@@ -744,7 +757,7 @@ private struct WeeklyGraphicDownloadOverlay: View {
   var body: some View {
     HStack(spacing: 8) {
       Text(headerTitle)
-        .font(.custom("Switzer-Medium", size: 20))
+        .font(TBDTokens.Typography.title)
         .lineLimit(1)
         .fixedSize()
         .opacity(0)
@@ -762,29 +775,15 @@ private struct WeeklyGraphicDownloadButton: View {
   let title: String
   let action: () -> Void
 
-  @State private var isHovering = false
-
   var body: some View {
     Button(action: action) {
       Image(systemName: "arrow.down.to.line")
-        .font(.system(size: 10, weight: .medium))
-        .foregroundStyle(WeeklyPalette.accent)
-        .frame(width: 12, height: 12)
-        .frame(width: 24, height: 20)
-        .background(WeeklyPalette.softAccentFill)
-        .overlay(
-          RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-            .strokeBorder(WeeklyPalette.softAccentBorder, lineWidth: TBDTokens.Stroke.hairline)
-        )
-        // Brick: hover lift onto a hard offset shadow instead of a scale bounce.
-        .background(RoundedRectangle(cornerRadius: TBDTokens.Radius.base).fill(TBDTokens.ink.opacity(isHovering ? TBDTokens.Shadow.brickSm.opacity * 2 : 0)).offset(x: 3, y: 3))
-        .offset(x: isHovering ? -1 : 0, y: isHovering ? -1 : 0)
-        .contentShape(Rectangle())
+        .font(TBDFonts.symbol(10, TBDKit.weightNav))
     }
-    .buttonStyle(.plain)
+    .buttonStyle(TBDButtonStyle(.icon))
+    // The icon button keeps its 36pt hit area; the layout slot stays 24x20.
+    .frame(width: 24, height: 20)
     .help("Download \(title) as a full-resolution PNG")
-    .onHover { isHovering = $0 }
-    .animation(TBDMotion.instant, value: isHovering)
     .pointingHandCursorOnHover(reassertOnPressEnd: true)
   }
 }
@@ -898,11 +897,11 @@ private struct WeeklyExportWatermark: View {
     .padding(.trailing, 9)
     .frame(height: 26)
     .background(
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
+      TBDBrickShape()
         .fill(WeeklyPalette.tooltipFill)
     )
     .overlay(
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
+      TBDBrickShape()
         .strokeBorder(WeeklyPalette.cardBorder, lineWidth: TBDTokens.Stroke.hairline)
     )
   }
@@ -912,11 +911,11 @@ private struct WeeklyGeneratedWithDayflowText: View {
   var body: some View {
     HStack(spacing: 3) {
       Text("Generated with")
-        .font(.custom("Switzer-Semibold", size: 10))
+        .font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightNav))
         .foregroundStyle(WeeklyPalette.secondaryText)
 
       Text("Tealbrick (companion)")
-        .font(.custom("Switzer-Bold", size: 10))
+        .font(TBDTokens.Typography.label)
         .foregroundStyle(WeeklyPalette.title)
     }
   }

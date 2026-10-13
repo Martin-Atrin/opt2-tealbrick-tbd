@@ -3,6 +3,7 @@ import AppKit
 import ImageIO
 import QuartzCore
 import SwiftUI
+import TBDDesign
 
 // MARK: - AppKit Native 120Hz Progress Bar
 // Eradicates ALL high-frequency SwiftUI Layout/GeometryReader loops. It calculates pure math directly on hardware layers.
@@ -42,28 +43,36 @@ final class TimelineReviewScrubberNSView: NSView {
     wantsLayer = true
     layerContentsRedrawPolicy = .onSetNeedsDisplay
 
-    trackLayer.backgroundColor =
-      NSColor(red: 163 / 255, green: 151 / 255, blue: 141 / 255, alpha: 0.5).cgColor
     layer?.addSublayer(trackLayer)
-
-    progressLayer.backgroundColor =
-      NSColor(red: 255 / 255, green: 109 / 255, blue: 0 / 255, alpha: 0.65).cgColor
     layer?.addSublayer(progressLayer)
-
-    pillLayer.backgroundColor =
-      NSColor(red: 249 / 255, green: 110 / 255, blue: 0 / 255, alpha: 1.0).cgColor
-    pillLayer.cornerRadius = 4
+    pillLayer.cornerRadius = TBDKit.radiusBrick
     layer?.addSublayer(pillLayer)
 
     textLayer.fontSize = 8
-    textLayer.font = NSFont(name: "Switzer-Semibold", size: 8)
-    textLayer.foregroundColor = NSColor.white.cgColor
+    textLayer.font = NSFont.monospacedSystemFont(ofSize: 8, weight: .bold)  // design-guard: allow (CATextLayer needs an NSFont; this is the kit mono, system monospace)
+    applyColors()
     textLayer.alignmentMode = .center
     textLayer.isWrapped = false
     pillLayer.addSublayer(textLayer)
   }
 
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+  /// Layer colours are fixed at assignment, so they are resolved again whenever the appearance changes.
+  /// Over the video the bar keeps the kit's dark overlay ground in both appearances.
+  private func applyColors() {
+    effectiveAppearance.performAsCurrentDrawingAppearance {
+      trackLayer.backgroundColor = NSColor(TBDColor.overlayOn).withAlphaComponent(0.35).cgColor
+      progressLayer.backgroundColor = NSColor(TBDColor.teal).cgColor
+      pillLayer.backgroundColor = NSColor(TBDColor.overlayFill).cgColor
+      textLayer.foregroundColor = NSColor(TBDColor.overlayOn).cgColor
+    }
+  }
+
+  override func viewDidChangeEffectiveAppearance() {
+    super.viewDidChangeEffectiveAppearance()
+    applyColors()
+  }
 
   override func viewDidChangeBackingProperties() {
     super.viewDidChangeBackingProperties()

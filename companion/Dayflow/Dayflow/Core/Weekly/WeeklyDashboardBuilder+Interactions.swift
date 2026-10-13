@@ -5,6 +5,7 @@
 
 import Foundation
 import SwiftUI
+import TBDDesign
 
 extension WeeklyDashboardBuilder {
   static func buildContextCharts(
@@ -307,7 +308,7 @@ extension WeeklyDashboardBuilder {
           id: "none",
           name: "No app",
           initial: "-",
-          color: Color(hex: "D9D9D9"),
+          color: TBDColor.toneStone,
           avg: "0m avg"
         ),
         targets: [],
@@ -371,7 +372,7 @@ extension WeeklyDashboardBuilder {
       id: aggregate.key,
       name: aggregate.name,
       initial: appInitial(aggregate.name),
-      color: Color(hex: aggregate.colorHex),
+      color: Color(hex: aggregate.colorHex),  // design-guard: allow (user category colour)
       avg: averageDurationText(minutes: aggregate.minutes, visits: aggregate.visits)
     )
   }

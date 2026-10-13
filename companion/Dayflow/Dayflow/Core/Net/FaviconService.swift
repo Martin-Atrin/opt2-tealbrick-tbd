@@ -502,7 +502,7 @@ private enum FaviconContrast {
     let dark: CGFloat = 0.08
     let lightScore = readableFraction(values, against: luminance(light, light, light))
     let darkScore = readableFraction(values, against: luminance(dark, dark, dark))
-    return Color(white: lightScore >= darkScore ? light : dark)
+    return Color(white: lightScore >= darkScore ? light : dark)  // design-guard: allow (computed contrast backing, from the luminance maths above)
   }
 
   private static func readableFraction(_ values: [CGFloat], against background: CGFloat) -> Double {

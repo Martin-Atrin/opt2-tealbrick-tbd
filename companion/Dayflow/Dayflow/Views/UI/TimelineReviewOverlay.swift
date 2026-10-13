@@ -101,7 +101,7 @@ struct TimelineReviewOverlay: View {
 
   private var overlayBackground: some View {
     Rectangle()
-      .fill(Color(hex: "FBE9E0").opacity(0.92))
+      .fill(TBDColor.scrim)
       .ignoresSafeArea()
   }
 
@@ -113,16 +113,9 @@ struct TimelineReviewOverlay: View {
           dismissOverlay()
         } label: {
           Image(systemName: "xmark")
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundColor(CompanionPalette.accent.opacity(0.8))
-            .frame(width: 28, height: 28)
-            .background(
-              RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-                .fill(Color.white.opacity(0.7))
-                .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.base).stroke(Color(hex: "DABCA4"), lineWidth: 1))
-            )
+            .font(TBDFonts.symbol(12, TBDKit.weightLabel))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TBDButtonStyle(.icon))
         .pointingHandCursor()
         .padding(.trailing, 22)
         .padding(.top, 16)
@@ -212,8 +205,8 @@ struct TimelineReviewOverlay: View {
   private var reviewBottomContent: some View {
     VStack(spacing: 14) {
       Text("Swipe on each card on your Timeline to review your day.")
-        .font(.custom("Switzer", size: 14).weight(.medium))
-        .foregroundColor(Color(hex: "98806D"))
+        .font(TBDTokens.Typography.hint)
+        .foregroundColor(TBDColor.muted)
         .lineLimit(1)
         .minimumScaleFactor(0.95)
 
@@ -229,13 +222,13 @@ struct TimelineReviewOverlay: View {
     return VStack(spacing: 30) {
       VStack(spacing: 12) {
         Text("All caught up!")
-          .font(.custom("Switzer-Medium", size: 40))
-          .foregroundColor(Color(hex: "333333"))
+          .font(TBDFonts.nunito(TBDKit.textH1, TBDKit.weightHead))
+          .foregroundColor(TBDColor.ink)
         Text(
           "You've reviewed all your activities so far.\nThe Timeline right panel will be updated with your rating."
         )
-        .font(.custom("Switzer", size: 16).weight(.medium))
-        .foregroundColor(Color(hex: "333333"))
+        .font(TBDTokens.Typography.body)
+        .foregroundColor(TBDColor.inkSoft)
         .multilineTextAlignment(.center)
       }
 
@@ -245,25 +238,8 @@ struct TimelineReviewOverlay: View {
         dismissOverlay()
       } label: {
         Text("Close")
-          .font(.custom("Switzer", size: 14).weight(.semibold))
-          .foregroundColor(Color(hex: "333333"))
-          .padding(.horizontal, 24)
-          .padding(.vertical, 10)
-          .background(
-            RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-              .fill(
-                LinearGradient(
-                  colors: [CompanionPalette.soft.opacity(0.9), CompanionPalette.soft.opacity(0.9)],
-                  startPoint: .topLeading,
-                  endPoint: .bottomTrailing
-                )
-              )
-              .overlay(
-                RoundedRectangle(cornerRadius: TBDTokens.Radius.base).stroke(CompanionPalette.accent.opacity(0.5), lineWidth: 1.25)
-              )
-          )
       }
-      .buttonStyle(.plain)
+      .buttonStyle(TBDButtonStyle(.primary))
       .pointingHandCursor()
     }
     .frame(maxWidth: 500)
@@ -272,11 +248,11 @@ struct TimelineReviewOverlay: View {
   private var emptyState: some View {
     VStack(spacing: 12) {
       Text("Nothing to review yet")
-        .font(.custom("Switzer-Medium", size: 28))
-        .foregroundColor(Color(hex: "333333"))
+        .font(TBDTokens.Typography.display)
+        .foregroundColor(TBDColor.ink)
       Text("Come back after a few timeline cards appear.")
-        .font(.custom("Switzer", size: 14).weight(.medium))
-        .foregroundColor(Color(hex: "707070"))
+        .font(TBDTokens.Typography.hint)
+        .foregroundColor(TBDColor.muted)
     }
   }
 
@@ -297,9 +273,9 @@ struct TimelineReviewOverlay: View {
 
   private func categoryColor(for name: String) -> Color {
     if let match = categoryStore.categories.first(where: { $0.name == name }) {
-      return Color(hex: match.colorHex)
+      return Color(hex: match.colorHex)  // design-guard: allow (user category colour)
     }
-    return Color(hex: "B984FF")
+    return TBDColor.toneStone
   }
 
   private func handleMoveCommand(_ direction: MoveCommandDirection) {

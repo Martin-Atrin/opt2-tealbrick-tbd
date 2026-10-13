@@ -3,7 +3,10 @@
    - Starts a Vite dev server on scripts/design-proof/ (the real App on a fake window.studio).
    - Headless Chrome via playwright-core (PW_CORE, default: the read-only website checkout; CHROME_PATH optional).
    - For light and dark (data-appearance + color-scheme on <html>, as the native host does) writes
-       <prefix>-<theme>.png, <prefix>-composer-focus-<theme>.png, <prefix>-agents-hover-<theme>.png
+       <prefix>-<theme>.png, <prefix>-composer-focus-<theme>.png, <prefix>-agents-hover-<theme>.png (the rail's agent card),
+     <prefix>-panel-tbd-<theme>.png and <prefix>-panel-agent-<theme>.png (the open agent panel),
+     <prefix>-connect-step1|2-<theme>.png ("Connect TBD's agent" StepFlow), <prefix>-firstrun-step1|2|3-<theme>.png
+     (first-run StepFlow) and <prefix>-app-chips-<theme>.png (proof-only sheet: no agent data names apps)
      and audits text (AA 4.5, large 3.0) and focus indicators (3.0) in each state.
    - Writes <prefix>-contrast.json; exit 1 on any failure unless --no-fail.
    The in-page audit is ported from coordination/design/tools/screens.ts. */
@@ -174,6 +177,66 @@ try {
     await page.screenshot({ path: join(outDir, `${prefix}-agents-hover-${theme}.png`), clip: await clipOf(".sidebar", 0, 420) });
     await record(theme, "agents-hover");
     await page.mouse.move(0, 0);
+
+    // The open agent panel: TBD's own agent (Overview) and a workspace agent (profile, read only).
+    const proof = (fn: string, ...a: unknown[]): Promise<unknown> => page.evaluate(([f, rest]) => (window as unknown as { __proof: Record<string, (...x: unknown[]) => unknown> }).__proof[f as string](...(rest as unknown[])), [fn, a]);
+    const shoot = async (name: string, state: string): Promise<void> => {
+      await settle();
+      await page.screenshot({ path: join(outDir, `${prefix}-${name}-${theme}.png`) });
+      await record(theme, state);
+    };
+    await proof("select", "tbd-default");
+    await proof("panel", "overview");
+    await page.waitForSelector(".panel .tbd-agent-card");
+    await shoot("panel-tbd", "panel-tbd");
+    await proof("select", "agent-research");
+    await page.waitForSelector(".panel .tbd-agent-card");
+    await shoot("panel-agent", "panel-agent");
+
+    // "Connect TBD's agent": step 1 (start) and step 2 (approve in the browser, waiting).
+    await proof("select", "tbd-default");
+    await proof("setFixture", "agentConnection", { connected: false });
+    await proof("setFixture", "agentConnect", { userCode: "ABCD-EFGH", verificationUri: "https://example.com/device" });
+    await proof("setFixture", "awaitAgentConnect", "__pending__");
+    await proof("panel", "settings");
+    await page.getByRole("button", { name: "Connect", exact: true }).click();
+    await page.waitForSelector(".tb-stepflow");
+    await shoot("connect-step1", "connect-step1");
+    await page.locator(".tb-stepflow .tb-next").click();
+    await page.waitForSelector(".tb-stepflow .tb-code");
+    await shoot("connect-step2", "connect-step2");
+    await page.locator(".tb-stepflow .tb-close").click();
+    await page.waitForSelector(".tb-stepflow", { state: "detached" });
+    await proof("setFixture", "agentConnection", { connected: true, workspaceId: "ws-demo", agentId: "card-tbd" });
+    await proof("panel", "none");
+
+    // First run: the model is missing, so the flow opens on step 2; step 1 is its done step, step 3 is optional.
+    await proof("setFixture", "firstRun", { model: { ready: false, note: "TBD's agent needs an Anthropic connection with an API key in Settings → Models." }, agentConnected: false });
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await page.waitForSelector(".tb-stepflow");
+    await shoot("firstrun-step2", "firstrun-step2");
+    await page.locator(".tb-stepflow-steps button", { hasText: "1-Signed in" }).click();
+    await shoot("firstrun-step1", "firstrun-step1");
+    await page.locator(".tb-stepflow .tb-next").click();
+    await page.locator(".tb-stepflow .tb-next").click();
+    await shoot("firstrun-step3", "firstrun-step3");
+    await proof("setFixture", "firstRun", { model: { ready: true }, agentConnected: true });
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await page.waitForSelector(".tb-stepflow", { state: "detached" });
+    await proof("select", "tbd-default");
+  }
+
+  // Proof-only sheet: the app chip and AppIcon sizes (no agent data names apps, so the app never shows them).
+  const sheet = await ctx.newPage();
+  await sheet.goto(`${url}?sample=apps`, { waitUntil: "networkidle" });
+  await sheet.waitForSelector(".tbd-app-chip");
+  for (const theme of ["light", "dark"]) {
+    await sheet.evaluate((t) => { document.documentElement.dataset.appearance = t; document.documentElement.style.colorScheme = t; }, theme);
+    await sheet.evaluate(() => document.fonts.ready.then(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 200))))));
+    await sheet.screenshot({ path: join(outDir, `${prefix}-app-chips-${theme}.png`), clip: { x: 0, y: 0, width: 1280, height: 420 } });
+    const r: Audit = await sheet.evaluate(audit, theme === "dark");
+    checked += r.checked;
+    for (const f of r.findings) failures.push({ theme, state: "app-chips", ...f });
   }
   if (pageErrors.length) console.warn(`design-proof: ${pageErrors.length} page error(s), first: ${pageErrors[0]}`);
 

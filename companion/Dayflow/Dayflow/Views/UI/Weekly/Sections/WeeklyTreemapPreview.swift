@@ -1,8 +1,9 @@
 import SwiftUI
+import TBDDesign
 
 #Preview("Weekly Treemap", traits: .fixedLayout(width: 958, height: 549)) {
   WeeklyTreemapPreviewHarness()
-    .background(Color(hex: "F7F3F0"))
+    .background(TBDColor.paper)
 }
 
 struct WeeklyTreemapPreviewHarness: View {
@@ -16,14 +17,14 @@ struct WeeklyTreemapPreviewHarness: View {
             selectedDataset = dataset
           } label: {
             Text(dataset.title)
-              .font(.custom("Switzer-Regular", size: 12))
-              .foregroundStyle(selectedDataset == dataset ? Color.white : CompanionPalette.accent)
+              .font(TBDTokens.Typography.tag)
+              .foregroundStyle(selectedDataset == dataset ? TBDColor.paper : CompanionPalette.accent)
               .padding(.horizontal, 12)
               .padding(.vertical, 6)
               .background(
                 Capsule(style: .continuous)
                   .fill(
-                    selectedDataset == dataset ? CompanionPalette.accent : Color.white.opacity(0.75))
+                    selectedDataset == dataset ? CompanionPalette.accent : TBDColor.tile)
               )
               .overlay(
                 Capsule(style: .continuous)

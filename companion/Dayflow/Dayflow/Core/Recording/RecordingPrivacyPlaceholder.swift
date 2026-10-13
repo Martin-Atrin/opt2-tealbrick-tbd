@@ -1,5 +1,7 @@
 import AppKit
 import Foundation
+import SwiftUI
+import TBDDesign
 
 enum RecordingPrivacyPlaceholder {
   /// Renders a redaction card at exactly `width` x `height` pixels so it slots into
@@ -22,7 +24,7 @@ enum RecordingPrivacyPlaceholder {
     defer { NSGraphicsContext.restoreGraphicsState() }
     NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
 
-    NSColor(calibratedWhite: 0.08, alpha: 1).setFill()
+    NSColor(TBDColor.overlayFill).setFill()
     NSBezierPath(rect: NSRect(origin: .zero, size: size)).fill()
 
     let maxTextWidth = size.width * 0.82
@@ -61,8 +63,8 @@ enum RecordingPrivacyPlaceholder {
       maxWidth: maxWidth
     )
     let attributes: [NSAttributedString.Key: Any] = [
-      .font: NSFont.systemFont(ofSize: resolvedFontSize, weight: .semibold),
-      .foregroundColor: NSColor.white.withAlphaComponent(0.82),
+      .font: cardFont(size: resolvedFontSize),
+      .foregroundColor: NSColor(TBDColor.overlayOn).withAlphaComponent(0.82),
     ]
     let attributedText = NSAttributedString(string: text, attributes: attributes)
     let textSize = attributedText.size()
@@ -71,6 +73,16 @@ enum RecordingPrivacyPlaceholder {
       y: canvas.midY - textSize.height / 2 + yOffset
     )
     attributedText.draw(at: origin)
+  }
+
+  /// The kit's Nunito (bold) for text drawn into the placeholder frame.
+  private static func cardFont(size: CGFloat) -> NSFont {
+    TBDFonts.register()
+    let descriptor = NSFontDescriptor(fontAttributes: [
+      .family: TBDFonts.family,
+      .traits: [NSFontDescriptor.TraitKey.weight: NSFont.Weight.bold],
+    ])
+    return NSFont(descriptor: descriptor, size: size) ?? NSFont.userFont(ofSize: size) ?? NSFont.labelFont(ofSize: size)
   }
 
   private static func fittedFontSize(
@@ -82,7 +94,7 @@ enum RecordingPrivacyPlaceholder {
     var currentSize = fontSize
     while currentSize > minimum {
       let attributes: [NSAttributedString.Key: Any] = [
-        .font: NSFont.systemFont(ofSize: currentSize, weight: .semibold)
+        .font: cardFont(size: currentSize)
       ]
       if NSAttributedString(string: text, attributes: attributes).size().width <= maxWidth {
         return currentSize

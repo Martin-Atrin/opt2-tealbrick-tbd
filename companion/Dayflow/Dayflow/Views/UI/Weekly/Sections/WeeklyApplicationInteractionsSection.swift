@@ -26,11 +26,11 @@ private struct WeeklyApplicationNetworkPane: View {
 
       VStack(alignment: .leading, spacing: 7) {
         Text("Interactions between most used applications")
-          .font(.custom("Switzer-Medium", size: 20))
+          .font(TBDTokens.Typography.title)
           .foregroundStyle(WeeklyPalette.title)
 
         Text(snapshot.subtitle)
-          .font(.custom("Switzer-Regular", size: 12))
+          .font(WeeklyFont.axis)
           .foregroundStyle(WeeklyPalette.text)
       }
       .offset(x: 29, y: 28)
@@ -62,9 +62,9 @@ private struct WeeklyApplicationNetworkPane: View {
       }
 
       HStack(spacing: 30) {
-        legendItem("Work", border: Color(hex: "4779E9"), fill: Color(hex: "EEF3FF"))
-        legendItem("Personal", border: Color(hex: "B8B8B8"), fill: Color(hex: "E6E6E6"))
-        legendItem("Distraction", border: CompanionPalette.accent, fill: CompanionPalette.soft)
+        legendItem("Work", border: WeeklyApplicationKind.work.borderColor, fill: TBDColor.tealWash)
+        legendItem("Personal", border: WeeklyApplicationKind.personal.borderColor, fill: TBDColor.plate)
+        legendItem("Distraction", border: WeeklyApplicationKind.distraction.borderColor, fill: TBDColor.brickWash)
       }
       .offset(x: 158, y: 507)
     }
@@ -72,16 +72,16 @@ private struct WeeklyApplicationNetworkPane: View {
 
   private func legendItem(_ title: String, border: Color, fill: Color) -> some View {
     HStack(spacing: 8) {
-      RoundedRectangle(cornerRadius: 2, style: .continuous)
+      RoundedRectangle(cornerRadius: TBDKit.radiusSwatch, style: .continuous)
         .fill(fill)
         .frame(width: 14, height: 12)
         .overlay(
-          RoundedRectangle(cornerRadius: 2, style: .continuous)
+          RoundedRectangle(cornerRadius: TBDKit.radiusSwatch, style: .continuous)
             .stroke(border, lineWidth: 2)
         )
 
       Text(title)
-        .font(.custom("Switzer-Regular", size: 12))
+        .font(WeeklyFont.axis)
         .foregroundStyle(WeeklyPalette.text)
     }
   }
@@ -106,13 +106,13 @@ private struct WeeklyApplicationNodeView: View {
       .opacity(node.isMuted ? 0.3 : 1)
       .overlay {
         Text(node.mark)
-          .font(.custom("Switzer-Bold", size: node.isPrimary ? 20 : 13))
+          .font(TBDFonts.nunito(node.isPrimary ? TBDKit.textTitle : TBDKit.textHint, TBDKit.weightLabel))
           .foregroundStyle(node.markColor)
       }
       .overlay {
         if node.isPrimary {
           Circle()
-            .stroke(Color(hex: "EEF3FF").opacity(0.98), lineWidth: 5)
+            .stroke(TBDColor.tealWash.opacity(0.98), lineWidth: 5)
             .padding(-5)
         }
       }
@@ -125,7 +125,7 @@ private struct WeeklyApplicationPatternsPane: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
       Text("Most common work patterns")
-        .font(.custom("Switzer-Medium", size: 20))
+        .font(TBDTokens.Typography.title)
         .foregroundStyle(WeeklyPalette.title)
         .padding(.top, 28)
         .padding(.leading, 24)
@@ -140,7 +140,7 @@ private struct WeeklyApplicationPatternsPane: View {
       .padding(.leading, 8)
 
       Text("Distractions and rabbit holes")
-        .font(.custom("Switzer-Medium", size: 20))
+        .font(TBDTokens.Typography.title)
         .foregroundStyle(WeeklyPalette.title)
         .padding(.top, 19)
         .padding(.leading, 24)
@@ -174,12 +174,12 @@ private struct WeeklyPatternFlow: View {
 
       HStack(spacing: 0) {
         averagePill(pattern.from.avg)
-        flowCounter(pattern.count, color: Color(hex: "4779E9"))
+        flowCounter(pattern.count, color: TBDColor.tealInk, on: TBDColor.paper)
         averagePill(pattern.to.avg, isWide: true)
       }
 
       Text(pattern.description)
-        .font(.custom("Switzer-Regular", size: 10))
+        .font(WeeklyFont.micro(11))
         .foregroundStyle(WeeklyPalette.text)
         .lineSpacing(1)
         .frame(width: 340, alignment: .leading)
@@ -188,17 +188,17 @@ private struct WeeklyPatternFlow: View {
 
   private func appName(_ app: WeeklyPatternApp) -> some View {
     HStack(spacing: 6) {
-      RoundedRectangle(cornerRadius: 2, style: .continuous)
+      RoundedRectangle(cornerRadius: TBDKit.radiusSwatch, style: .continuous)
         .fill(app.color)
         .frame(width: 14, height: 14)
         .overlay {
           Text(app.initial)
-            .font(.custom("Switzer-Bold", size: 8))
-            .foregroundStyle(Color.white)
+            .font(WeeklyFont.micro(8, bold: true))
+            .foregroundStyle(TBDColor.appOn)
         }
 
       Text(app.name)
-        .font(.custom("Switzer-Regular", size: 14))
+        .font(TBDTokens.Typography.hint)
         .foregroundStyle(WeeklyPalette.text)
         .lineLimit(1)
     }
@@ -223,7 +223,7 @@ private struct WeeklyRabbitHoleFlow: View {
 
       HStack(spacing: 0) {
         averagePill(snapshot.from.avg, tone: .distraction)
-        flowCounter(snapshot.targets.count, color: CompanionPalette.accent)
+        flowCounter(snapshot.targets.count, color: TBDColor.countFill, on: TBDColor.countOn)
         averagePill(snapshot.avg, isWide: true, tone: .distraction)
       }
     }
@@ -235,17 +235,17 @@ private struct WeeklyRabbitHoleFlow: View {
 
   private func appName(_ app: WeeklyPatternApp) -> some View {
     HStack(spacing: 6) {
-      RoundedRectangle(cornerRadius: app.name == "Reddit" ? 7 : 2, style: .continuous)
+      RoundedRectangle(cornerRadius: app.name == "Reddit" ? TBDKit.radiusBrick : TBDKit.radiusSwatch, style: .continuous)
         .fill(app.color)
         .frame(width: 14, height: 14)
         .overlay {
           Text(app.initial)
-            .font(.custom("Switzer-Bold", size: 8))
-            .foregroundStyle(Color.white)
+            .font(WeeklyFont.micro(8, bold: true))
+            .foregroundStyle(TBDColor.appOn)
         }
 
       Text(app.name)
-        .font(.custom("Switzer-Regular", size: 14))
+        .font(TBDTokens.Typography.hint)
         .foregroundStyle(WeeklyPalette.text)
         .lineLimit(1)
     }
@@ -262,8 +262,8 @@ private func averagePill(
   isWide: Bool = false,
   tone: AverageTone = .work
 ) -> some View {
-  let color = tone == .work ? Color(hex: "4779E9") : CompanionPalette.accent
-  let fill = tone == .work ? Color(hex: "EEF3FF") : CompanionPalette.soft
+  let color = tone == .work ? TBDColor.teal : TBDColor.brick
+  let fill = tone == .work ? TBDColor.tealWash : TBDColor.brickWash
 
   return HStack(spacing: 4) {
     Circle()
@@ -277,7 +277,7 @@ private func averagePill(
       }
 
     Text(text)
-      .font(.custom("Switzer-Regular", size: 12))
+      .font(WeeklyFont.axis)
       .foregroundStyle(WeeklyPalette.text)
       .lineLimit(1)
   }
@@ -286,20 +286,20 @@ private func averagePill(
   .frame(maxWidth: isWide ? .infinity : nil, alignment: .leading)
   .background(fill)
   .overlay(
-    RoundedRectangle(cornerRadius: 2, style: .continuous)
-      .stroke(color.opacity(0.36), lineWidth: 0.75)
+    RoundedRectangle(cornerRadius: TBDKit.radiusSwatch, style: .continuous)
+      .stroke(color.opacity(0.36), lineWidth: TBDKit.hair)
   )
 }
 
-private func flowCounter(_ count: Int, color: Color) -> some View {
+private func flowCounter(_ count: Int, color: Color, on: Color) -> some View {
   HStack(spacing: 0) {
     Rectangle()
       .fill(color)
       .frame(width: 12, height: 1)
 
     Text("\(count)")
-      .font(.custom("Switzer-Regular", size: 8))
-      .foregroundStyle(Color.white)
+      .font(WeeklyFont.micro(8, bold: true))
+      .foregroundStyle(on)
       .frame(minWidth: 16, minHeight: 14)
       .background(color)
 
@@ -451,18 +451,17 @@ struct WeeklyApplicationNode: Identifiable {
   var fill: LinearGradient {
     switch kind {
     case .work:
-      return LinearGradient(colors: [Color(hex: "EEF3FF")], startPoint: .top, endPoint: .bottom)
+      return LinearGradient(colors: [TBDColor.tealWash], startPoint: .top, endPoint: .bottom)
     case .personal:
       return LinearGradient(
-        colors: [CompanionPalette.soft, Color(hex: "E6E6E6")], startPoint: .top, endPoint: .bottom)
+        colors: [TBDColor.plate], startPoint: .top, endPoint: .bottom)
     case .distraction:
       return LinearGradient(
-        colors: [CompanionPalette.soft, Color(hex: "E6E6E6"), Color(hex: "EEF3FF")],
-        startPoint: .top, endPoint: .bottom)
+        colors: [TBDColor.brickWash], startPoint: .top, endPoint: .bottom)
     }
   }
-  var markColor: Color { kind == .work ? Color(hex: "4779E9") : Color(hex: "8D8C8A") }
-  var shadowColor: Color { Color(hex: "EEF3FF").opacity(0.76) }
+  var markColor: Color { kind == .work ? TBDColor.tealInk : TBDColor.muted }
+  var shadowColor: Color { TBDColor.tealWash.opacity(0.76) }
 }
 
 struct WeeklyApplicationEdge: Identifiable {
@@ -476,11 +475,11 @@ struct WeeklyApplicationEdge: Identifiable {
   var color: Color {
     switch kind {
     case .work:
-      return Color(hex: "A9C3FF")
+      return TBDColor.teal
     case .personal:
       return CompanionPalette.surface
     case .distraction:
-      return CompanionPalette.accent
+      return TBDColor.brick
     }
   }
 
@@ -515,11 +514,11 @@ enum WeeklyApplicationKind: Equatable {
   var borderColor: Color {
     switch self {
     case .work:
-      return Color(hex: "4779E9")
+      return TBDColor.teal
     case .personal:
-      return Color(hex: "B8B8B8")
+      return TBDColor.toneStone
     case .distraction:
-      return CompanionPalette.accent
+      return TBDColor.brick
     }
   }
 }
@@ -548,41 +547,41 @@ struct WeeklyPatternApp: Identifiable {
 
   static func slack(avg: String = "") -> WeeklyPatternApp {
     WeeklyPatternApp(
-      id: "slack", name: "Slack", initial: "S", color: Color(hex: "36C5F0"), avg: avg)
+      id: "slack", name: "Slack", initial: "S", color: TBDColor.toneTeal, avg: avg)
   }
 
   static func figma(avg: String = "") -> WeeklyPatternApp {
     WeeklyPatternApp(
-      id: "figma", name: "Figma", initial: "F", color: Color(hex: "FF7262"), avg: avg)
+      id: "figma", name: "Figma", initial: "F", color: TBDColor.toneBrick, avg: avg)
   }
 
   static func runway(avg: String = "") -> WeeklyPatternApp {
     WeeklyPatternApp(
-      id: "runway", name: "Runway ML", initial: "R", color: Color(hex: "111111"), avg: avg)
+      id: "runway", name: "Runway ML", initial: "R", color: TBDColor.toneStoneInk, avg: avg)
   }
 
   static func flora(avg: String = "") -> WeeklyPatternApp {
     WeeklyPatternApp(
-      id: "flora", name: "Flora", initial: "F", color: Color(hex: "767676"), avg: avg)
+      id: "flora", name: "Flora", initial: "F", color: TBDColor.toneMoss, avg: avg)
   }
 
   static func reddit(avg: String = "") -> WeeklyPatternApp {
     WeeklyPatternApp(
-      id: "reddit", name: "Reddit", initial: "R", color: CompanionPalette.accent, avg: avg)
+      id: "reddit", name: "Reddit", initial: "R", color: TBDColor.brick, avg: avg)
   }
 
   static func x(avg: String = "") -> WeeklyPatternApp {
-    WeeklyPatternApp(id: "x", name: "X", initial: "X", color: Color(hex: "111111"), avg: avg)
+    WeeklyPatternApp(id: "x", name: "X", initial: "X", color: TBDColor.toneWoodInk, avg: avg)
   }
 
   static func substack(avg: String = "") -> WeeklyPatternApp {
     WeeklyPatternApp(
-      id: "substack", name: "Substack", initial: "S", color: CompanionPalette.accent, avg: avg)
+      id: "substack", name: "Substack", initial: "S", color: TBDColor.brick, avg: avg)
   }
 
   static func youtube(avg: String = "") -> WeeklyPatternApp {
     WeeklyPatternApp(
-      id: "youtube", name: "YouTube", initial: "Y", color: Color(hex: "FF0000"), avg: avg)
+      id: "youtube", name: "YouTube", initial: "Y", color: TBDColor.toneBrickInk, avg: avg)
   }
 }
 

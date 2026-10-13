@@ -1,12 +1,13 @@
 import AppKit
 import SwiftUI
+import TBDDesign
 
 struct WeeklyOverviewSection: View {
   let snapshot: WeeklyOverviewSnapshot
 
   private enum Design {
     static let sectionWidth: CGFloat = 958
-    static let cornerRadius: CGFloat = 4
+    static let cornerRadius: CGFloat = TBDKit.radiusBrick
     static let titleColor = WeeklyPalette.title
     static let borderColor = WeeklyPalette.cardBorder
     @MainActor static var topCardBackground: Color { WeeklyPalette.cardFill }
@@ -68,7 +69,7 @@ struct WeeklyOverviewSection: View {
     VStack(alignment: .leading, spacing: Design.headerSpacing) {
       HStack(alignment: .bottom) {
         Text("Time distribution")
-          .font(.custom("Switzer-Medium", size: 20))
+          .font(TBDTokens.Typography.title)
           .foregroundStyle(Design.titleColor)
 
         Spacer(minLength: 20)
@@ -210,7 +211,7 @@ private struct WeeklyOverviewTimelineChart: View {
         VStack(alignment: .leading, spacing: 6) {
           ForEach(snapshot.rows) { row in
             Text(row.label)
-              .font(.custom("Switzer-Regular", size: 12))
+              .font(WeeklyFont.micro(12))
               .foregroundStyle(WeeklyPalette.text)
               .frame(width: Design.dayLabelWidth, height: 14, alignment: .leading)
           }
@@ -226,7 +227,7 @@ private struct WeeklyOverviewTimelineChart: View {
           HStack {
             ForEach(Design.axisLabels, id: \.self) { label in
               Text(label)
-                .font(.custom("Switzer-Regular", size: 10))
+                .font(WeeklyFont.micro(10))
                 .foregroundStyle(WeeklyPalette.text)
               if label != Design.axisLabels.last {
                 Spacer(minLength: 0)
@@ -241,11 +242,11 @@ private struct WeeklyOverviewTimelineChart: View {
         ForEach(snapshot.legendItems) { item in
           HStack(spacing: 6) {
             Text(item.name)
-              .font(.custom("Switzer-Regular", size: 10))
+              .font(WeeklyFont.axis)
               .foregroundStyle(WeeklyPalette.text)
 
-            RoundedRectangle(cornerRadius: 1.5, style: .continuous)
-              .fill(Color(hex: item.colorHex))
+            RoundedRectangle(cornerRadius: TBDKit.radiusSwatch, style: .continuous)
+              .fill(Color(hex: item.colorHex))  // design-guard: allow (user category colour)
               .frame(width: 12, height: 8)
           }
         }
@@ -271,12 +272,12 @@ private struct WeeklyOverviewTimelineBar: View {
 
   var body: some View {
     ZStack(alignment: .leading) {
-      RoundedRectangle(cornerRadius: 2, style: .continuous)
+      RoundedRectangle(cornerRadius: TBDKit.radiusSwatch, style: .continuous)
         .fill(Design.fill)
         .frame(width: Design.barWidth, height: Design.rowHeight)
         .overlay {
-          RoundedRectangle(cornerRadius: 2, style: .continuous)
-            .stroke(Design.border, lineWidth: 0.5)
+          RoundedRectangle(cornerRadius: TBDKit.radiusSwatch, style: .continuous)
+            .strokeBorder(Design.border, lineWidth: TBDKit.hair)
         }
 
       ForEach(row.segments) { segment in
@@ -293,22 +294,16 @@ private struct WeeklyOverviewTimelineBar: View {
     let segmentX = max(0, CGFloat(xProgress) * Design.barWidth)
     let segmentWidth = max(2, (CGFloat(widthProgress) * Design.barWidth) - 2)
 
-    return RoundedRectangle(cornerRadius: 1, style: .continuous)
-      .fill(gradient(for: segment.colorHex))
+    return RoundedRectangle(cornerRadius: TBDKit.radiusSwatch, style: .continuous)
+      .fill(segmentColor(for: segment.colorHex))
       .frame(width: segmentWidth, height: Design.segmentHeight)
       .offset(x: segmentX + 1)
   }
 
-  private func gradient(for colorHex: String) -> LinearGradient {
-    let baseColor = NSColor(hex: colorHex) ?? .systemGray
-    let leading = baseColor.blended(with: 0.22, of: .white) ?? baseColor
-    let trailing = baseColor.blended(with: 0.08, of: .black) ?? baseColor
-
-    return LinearGradient(
-      colors: [Color(nsColor: leading), Color(nsColor: trailing)],
-      startPoint: .leading,
-      endPoint: .trailing
-    )
+  /// Flat category colour (the segment colour is the user's category colour; unknown colours fall back to stone).
+  private func segmentColor(for colorHex: String) -> Color {
+    guard let category = NSColor(hex: colorHex) else { return TBDColor.toneStone }
+    return Color(nsColor: category)
   }
 }
 
@@ -317,19 +312,19 @@ private struct WeeklyOverviewTabStrip: View {
     VStack(alignment: .leading, spacing: 6) {
       HStack(spacing: 12) {
         Text("All")
-          .font(.custom("Switzer-Bold", size: 12))
+          .font(WeeklyFont.axisBold)
           .foregroundStyle(WeeklyPalette.text)
 
         Text("Longest focus period")
-          .font(.custom("Switzer-Medium", size: 12))
+          .font(WeeklyFont.axis)
           .foregroundStyle(WeeklyPalette.text)
 
         Text("Least context shifts")
-          .font(.custom("Switzer-Medium", size: 12))
+          .font(WeeklyFont.axis)
           .foregroundStyle(WeeklyPalette.text)
 
         Text("Most context shifts")
-          .font(.custom("Switzer-Medium", size: 12))
+          .font(WeeklyFont.axis)
           .foregroundStyle(WeeklyPalette.text)
       }
 
@@ -347,18 +342,18 @@ private struct WeeklyOverviewSummaryGroup: View {
   var body: some View {
     HStack(alignment: .top, spacing: 20) {
       Text(title)
-        .font(.custom("Switzer-Medium", size: 16))
+        .font(TBDFonts.nunito(TBDKit.textBody, TBDKit.weightLabel))
         .foregroundStyle(WeeklyPalette.title)
 
       HStack(alignment: .top, spacing: 20) {
         ForEach(metrics) { metric in
           VStack(alignment: .leading, spacing: 8) {
             Text(metric.label)
-              .font(.custom("Switzer-Regular", size: 12))
+              .font(WeeklyFont.axis)
               .foregroundStyle(WeeklyPalette.secondaryText)
 
             Text(metric.value)
-              .font(.custom("Switzer-Medium", size: 18))
+              .font(TBDFonts.nunito(TBDKit.textLede, TBDKit.weightLabel))
               .foregroundStyle(WeeklyPalette.text)
               .lineLimit(1)
           }

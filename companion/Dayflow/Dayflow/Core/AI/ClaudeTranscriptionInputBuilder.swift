@@ -423,15 +423,15 @@ struct ClaudeTranscriptionInputBuilder: Sendable {
     defer { NSGraphicsContext.restoreGraphicsState() }
 
     let canvasRect = NSRect(x: 0, y: 0, width: contactSheetWidth, height: contactSheetHeight)
-    NSColor.black.setFill()
+    NSColor.black.setFill()  // design-guard: allow (contact sheet is an LLM input image, not UI)
     canvasRect.fill()
 
     let tileWidth = CGFloat(contactSheetWidth / contactSheetColumns)
     let tileHeight = CGFloat(contactSheetHeight / contactSheetRows)
-    let font = NSFont.boldSystemFont(ofSize: max(16, (tileHeight * 0.11).rounded()))
+    let font = NSFont.boldSystemFont(ofSize: max(16, (tileHeight * 0.11).rounded()))  // design-guard: allow (contact sheet label drawn into the LLM input image)
     let labelAttributes: [NSAttributedString.Key: Any] = [
       .font: font,
-      .foregroundColor: NSColor.white,
+      .foregroundColor: NSColor.white,  // design-guard: allow (contact sheet label colour in the LLM input image)
     ]
 
     for (index, cgImage) in images.enumerated() {
@@ -470,7 +470,7 @@ struct ClaudeTranscriptionInputBuilder: Sendable {
         width: badgeWidth,
         height: badgeHeight
       )
-      NSColor.black.setFill()
+      NSColor.black.setFill()  // design-guard: allow (contact sheet badge in the LLM input image)
       badgeRect.fill()
       label.draw(
         at: NSPoint(

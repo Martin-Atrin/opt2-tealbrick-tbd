@@ -54,7 +54,7 @@ struct WeeklySankeySection: View {
   private var controls: some View {
     HStack(spacing: 8) {
       Text(model.seedLabel)
-        .font(.custom("Switzer-Medium", size: 11))
+        .font(TBDTokens.Typography.label)
         .foregroundStyle(WeeklyPalette.title)
 
       Spacer(minLength: 12)
@@ -84,7 +84,7 @@ struct WeeklySankeySection: View {
   ) -> some View {
     Button(action: action) {
       Text(title)
-        .font(.custom("Switzer-Medium", size: 11))
+        .font(TBDTokens.Typography.label)
         .foregroundStyle(dataset == targetDataset ? CompanionPalette.accent : CompanionPalette.accent)
         .padding(.horizontal, 9)
         .frame(height: 23)

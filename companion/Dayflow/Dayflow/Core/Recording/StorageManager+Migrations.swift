@@ -1,5 +1,6 @@
 import Foundation
 import GRDB
+import TBDModels
 
 extension StorageManager {
   func migrateLegacyChunkPathsIfNeeded() {
@@ -12,7 +13,7 @@ extension StorageManager {
       .appendingPathComponent(
         "Library/Containers/\(bundleID)/Data/Library/Application Support/Dayflow", isDirectory: true
       )
-    let newBase = appSupport.appendingPathComponent("TBD/Companion", isDirectory: true)
+    let newBase = appSupport.appendingPathComponent(TBDIdentity.folder("TBD") + "/Companion", isDirectory: true)
 
     guard legacyBase.path != newBase.path else { return }
 

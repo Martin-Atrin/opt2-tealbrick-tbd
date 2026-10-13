@@ -3,6 +3,7 @@ import AppKit
 import ImageIO
 import QuartzCore
 import SwiftUI
+import TBDDesign
 
 // MARK: - Time Optimizations
 
@@ -56,60 +57,42 @@ enum TimelineReviewRating: String, CaseIterable, Identifiable {
     }
   }
 
+  /// Ground of the rating badge. The badge renders in the dark appearance (see TimelineReviewOverlayBadge),
+  /// so these are the kit's dark state fills over the card.
   var overlayColor: Color {
     switch self {
-    case .distracted: return Color(hex: "975D57").opacity(0.6)
-    case .neutral: return Color(hex: "8C8379").opacity(0.55)
-    case .focused: return Color(hex: "43765E").opacity(0.6)
+    case .distracted: return TBDColor.statusNeedsYouFill.opacity(0.92)
+    case .neutral: return TBDColor.plate.opacity(0.92)
+    case .focused: return TBDColor.statusLiveFill.opacity(0.92)
     }
   }
 
   var overlayTextColor: Color {
     switch self {
-    case .distracted: return Color(hex: "F9D8D4")
-    case .neutral: return Color(hex: "F4F0ED")
-    case .focused: return Color(hex: "D9F7E4")
+    case .distracted: return TBDColor.statusNeedsYouOn
+    case .neutral: return TBDColor.ink
+    case .focused: return TBDColor.statusLiveOn
     }
   }
 
-  var barGradient: LinearGradient {
+  /// Summary bar fill (flat kit tones, the same as the review summary card).
+  var barFill: Color {
     switch self {
-    case .distracted:
-      return LinearGradient(
-        colors: [Color(hex: "FFBDB1"), Color(hex: "FF8772")],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-      )
-    case .neutral:
-      return LinearGradient(
-        colors: [Color(hex: "FFFEFE"), Color(hex: "EAE0DB")],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-      )
-    case .focused:
-      return LinearGradient(
-        colors: [Color(hex: "92F1E3"), Color(hex: "42D0BB")],
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
-      )
+    case .distracted: return TBDColor.toneBrick
+    case .neutral: return TBDColor.toneStone
+    case .focused: return TBDColor.toneTeal
     }
   }
 
-  var barStroke: Color {
-    switch self {
-    case .distracted: return Color(hex: "FF8772")
-    case .neutral: return Color(hex: "EAE0DB")
-    case .focused: return Color(hex: "42D0BB")
-    }
-  }
+  var barStroke: Color { barFill }
 
-  var labelColor: Color { Color(hex: "707070") }
+  var labelColor: Color { TBDColor.muted }
 
   var iconTint: Color {
     switch self {
-    case .distracted: return Color(hex: "FF7B67")
-    case .neutral: return Color(hex: "C8C8C8")
-    case .focused: return Color(hex: "47D2BD")
+    case .distracted: return TBDColor.brickInk
+    case .neutral: return TBDColor.muted
+    case .focused: return TBDColor.tealInk
     }
   }
 

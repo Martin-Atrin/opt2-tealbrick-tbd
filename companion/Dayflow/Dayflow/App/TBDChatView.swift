@@ -54,6 +54,10 @@ final class TBDChatRuntime: NSObject, ObservableObject, WKScriptMessageHandler, 
 
   func start() {
     guard !started else { return }; started = true
+    #if DEBUG
+      // `--design-shots` renders screens only: no Chat helper, no sign-in, no network.
+      if TBDIdentity.isDesignShots { status = "Chat is off in design shots."; return }
+    #endif
     do {
       key = try credentialKey().base64EncodedString()
       try startHelper()
@@ -117,7 +121,7 @@ final class TBDChatRuntime: NSObject, ObservableObject, WKScriptMessageHandler, 
     let current = UUID(); generation = current; ready = false
     p.executableURL = resources.appendingPathComponent("Chat/node")
     p.arguments = [resources.appendingPathComponent("Chat/helper.cjs").path]
-    let data = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/TBD/Chat")
+    let data = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/" + TBDIdentity.folder("TBD") + "/Chat")
     try FileManager.default.createDirectory(at: data, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
     // Isolation: the helper gets an allow-listed environment, never the app's.
     let inherited = ProcessInfo.processInfo.environment
@@ -129,6 +133,17 @@ final class TBDChatRuntime: NSObject, ObservableObject, WKScriptMessageHandler, 
       env["TBD_COMPANION_CLI"] = helpers.appendingPathComponent("dayflow").path
       env["TBD_LISTENING_CLI"] = helpers.appendingPathComponent("tbd-listen").path
     }
+    #if DEBUG
+      if TBDIdentity.isDev {
+        // TBD Dev: its own agent workspace ("TBD-dev Agent"); TBD_CHAT_DATA above is already TBD-dev/Chat. The
+        // bundled CLIs are release builds that read the live app's data, so the dev helper gets none. The helper's
+        // file policy keeps denying the live TBD folder.
+        let support = data.deletingLastPathComponent().deletingLastPathComponent()
+        env["TBD_AGENT_WORKSPACE"] = support.appendingPathComponent(TBDIdentity.folder("TBD") + " Agent/Workspace").path
+        env["TBD_COMPANION_CLI"] = nil
+        env["TBD_LISTENING_CLI"] = nil
+      }
+    #endif
     p.environment = env
     p.standardInput = stdin; p.standardOutput = stdout; p.standardError = stderr
     let reader = TBDLineReader()
@@ -294,7 +309,7 @@ final class TBDChatRuntime: NSObject, ObservableObject, WKScriptMessageHandler, 
   private func failure(_ reason: String) -> NSError { NSError(domain: "TBD.Chat", code: 1, userInfo: [NSLocalizedDescriptionKey: reason]) }
 
   private func credentialKey() throws -> Data {
-    let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: "com.tealbrick.tbd.chat", kSecAttrAccount as String: "storage-key"]
+    let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: TBDIdentity.service("com.tealbrick.tbd.chat"), kSecAttrAccount as String: "storage-key"]
     var read = query; read[kSecReturnData as String] = true
     var item: CFTypeRef?
     let result = SecItemCopyMatching(read as CFDictionary, &item)
@@ -380,7 +395,7 @@ final class TBDChatRuntime: NSObject, ObservableObject, WKScriptMessageHandler, 
 final class TBDHelperLog: @unchecked Sendable {
   static let shared = TBDHelperLog()
   private let queue = DispatchQueue(label: "com.tealbrick.tbd.chat-helper-log")
-  private let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/TBD/chat-helper.log")
+  private let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/" + TBDIdentity.folder("TBD") + "/chat-helper.log")
   private static let errorLine = try! NSRegularExpression(pattern: #"\[helper:error\]|\b[A-Za-z]*Error\b|[Uu]nhandled|[Uu]ncaught|\bfatal\b|^Node\.js v"#)
   private static let redactions: [(NSRegularExpression, String)] = [
     (#"eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.?[A-Za-z0-9_-]*"#, "[jwt]"),

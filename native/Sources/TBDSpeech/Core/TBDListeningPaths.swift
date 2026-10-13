@@ -1,4 +1,5 @@
 import Foundation
+import TBDModels
 
 /// File locations for Listening. Everything lives under one private (0700) root.
 public enum TBDListeningPaths {
@@ -10,7 +11,7 @@ public enum TBDListeningPaths {
             return URL(fileURLWithPath: override, isDirectory: true)
         }
         return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("TBD/Listening", isDirectory: true)
+            .appendingPathComponent(TBDIdentity.folder("TBD") + "/Listening", isDirectory: true)   // TBD-dev in the DEBUG dev app
     }
 
     public static var database: URL { root.appendingPathComponent("listening.sqlite") }
@@ -32,7 +33,7 @@ public enum TBDListeningPaths {
     }
     public static var downloads: URL { root.appendingPathComponent("Downloads", isDirectory: true) }
     public static var temporary: URL {
-        FileManager.default.temporaryDirectory.appendingPathComponent("tbd-listening", isDirectory: true)
+        FileManager.default.temporaryDirectory.appendingPathComponent(TBDIdentity.folder("tbd-listening"), isDirectory: true)
     }
 
     /// Creates `url` (and parents) with owner-only permissions and returns it.

@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 import TBDDesign
 import TBDListening
+import TBDModels
 
 @MainActor
 struct StatusMenuView: View {
@@ -42,7 +43,7 @@ struct StatusMenuView: View {
       MenuRow(title: "Transcribe URL", systemImage: "link", action: { audioAction(.transcribeURL) })
       MenuRow(title: "Recover voice-note audio", systemImage: "folder", action: {
         performAfterMenuDismiss {
-          let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("TBD/Listening/VoiceNotes")
+          let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent(TBDIdentity.folder("TBD") + "/Listening/VoiceNotes")
           if FileManager.default.fileExists(atPath: root.path) { NSWorkspace.shared.open(root) }
         }
       })

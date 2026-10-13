@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import TBDDesign
 
 struct WeeklyFocusHeatmapSection: View {
   let snapshot: WeeklyFocusHeatmapSnapshot
@@ -10,7 +11,7 @@ struct WeeklyFocusHeatmapSection: View {
   private enum Design {
     static let cardWidth: CGFloat = 958
     static let cardHeight: CGFloat = 238
-    static let cornerRadius: CGFloat = 4
+    static let cornerRadius: CGFloat = TBDKit.radiusBrick
     static let borderColor = WeeklyPalette.cardBorder
     @MainActor static var backgroundColor: Color { WeeklyPalette.contextCardFill }
     static let titleColor = WeeklyPalette.title
@@ -30,7 +31,7 @@ struct WeeklyFocusHeatmapSection: View {
     static let axisTopSpacing: CGFloat = 8
     static let legendWidth: CGFloat = 282.156
     static let legendBarHeight: CGFloat = 8
-    static let legendCornerRadius: CGFloat = 2
+    static let legendCornerRadius: CGFloat = TBDKit.radiusSwatch
   }
 
   init(
@@ -110,7 +111,7 @@ struct WeeklyFocusHeatmapSection: View {
   private var header: some View {
     HStack(alignment: .top) {
       Text(snapshot.title)
-        .font(.custom("Switzer-Medium", size: 20))
+        .font(TBDTokens.Typography.title)
         .foregroundStyle(Design.titleColor)
 
       Spacer(minLength: 24)
@@ -142,7 +143,7 @@ struct WeeklyFocusHeatmapSection: View {
         Spacer(minLength: 8)
         Text(snapshot.distractedLabel)
       }
-      .font(.custom("Switzer-Regular", size: 10))
+      .font(WeeklyFont.axis)
       .foregroundStyle(WeeklyPalette.text)
       .frame(width: legendWidth)
     }
@@ -173,7 +174,7 @@ struct WeeklyFocusHeatmapSection: View {
     VStack(alignment: .leading, spacing: resolvedCellGap) {
       ForEach(snapshot.rows) { row in
         Text(row.label)
-          .font(.custom("Switzer-Regular", size: 10))
+          .font(WeeklyFont.micro(10))
           .foregroundStyle(WeeklyPalette.text)
           .frame(width: Design.labelsWidth, height: Design.rowHeight, alignment: .leading)
       }
@@ -186,7 +187,7 @@ struct WeeklyFocusHeatmapSection: View {
         ForEach(snapshot.rows) { row in
           HStack(spacing: resolvedCellGap) {
             ForEach(Array(row.values.enumerated()), id: \.offset) { entry in
-              RoundedRectangle(cornerRadius: 0.5, style: .continuous)
+              Rectangle()
                 .fill(color(for: entry.element, rowValues: row.values, index: entry.offset))
                 .frame(width: cellWidth, height: Design.cellHeight)
             }
@@ -198,7 +199,7 @@ struct WeeklyFocusHeatmapSection: View {
       ZStack(alignment: .leading) {
         ForEach(snapshot.timeLabels) { label in
           Text(label.label)
-            .font(.custom("Switzer-Regular", size: 10))
+            .font(WeeklyFont.micro(10))
             .foregroundStyle(WeeklyPalette.text)
             .frame(width: 34, alignment: axisAlignment(for: label))
             .offset(x: axisOffset(for: label))
@@ -245,21 +246,9 @@ struct WeeklyFocusHeatmapSection: View {
 
     let progress = colorProgress(for: intensity)
 
-    if clampedValue < 0 {
-      let nsColor = interpolatedColor(
-        from: DesignColor.focusSoftNS,
-        to: DesignColor.focusDarkNS,
-        progress: progress
-      )
-      return Color(nsColor: nsColor)
-    }
-
-    let nsColor = interpolatedColor(
-      from: DesignColor.distractionSoftNS,
-      to: DesignColor.distractionDarkNS,
-      progress: progress
-    )
-    return Color(nsColor: nsColor)
+    // One kit tone per side, ramped by opacity so the cells follow the appearance.
+    let opacity = DesignColor.rampFloor + (1 - DesignColor.rampFloor) * progress
+    return (clampedValue < 0 ? DesignColor.focusDark : DesignColor.distractionDark).opacity(opacity)
   }
 
   private func adjustedValue(_ value: Double, rowValues: [Double], index: Int) -> Double {
@@ -322,27 +311,6 @@ struct WeeklyFocusHeatmapSection: View {
   private func colorProgress(for intensity: Double) -> Double {
     let clamped = max(0, min(1, intensity))
     return pow(clamped, 0.72)
-  }
-
-  private func interpolatedColor(from start: NSColor, to end: NSColor, progress: Double) -> NSColor
-  {
-    let fraction = CGFloat(max(0, min(1, progress)))
-    let startRGB = start.usingColorSpace(.deviceRGB) ?? start
-    let endRGB = end.usingColorSpace(.deviceRGB) ?? end
-
-    let red = startRGB.redComponent + ((endRGB.redComponent - startRGB.redComponent) * fraction)
-    let green =
-      startRGB.greenComponent + ((endRGB.greenComponent - startRGB.greenComponent) * fraction)
-    let blue = startRGB.blueComponent + ((endRGB.blueComponent - startRGB.blueComponent) * fraction)
-    let alpha =
-      startRGB.alphaComponent + ((endRGB.alphaComponent - startRGB.alphaComponent) * fraction)
-
-    return NSColor(
-      calibratedRed: red,
-      green: green,
-      blue: blue,
-      alpha: alpha
-    )
   }
 }
 
@@ -539,15 +507,12 @@ private enum DesignColor {
   static let neutralThreshold = 0.045
 
   static let neutral = WeeklyPalette.emptyCell
-  static let focusSoft = Color(hex: "E3DBFD")
-  static let focusDark = Color(hex: "4276E9")
-  static let distractionSoft = CompanionPalette.soft
-  static let distractionDark = CompanionPalette.accent
-
-  static let focusSoftNS = NSColor(hex: "E3DBFD") ?? .systemBlue
-  static let focusDarkNS = NSColor(hex: "4276E9") ?? .systemBlue
-  static let distractionSoftNS = NSColor(hex: "F8D1CA") ?? .systemOrange
-  static let distractionDarkNS = NSColor(hex: "FC7645") ?? .systemOrange
+  /// Lowest opacity of a coloured cell, so a faint value still reads against the empty cell.
+  static let rampFloor = 0.22
+  static let focusDark = TBDColor.teal
+  static let focusSoft = TBDColor.teal.opacity(rampFloor)
+  static let distractionDark = TBDColor.brick
+  static let distractionSoft = TBDColor.brick.opacity(rampFloor)
 }
 
 private struct WeeklyFocusHeatmapGapPreview: View {
@@ -557,13 +522,13 @@ private struct WeeklyFocusHeatmapGapPreview: View {
     VStack(alignment: .leading, spacing: 16) {
       HStack(spacing: 12) {
         Text("Gap")
-          .font(.custom("Switzer-Regular", size: 12))
+          .font(WeeklyFont.axis)
 
         Slider(value: $cellGap, in: 0...1.5, step: 0.1)
           .frame(width: 220)
 
         Text("\(cellGap, format: .number.precision(.fractionLength(1))) pt")
-          .font(.custom("Switzer-Regular", size: 12))
+          .font(WeeklyFont.axis)
           .monospacedDigit()
       }
 

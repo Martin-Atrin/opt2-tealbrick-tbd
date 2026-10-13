@@ -1,4 +1,5 @@
 import Foundation
+import TBDModels
 
 final class TimelapseStorageManager {
   static let shared = TimelapseStorageManager()
@@ -9,7 +10,7 @@ final class TimelapseStorageManager {
 
   private init() {
     let appSupport = fileMgr.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-    let path = appSupport.appendingPathComponent("TBD/Companion/timelapses", isDirectory: true)
+    let path = appSupport.appendingPathComponent(TBDIdentity.folder("TBD") + "/Companion/timelapses", isDirectory: true)
     root = path
     try? fileMgr.createDirectory(at: root, withIntermediateDirectories: true)
   }

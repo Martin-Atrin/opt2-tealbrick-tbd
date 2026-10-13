@@ -1,6 +1,7 @@
 import CryptoKit
 import Foundation
 import Security
+import TBDModels
 
 /// TBD's AGENT key (K4, CREDENTIALS §9, §12 b): an Ed25519 key pair whose private
 /// half never leaves this process. It lives in the Keychain (this device only,
@@ -9,7 +10,7 @@ import Security
 /// `tealbrick.agent.<con>` as the spec names it. The Chat helper can ask for the public JWK and for
 /// signatures over agent assertions; it never receives the private key.
 enum TBDAgentKeys {
-  static let servicePrefix = "tealbrick.agent."
+  static let servicePrefix = TBDIdentity.service("tealbrick.agent") + "."
   static let account = "k4"
 
   struct Failure: LocalizedError {

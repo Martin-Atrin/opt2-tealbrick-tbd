@@ -3,6 +3,7 @@ import AppKit
 import ImageIO
 import QuartzCore
 import SwiftUI
+import TBDDesign
 
 struct TimelineReviewCardMedia: View {
   let previewImage: CGImage?
@@ -13,7 +14,7 @@ struct TimelineReviewCardMedia: View {
   @State private var isPlayerReady = false
 
   private enum Design {
-    static let mediaBorderColor = Color.white.opacity(0.2)
+    static let mediaBorderColor = TBDColor.line
   }
 
   var body: some View {
@@ -39,11 +40,7 @@ struct TimelineReviewCardMedia: View {
           .allowsHitTesting(false)
           .clipped()
       } else {
-        LinearGradient(
-          colors: [Color.black.opacity(0.25), Color.black.opacity(0.05)],
-          startPoint: .topLeading,
-          endPoint: .bottomTrailing
-        )
+        TBDColor.film
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -51,7 +48,7 @@ struct TimelineReviewCardMedia: View {
     .onTapGesture { onTogglePlayback() }
     .pointingHandCursor()
     .overlay(
-      Rectangle().stroke(Design.mediaBorderColor, lineWidth: 1)
+      Rectangle().stroke(Design.mediaBorderColor, lineWidth: TBDKit.hair)
     )
     .onChange(of: player) {
       isPlayerReady = false

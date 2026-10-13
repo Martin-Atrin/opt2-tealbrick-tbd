@@ -1,4 +1,5 @@
 import SwiftUI
+import TBDDesign
 
 struct WeeklyTreemapCategory: Identifiable {
   let id: String
@@ -136,24 +137,20 @@ struct WeeklyTreemapChange {
   var color: Color {
     switch kind {
     case .positive:
-      return Color.dayflowAdaptive(
-        light: NSColor(hex: "089041") ?? .black, dark: NSColor(hex: "E0FBEE") ?? .white)
+      return TBDColor.tealInk
     case .negative:
-      return Color.dayflowAdaptive(
-        light: NSColor(hex: "E25922") ?? .black, dark: NSColor(hex: "FCE3E1") ?? .white)
+      return TBDColor.brickInk
     case .neutral:
-      return Color(hex: "8D8C8A")
+      return TBDColor.muted
     }
   }
 
   var badgeFill: Color {
     switch kind {
     case .positive:
-      return Color.dayflowAdaptive(
-        light: NSColor(hex: "D1EAE4") ?? .white, dark: NSColor(hex: "58927F") ?? .black)
+      return TBDColor.statusLiveFill
     case .negative:
-      return Color.dayflowAdaptive(
-        light: NSColor(hex: "FAE0D8") ?? .white, dark: NSColor(hex: "CA6D59") ?? .black)
+      return TBDColor.statusNeedsYouFill
     case .neutral:
       return .clear
     }
@@ -183,14 +180,13 @@ struct WeeklyTreemapPalette {
   // category color at fixed opacities over the themed card background, so a
   // single formula holds for both light and dark mode.
   static func category(hex: String) -> WeeklyTreemapPalette {
-    let base = Color(hex: hex)
+    let base = Color(hex: hex)  // design-guard: allow (user category colour)
     return WeeklyTreemapPalette(
       shellFill: base.opacity(0.25),
       shellBorder: base.opacity(0.75),
       tileFill: base.opacity(0.42),
       tileBorder: base,
-      headerText: Color.dayflowAdaptive(
-        light: NSColor(hex: "6D6D6D") ?? .darkGray, dark: NSColor(hex: "DFDFDF") ?? .lightGray)
+      headerText: TBDColor.muted
     )
   }
 

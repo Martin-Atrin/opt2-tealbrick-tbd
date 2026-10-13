@@ -31,91 +31,58 @@ struct LLMProviderSetupView: View {
     }
   }
 
-  // Layout constants (Figma "Edits after first implementation" LLM1–LLM4)
-  let sidebarWidth: CGFloat = 190
-  let fixedOffset: CGFloat = 42
-  let contentGap: CGFloat = 76
+  // The step flow has ONE fixed size for every step (C126); the header (Back + title) sits above it.
+  let flowSize = CGSize(width: 820, height: 500)
 
   @StateObject var setupState = ProviderSetupState()
-  @State var sidebarOpacity: Double = 0
-  @State var contentOpacity: Double = 0
   @Environment(\.accessibilityReduceMotion) var reduceMotion
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
-      // Header with Back button and Title on same line
-      HStack(alignment: .center, spacing: contentGap) {
-        // Back button container matching sidebar width
+      // Header: Back leaves the setup (only on the first step; later steps use Previous) and the title.
+      HStack(alignment: .center, spacing: TBDKit.s5) {
         HStack {
-          Button(action: handleBack) {
-            HStack(spacing: 8) {
-              Image(systemName: "chevron.left")
-                .font(TBDFonts.symbol(15, .bold))
-                .frame(width: 20, height: 20, alignment: .center)
+          if setupState.currentStepIndex == 0 {
+            Button(action: handleBack) {
+              HStack(spacing: 8) {
+                Image(systemName: "chevron.left")
+                  .font(TBDFonts.symbol(15, .bold))
+                  .frame(width: 20, height: 20, alignment: .center)
 
-              Text("Back")
+                Text("Back")
+              }
             }
+            .buttonStyle(TBDButtonStyle(.quiet))
+            .pointingHandCursor()
           }
-          .buttonStyle(TBDButtonStyle(.quiet))
-          .padding(.leading, 7)
-          .pointingHandCursor()
-
-          Spacer()
+          Spacer(minLength: 0)
         }
-        .frame(width: sidebarWidth)
+        .frame(width: 110)
 
-        // Title in the content area
-        HStack {
-          Text(headerTitle)
-            .font(TBDTokens.Typography.display)
-            .tracking(TBDTokens.Typography.displayTracking)
-            .foregroundColor(TBDColor.ink)
+        Text(headerTitle)
+          .font(TBDTokens.Typography.display)
+          .tracking(TBDTokens.Typography.displayTracking)
+          .foregroundColor(TBDColor.ink)
 
-          Spacer()
-        }
+        Spacer(minLength: 0)
       }
-      .padding(.leading, fixedOffset)
+      .frame(width: flowSize.width)
       .padding(.top, 30)
       .padding(.bottom, 24)
 
-      // Main content area with sidebar and content
-      HStack(alignment: .top, spacing: contentGap) {
-        // Sidebar - fixed width 250px
-        VStack(alignment: .leading, spacing: 0) {
-          SetupSidebarView(
-            steps: setupState.steps,
-            currentStepId: setupState.currentStep.id,
-            onStepSelected: { setupState.navigateToStep($0) }
-          )
-          Spacer()
-        }
-        .frame(width: sidebarWidth)
-        .opacity(sidebarOpacity)
-
-        // Content area - wrapped in VStack to match sidebar alignment
-        VStack(alignment: .leading, spacing: 0) {
-          currentStepContent
-            .frame(maxWidth: 638, alignment: .leading)
-          Spacer()
-        }
-        .opacity(contentOpacity)
-        .textSelection(.enabled)
+      if !setupState.steps.isEmpty {
+        TBDStepFlow(steps: flowSteps, current: stepBinding, size: flowSize, finish: completeSetup)
+          .overlay(TBDBrickShape().strokeBorder(TBDColor.line, lineWidth: TBDKit.hair))
+          .clipShape(TBDBrickShape())
+          .textSelection(.enabled)
       }
-      .padding(.leading, fixedOffset)
 
-      Spacer()  // Push everything to top
+      Spacer(minLength: 0)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    // Next / Complete setup always pinned to the bottom-right corner
-    .overlay(alignment: .bottomTrailing) {
-      nextButton
-        .padding(.trailing, 40)
-        .padding(.bottom, 38)
-        .opacity(contentOpacity)
-    }
+    .background(TBDColor.paper)
     .onAppear {
       setupState.configureSteps(for: providerType)
-      animateAppearance()
     }
     .alert(
       "Couldn't finish setup",
@@ -136,43 +103,48 @@ struct LLMProviderSetupView: View {
     }
   }
 
-  var nextButtonText: String {
-    if ["verify", "test"].contains(setupState.currentStep.id) && !setupState.testSuccessful {
-      return String(localized: "Test Required")
+  /// The setup steps as step-flow steps: same order, titles, validation and content as before.
+  var flowSteps: [TBDStep] {
+    let lastIndex = setupState.steps.count - 1
+    return setupState.steps.enumerated().map { index, step in
+      let isLast = index == lastIndex
+      let needsTest = ["verify", "test"].contains(step.id)
+      let nextLabel =
+        isLast
+        ? String(localized: "Complete setup")
+        : (needsTest && !setupState.testSuccessful ? String(localized: "Test Required") : String(localized: "Next"))
+      return TBDStep(
+        step.title,
+        nextLabel: nextLabel,
+        // The last step stays enabled: completeSetup() validates and shows the alert.
+        canAdvance: isLast || setupState.canContinue(for: step)
+      ) {
+        stepContent(step)
+      }
     }
-    return String(localized: "Next")
   }
 
-  @ViewBuilder
-  var nextButton: some View {
-    if setupState.isLastStep {
-      Button(action: completeSetup) {
-        Text("Complete setup")
-      }
-      .buttonStyle(TBDButtonStyle(.primary, size: .large))
-      .pointingHandCursor()
-    } else {
-      Button(action: handleContinue) {
-        HStack(spacing: 4) {
-          Text(nextButtonText)
-          if !["verify", "test"].contains(setupState.currentStep.id) || setupState.testSuccessful
-          {
-            Image(systemName: "chevron.right")
-              .font(TBDFonts.symbol(15, .bold))
-              .frame(width: 20, height: 20)
-          }
+  /// Bridges the step flow's index to the setup state (forward = mark done + next, back = previous step).
+  var stepBinding: Binding<Int> {
+    Binding(
+      get: { setupState.currentStepIndex },
+      set: { newIndex in
+        let current = setupState.currentStepIndex
+        guard newIndex != current else { return }
+        if newIndex > current {
+          setupState.markCurrentStepCompleted()
+          setupState.goNext()
+        } else if newIndex == current - 1 {
+          setupState.goBack()
+        } else if setupState.steps.indices.contains(newIndex) {
+          setupState.navigateToStep(setupState.steps[newIndex].id)
         }
       }
-      .buttonStyle(TBDButtonStyle(.primary, size: .large))
-      .disabled(!setupState.canContinue)
-      .pointingHandCursor(enabled: setupState.canContinue)
-    }
+    )
   }
 
   @ViewBuilder
-  var currentStepContent: some View {
-    let step = setupState.currentStep
-
+  func stepContent(_ step: SetupStep) -> some View {
     switch step.contentType {
     case .localChoice:
       VStack(alignment: .leading, spacing: 20) {
@@ -397,8 +369,8 @@ struct LLMProviderSetupView: View {
           }
         }
 
-        // Content area scrolls if needed; Next stays visible below
-        ScrollView(.vertical, showsIndicators: true) {
+        // The step flow scrolls its middle if needed; Previous / Next stay visible below
+        Group {
           VStack(alignment: .leading, spacing: 16) {
             if ["verify", "test"].contains(step.id) {
               if providerType == .gemini {
@@ -519,9 +491,7 @@ struct LLMProviderSetupView: View {
             }
           }
           .frame(maxWidth: .infinity, alignment: .leading)
-          .padding(6)
         }
-        .frame(maxHeight: 420)
 
       }
 
@@ -619,15 +589,6 @@ struct LLMProviderSetupView: View {
       onBack()
     } else {
       setupState.goBack()
-    }
-  }
-
-  func handleContinue() {
-    if setupState.isLastStep {
-      completeSetup()
-    } else {
-      setupState.markCurrentStepCompleted()
-      setupState.goNext()
     }
   }
 
@@ -774,17 +735,5 @@ struct LLMProviderSetupView: View {
   func openChatCLIInstallPage(for tool: CLITool) {
     guard let url = tool.installURL else { return }
     NSWorkspace.shared.open(url)
-  }
-
-  func animateAppearance() {
-    withAnimation(TBDMotion.animation(TBDMotion.gentle, reduce: reduceMotion)) {
-      sidebarOpacity = 1
-    }
-
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-      withAnimation(TBDMotion.animation(TBDMotion.gentle, reduce: reduceMotion)) {
-        contentOpacity = 1
-      }
-    }
   }
 }

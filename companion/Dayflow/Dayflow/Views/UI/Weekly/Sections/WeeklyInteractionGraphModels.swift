@@ -1,4 +1,6 @@
+import AppKit
 import SwiftUI
+import TBDDesign
 
 enum WeeklyInteractionGraphCategory: String, CaseIterable {
   case work
@@ -8,38 +10,36 @@ enum WeeklyInteractionGraphCategory: String, CaseIterable {
   var fillColor: Color {
     switch self {
     case .work:
-      return Color(hex: "EEF3FF")
+      return TBDColor.tealWash
     case .personal:
-      return Color(hex: "E6E6E6")
+      return TBDColor.plate
     case .distraction:
-      return CompanionPalette.soft
+      return TBDColor.brickWash
     }
   }
 
   var borderColor: Color {
     switch self {
     case .work:
-      return Color(hex: "4779E9")
+      return TBDColor.teal
     case .personal:
-      return Color(hex: "B8B8B8")
+      return TBDColor.toneStone
     case .distraction:
-      return CompanionPalette.accent
+      return TBDColor.brick
     }
   }
 
   var edgeColor: Color {
-    Color(hex: edgeHex)
+    borderColor
   }
 
+  /// The edge colour as hex, for the layout's colour blending (resolved from the kit tone for the current appearance).
   var edgeHex: String {
-    switch self {
-    case .work:
-      return "4779E9"
-    case .personal:
-      return "9BA1A9"
-    case .distraction:
-      return "FC7645"
-    }
+    guard let rgb = NSColor(borderColor).usingColorSpace(.sRGB) else { return "000000" }
+    return String(
+      format: "%02X%02X%02X",
+      Int((rgb.redComponent * 255).rounded()), Int((rgb.greenComponent * 255).rounded()),
+      Int((rgb.blueComponent * 255).rounded()))
   }
 }
 

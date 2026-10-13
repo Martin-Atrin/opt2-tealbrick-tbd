@@ -1,4 +1,5 @@
 import Foundation
+import TBDModels
 
 /// Which kind of transcript an auto-save rule covers (v1 `AutoSaveScope`).
 public enum TBDAutoSaveScope: String, Sendable, CaseIterable {
@@ -77,7 +78,7 @@ public struct TBDAutoSaveConfig: @unchecked Sendable {
     public static func defaultFolder(for scope: TBDAutoSaveScope) -> URL {
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents")
-        return documents.appendingPathComponent("TBD/Listening/\(scope.defaultFolderName)", isDirectory: true)
+        return documents.appendingPathComponent(TBDIdentity.folder("TBD") + "/Listening/\(scope.defaultFolderName)", isDirectory: true)
     }
 
     /// Creates the default folder and stores it. Returns nil when that fails.

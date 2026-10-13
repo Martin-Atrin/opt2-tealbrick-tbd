@@ -21,28 +21,24 @@ struct WeeklyHighlightsSection: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
       Text("Top Highlights")
-        .font(.custom("Switzer-Medium", size: 20))
+        .font(TBDTokens.Typography.title)
         .foregroundStyle(Design.titleColor)
 
       VStack(alignment: .leading, spacing: 19) {
         ForEach(snapshot.highlights) { highlight in
           HStack(alignment: .top, spacing: 18) {
             Text(highlight.tag)
-              .font(.custom("Switzer-Semibold", size: 8))
+              .font(TBDTokens.Typography.label)
               .foregroundStyle(WeeklyPalette.accent)
-              .lineLimit(1)
-              .padding(.horizontal, 6)
+              .lineLimit(2)
+              .padding(.horizontal, 8)
               .padding(.vertical, 4)
-              .background(WeeklyPalette.highlightChipFill)
-              .overlay(
-                RoundedRectangle(cornerRadius: 3, style: .continuous)
-                  .stroke(WeeklyPalette.cardInnerStroke, lineWidth: 1)
-              )
-              .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
-              .frame(width: 84, alignment: .leading)
+              .background(WeeklyPalette.highlightChipFill, in: TBDBrickShape())
+              .overlay(TBDBrickShape().strokeBorder(WeeklyPalette.cardInnerStroke, lineWidth: TBDKit.hair))
+              .frame(width: 112, alignment: .leading)
 
             Text(highlight.text)
-              .font(.custom("Switzer-Regular", size: 12))
+              .font(TBDTokens.Typography.hint)
               .foregroundStyle(WeeklyPalette.text)
               .lineSpacing(1)
               .frame(maxWidth: .infinity, alignment: .leading)
@@ -57,10 +53,10 @@ struct WeeklyHighlightsSection: View {
     .padding(.horizontal, 18)
     .frame(width: width, height: Design.height, alignment: .topLeading)
     .background(Design.background)
-    .clipShape(RoundedRectangle(cornerRadius: TBDTokens.Radius.base, style: .continuous))
+    .clipShape(TBDBrickShape())
     .overlay(
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base, style: .continuous)
-        .stroke(Design.borderColor, lineWidth: 1)
+      TBDBrickShape()
+        .strokeBorder(Design.borderColor, lineWidth: TBDKit.hair)
     )
   }
 }

@@ -1,6 +1,7 @@
 import Foundation
 import LocalAuthentication
 import Security
+import TBDModels
 
 /// Keychain items with the names CREDENTIALS §12 fixes:
 /// - `tealbrick.person` (account = Portal origin): the person's owner native session (K3).
@@ -14,7 +15,7 @@ enum TBDKeychain {
     var errorDescription: String? { message }
   }
 
-  static let personService = "tealbrick.person"
+  static let personService = TBDIdentity.service("tealbrick.person")
 
   // MARK: person session (K3)
 

@@ -59,6 +59,11 @@ struct DayflowApp: App {
   init() {
     // Writing to stdout after its reader has gone away raises SIGPIPE; ignore it.
     signal(SIGPIPE, SIG_IGN)
+    #if DEBUG
+      // TBD Dev only: `--design-shots <dir>` renders companion screens to PNG and exits before any scene,
+      // AppDelegate launch work, capture, hotkey or network starts (TBDDesignShotsMode.swift).
+      if TBDDesignShots.isRequested { MainActor.assumeIsolated { TBDDesignShots.run() } }
+    #endif
   }
 
   var body: some Scene {

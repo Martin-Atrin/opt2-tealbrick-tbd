@@ -5,13 +5,14 @@
 
 import Foundation
 import Security
+import TBDModels
 
 /// Thread-safe manager for securely storing API keys in macOS Keychain
 final class KeychainManager {
 
   static let shared = KeychainManager()
 
-  private let servicePrefix = "com.tealbrick.tbd.companion.apikeys"
+  private let servicePrefix = TBDIdentity.service("com.tealbrick.tbd.companion.apikeys")
   private let queue = DispatchQueue(label: "com.teleportlabs.dayflow.keychain", qos: .userInitiated)
 
   private init() {}

@@ -1,5 +1,6 @@
 import Charts
 import SwiftUI
+import TBDDesign
 
 struct WeeklyDonutSection: View {
   private let donutScale = WeeklyDonutLayout.scale
@@ -25,7 +26,7 @@ struct WeeklyDonutSection: View {
   private enum Design {
     static let cardWidth: CGFloat = 461
     static let cardHeight: CGFloat = 300
-    static let cornerRadius: CGFloat = 4
+    static let cornerRadius: CGFloat = TBDKit.radiusBrick
     static let borderColor = WeeklyPalette.cardBorder
     @MainActor static var backgroundColor: Color { WeeklyPalette.cardFill }
     static let titleColor = WeeklyPalette.title
@@ -47,7 +48,7 @@ struct WeeklyDonutSection: View {
         .fill(Design.backgroundColor)
 
       Text("Weekly distribution")
-        .font(.custom("Switzer-Medium", size: 20))
+        .font(TBDTokens.Typography.title)
         .foregroundStyle(Design.titleColor)
         .padding(.top, 16)
         .padding(.leading, 18)
@@ -130,7 +131,6 @@ private struct WeeklyDonutChart: View {
       Circle()
         .fill(WeeklyPalette.solid)
         .frame(width: size, height: size)
-        .shadow(color: Color(red: 0.39, green: 0.28, blue: 0.22).opacity(0.35), radius: 5)
 
       if stylePreviewAfter {
         // Sector fills: category color at 80% opacity (per mock)
@@ -150,32 +150,16 @@ private struct WeeklyDonutChart: View {
         .frame(width: chartSize, height: chartSize)
         .allowsHitTesting(false)
       } else {
-        // "Before": shipped rendering — full-opacity sectors with a white
-        // radial sheen fading toward the outer edge.
+        // "Before": full-opacity flat sectors.
         sectorChart(fillOpacity: 1)
           .frame(width: chartSize, height: chartSize)
-
-        Circle()
-          .fill(
-            RadialGradient(
-              stops: [
-                .init(color: .white.opacity(0.35), location: innerRadiusRatio),
-                .init(color: .white.opacity(0), location: 1),
-              ],
-              center: .center,
-              startRadius: 0,
-              endRadius: chartSize / 2
-            )
-          )
-          .frame(width: chartSize, height: chartSize)
-          .allowsHitTesting(false)
       }
 
       // In dark mode ("After") the hole is punched out so the panel background
       // shows through; otherwise it's filled with the weekly card solid.
       let punchOutHole = stylePreviewAfter && colorScheme == .dark
       Circle()
-        .fill(punchOutHole ? Color.black : WeeklyPalette.solid)
+        .fill(punchOutHole ? TBDColor.ink : WeeklyPalette.solid)
         .blendMode(punchOutHole ? .destinationOut : .normal)
         .frame(
           width: chartSize * innerRadiusRatio - innerGap,
@@ -201,7 +185,7 @@ private struct WeeklyDonutChart: View {
         angularInset: 1.5 + spread
       )
       .cornerRadius(max(6 - spread, 0))
-      .foregroundStyle(Color(hex: item.colorHex).opacity(fillOpacity))
+      .foregroundStyle(Color(hex: item.colorHex).opacity(fillOpacity))  // design-guard: allow (user category colour)
     }
     .chartLegend(.hidden)
   }
@@ -216,17 +200,17 @@ private struct WeeklyDonutCenterContent: View {
   var body: some View {
     VStack(spacing: 4) {
       Text("TOTAL")
-        .font(.custom("Switzer-Bold", size: 8))
+        .font(WeeklyFont.micro(11, bold: true))
         .foregroundStyle(WeeklyPalette.mutedText)
 
       // Plural-aware catalog keys, so Russian gets часа/часов and CJK a single form.
       VStack(spacing: 0) {
         Text("\(totalHours) hours")
-          .font(.custom("Switzer-Medium", size: 16))
+          .font(TBDFonts.nunito(TBDKit.textBody, TBDKit.weightNav))
           .foregroundStyle(WeeklyPalette.text)
 
         Text("\(remainingMinutes) minutes")
-          .font(.custom("Switzer-Medium", size: 16))
+          .font(TBDFonts.nunito(TBDKit.textBody, TBDKit.weightNav))
           .foregroundStyle(WeeklyPalette.text)
       }
     }
@@ -248,12 +232,12 @@ private struct WeeklyDonutLegendRow: View {
   var body: some View {
     HStack(spacing: 0) {
       HStack(spacing: 8) {
-        RoundedRectangle(cornerRadius: 1.5, style: .continuous)
-          .fill(Color(hex: item.colorHex))
+        RoundedRectangle(cornerRadius: TBDKit.radiusSwatch, style: .continuous)
+          .fill(Color(hex: item.colorHex))  // design-guard: allow (user category colour)
           .frame(width: 12, height: 8)
 
         Text(item.name)
-          .font(.custom("Switzer-Regular", size: 14))
+          .font(TBDTokens.Typography.hint)
           .foregroundStyle(WeeklyPalette.text)
           .lineLimit(1)
           .layoutPriority(1)
@@ -262,7 +246,7 @@ private struct WeeklyDonutLegendRow: View {
       Spacer(minLength: 8)
 
       Text(percentageText)
-        .font(.custom("Switzer-Regular", size: 14))
+        .font(TBDTokens.Typography.hint)
         .foregroundStyle(WeeklyPalette.text)
         .frame(minWidth: 32, alignment: .trailing)
         .padding(.trailing, percentInset)
@@ -278,7 +262,6 @@ private struct WeeklyDonutEmptyState: View {
       Circle()
         .fill(WeeklyPalette.solid)
         .frame(width: size, height: size)
-        .shadow(color: Color(red: 0.39, green: 0.28, blue: 0.22).opacity(0.12), radius: 5)
 
       Circle()
         .stroke(WeeklyPalette.cardBorder, lineWidth: 20)
@@ -286,11 +269,11 @@ private struct WeeklyDonutEmptyState: View {
 
       VStack(spacing: 4) {
         Text("TOTAL")
-          .font(.custom("Switzer-Bold", size: 8))
+          .font(WeeklyFont.micro(11, bold: true))
           .foregroundStyle(WeeklyPalette.mutedText)
 
         Text("No activity")
-          .font(.custom("Switzer-Medium", size: 16))
+          .font(TBDFonts.nunito(TBDKit.textBody, TBDKit.weightNav))
           .foregroundStyle(WeeklyPalette.secondaryText)
       }
     }

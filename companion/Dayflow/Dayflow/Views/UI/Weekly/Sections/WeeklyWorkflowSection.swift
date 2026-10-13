@@ -1,4 +1,5 @@
 import SwiftUI
+import TBDDesign
 
 struct WeeklyWorkflowSection: View {
   let snapshot: WeeklyWorkflowSnapshot
@@ -34,7 +35,7 @@ struct WeeklyWorkflowSection: View {
 
   private enum Design {
     static let sectionWidth: CGFloat = 958
-    static let cornerRadius: CGFloat = 4
+    static let cornerRadius: CGFloat = TBDKit.radiusBrick
     static let borderColor = WeeklyPalette.cardBorder
     @MainActor static var backgroundColor: Color { WeeklyPalette.contextCardFill }
     static let dividerColor = WeeklyPalette.divider
@@ -57,7 +58,7 @@ struct WeeklyWorkflowSection: View {
     static let cellWidth: CGFloat = 13
     static let cellHeight: CGFloat = 13
     static let cellGap: CGFloat = 2
-    static let cellCornerRadius: CGFloat = 2.5
+    static let cellCornerRadius: CGFloat = TBDKit.radiusSwatch
     static let axisTopSpacing: CGFloat = 10
     static let axisLabelSpacing: CGFloat = 5
     static let axisLabelHeight: CGFloat = 14
@@ -95,7 +96,7 @@ struct WeeklyWorkflowSection: View {
     .clipShape(RoundedRectangle(cornerRadius: Design.cornerRadius, style: .continuous))
     .overlay(alignment: .topLeading) {
       Text(snapshot.title)
-        .font(.custom("Switzer-Medium", size: 20))
+        .font(TBDTokens.Typography.title)
         .foregroundStyle(Design.titleColor)
         .padding(.top, Design.titleTopPadding)
         .padding(.leading, Design.titleLeadingPadding)
@@ -134,7 +135,7 @@ struct WeeklyWorkflowSection: View {
     VStack(alignment: .trailing, spacing: Design.cellGap) {
       ForEach(snapshot.rows) { row in
         Text(row.label)
-          .font(.custom("Switzer-Regular", size: 11))
+          .font(WeeklyFont.micro(11))
           .foregroundStyle(Design.textColor)
           .frame(width: Design.labelWidth, height: Design.cellHeight, alignment: .trailing)
       }
@@ -165,7 +166,7 @@ struct WeeklyWorkflowSection: View {
         ZStack(alignment: .leading) {
           ForEach(snapshot.timeLabels) { label in
             Text(label.label)
-              .font(.custom("Switzer-Regular", size: 10))
+              .font(WeeklyFont.micro(10))
               .foregroundStyle(WeeklyPalette.text)
               .frame(width: Design.axisLabelWidth, alignment: axisAlignment(for: label))
               .offset(x: axisOffset(for: label))
@@ -200,11 +201,11 @@ struct WeeklyWorkflowSection: View {
         Text(
           "Week total  No captured activity during \(clockText(snapshot.startMinute))-\(clockText(snapshot.endMinute))"
         )
-        .font(.custom("Switzer-Regular", size: 12))
+        .font(WeeklyFont.axis)
         .foregroundStyle(Design.mutedTextColor)
       } else {
         Text("Week total")
-          .font(.custom("Switzer-Medium", size: 14))
+          .font(TBDTokens.Typography.control)
           .foregroundStyle(Design.totalTitleColor)
 
         ForEach(snapshot.totals) { total in
@@ -217,14 +218,18 @@ struct WeeklyWorkflowSection: View {
   }
 
   private func totalItem(_ total: WeeklyWorkflowTotalItem) -> some View {
-    HStack(spacing: 2) {
+    HStack(spacing: 4) {
+      Circle()
+        .fill(Color(hex: total.colorHex))  // design-guard: allow (user category colour)
+        .frame(width: 8, height: 8)
+
       Text(total.name)
-        .font(.custom("Switzer-Regular", size: 12))
+        .font(WeeklyFont.axis)
         .foregroundStyle(Design.totalNameColor)
 
       Text(total.duration)
-        .font(.custom("Switzer-Semibold", size: 12))
-        .foregroundStyle(Color(hex: total.colorHex))
+        .font(WeeklyFont.axisBold)
+        .foregroundStyle(TBDColor.ink)
     }
     .fixedSize(horizontal: true, vertical: false)
   }
@@ -236,7 +241,7 @@ struct WeeklyWorkflowSection: View {
 
     let occupancy = min(max(cell.occupancy, 0), 1)
     let alpha = 0.3 + (occupancy * 0.7)
-    return Color(hex: colorHex).opacity(alpha)
+    return Color(hex: colorHex).opacity(alpha)  // design-guard: allow (user category colour)
   }
 
   private func axisOffset(for label: WeeklyWorkflowTimeLabel) -> CGFloat {

@@ -49,13 +49,10 @@ struct TimelineReviewCard: View {
 
   var body: some View {
     ZStack(alignment: .top) {
-      // Floating review card: square brick, hard offset shadow, no blur.
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-        .fill(Color.white)
-        .background(
-          RoundedRectangle(cornerRadius: TBDTokens.Radius.base).fill(TBDTokens.ink.opacity(TBDTokens.Shadow.brickLg.opacity))
-            .offset(x: TBDTokens.Shadow.brickLg.x, y: TBDTokens.Shadow.brickLg.y)
-        )
+      // Review card: tile brick with the hairline ring, flat.
+      TBDBrickShape()
+        .fill(TBDColor.tile)
+        .overlay(TBDBrickShape().strokeBorder(TBDColor.line, lineWidth: TBDKit.hair))
 
       VStack(spacing: 0) {
         TimelineReviewCardMedia(
@@ -104,8 +101,8 @@ struct TimelineReviewCard: View {
 
         VStack(alignment: .leading, spacing: 12) {
           Text(activity.title)
-            .font(.custom("Switzer-Medium", size: 24))
-            .foregroundColor(Color.black)
+            .font(TBDTokens.Typography.title)
+            .foregroundColor(TBDColor.ink)
             .lineLimit(2)
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -117,8 +114,8 @@ struct TimelineReviewCard: View {
 
           ScrollView(.vertical, showsIndicators: true) {
             Text(summaryText)
-              .font(.custom("Switzer", size: 14).weight(.medium))
-              .foregroundColor(Color(hex: "333333"))
+              .font(TBDTokens.Typography.body)
+              .foregroundColor(TBDColor.inkSoft)
               .lineSpacing(3)
               .frame(maxWidth: .infinity, alignment: .leading)
               .padding(.trailing, 4)
@@ -130,19 +127,19 @@ struct TimelineReviewCard: View {
           HStack {
             Spacer()
             Text(progressText)
-              .font(.custom("Switzer", size: 10).weight(.medium))
-              .foregroundColor(Color(hex: "AFAFAF"))
+              .font(TBDTokens.Typography.hint)
+              .foregroundColor(TBDColor.muted)
           }
         }
         .frame(maxHeight: .infinity, alignment: .top)
         .padding(.horizontal, 20)
         .padding(.vertical, 18)
       }
-      .clipShape(RoundedRectangle(cornerRadius: TBDTokens.Radius.base))
+      .clipShape(TBDBrickShape())
 
       if let overlayRating = overlayRating {
         TimelineReviewOverlayBadge(rating: overlayRating)
-          .clipShape(RoundedRectangle(cornerRadius: TBDTokens.Radius.base))
+          .clipShape(TBDBrickShape())
           .transition(.opacity)
       }
     }
