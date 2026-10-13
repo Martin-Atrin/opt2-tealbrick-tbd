@@ -169,6 +169,11 @@ public final class TBDListeningDatabase: @unchecked Sendable {
                 t.column("savedAt", .datetime).notNull()
             }
         }
+        // Favorites: the star on library items (v1 `isFavorite`).
+        migrator.registerMigration("v7-favorites") { db in
+            try db.alter(table: "transcription") { t in t.add(column: "isFavorite", .boolean).notNull().defaults(to: false) }
+            try db.create(index: "transcription_favorite_createdAt", on: "transcription", columns: ["isFavorite", "createdAt"])
+        }
         return migrator
     }
 
@@ -255,10 +260,17 @@ public final class TBDListeningDatabase: @unchecked Sendable {
 
     // MARK: - Transcriptions
 
+    /// Saves a library item. The star of a stored item changes only through `setFavorite`, so a save of an
+    /// item read earlier (a transcription that finishes after the person starred it) keeps the star.
     public func save(_ transcription: TBDTranscription) throws {
         var item = transcription
         item.updatedAt = Date()
-        try writer.write { try item.save($0) }
+        try writer.write { db in
+            if let stored = try Bool.fetchOne(db, sql: "SELECT isFavorite FROM transcription WHERE id = ?", arguments: [item.id]) {
+                item.isFavorite = stored
+            }
+            try item.save(db)
+        }
     }
 
     public func transcription(id: String) throws -> TBDTranscription? {
@@ -270,7 +282,8 @@ public final class TBDListeningDatabase: @unchecked Sendable {
         }
     }
 
-    public func transcriptions(limit: Int = 500, kind: TBDSourceKind? = nil, matching query: String? = nil) throws -> [TBDTranscription] {
+    public func transcriptions(limit: Int = 500, kind: TBDSourceKind? = nil, matching query: String? = nil,
+                               favoritesOnly: Bool = false) throws -> [TBDTranscription] {
         try writer.read { db in
             if let pattern = Self.pattern(query) {
                 var sql = """
@@ -279,12 +292,14 @@ public final class TBDListeningDatabase: @unchecked Sendable {
                     """
                 var arguments: StatementArguments = [pattern]
                 if let kind { sql += " AND transcription.sourceKind = ?"; arguments += [kind.rawValue] }
+                if favoritesOnly { sql += " AND transcription.isFavorite = 1" }
                 sql += " ORDER BY transcription.createdAt DESC LIMIT ?"
                 arguments += [limit]
                 return try TBDTranscription.fetchAll(db, sql: sql, arguments: arguments)
             }
             var request = TBDTranscription.order(Column("createdAt").desc).limit(limit)
             if let kind { request = request.filter(Column("sourceKind") == kind.rawValue) }
+            if favoritesOnly { request = request.filter(Column("isFavorite") == true) }
             return try request.fetchAll(db)
         }
     }

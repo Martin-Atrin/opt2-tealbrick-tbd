@@ -92,6 +92,8 @@ public struct TBDTranscription: Codable, Sendable, Equatable, Identifiable, Fetc
     public var audioRetentionStartedAt: Date?
     /// The person's own meeting notes (plain text, `[M:SS]` stamps where they typed /now).
     public var userNotes: String?
+    /// Starred by the person (Library star, Favorites filter).
+    public var isFavorite = false
 
     public init(id: String = tbdNewID(), title: String, sourceKind: TBDSourceKind, sourcePath: String? = nil, sourceURL: String? = nil,
                 status: TBDTranscriptionStatus = .processing) {
