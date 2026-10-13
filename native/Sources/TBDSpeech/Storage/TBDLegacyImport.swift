@@ -34,7 +34,7 @@ import GRDB
 ///   the words when absent, as for new items). audioRetentionStartedAt = import time when audio is
 ///   attached (imports start the retention clock at import time).
 ///   Fields with no place: fileSizeBytes, speakerCount, diarizationSegments, exportPath,
-///   thumbnailURL, channelName, videoDescription, isFavorite, meetingTypeId, recoveredFromCrash,
+///   thumbnailURL, channelName, videoDescription, isFavorite, meetingTypeId (the earlier version folded types into labels), recoveredFromCrash,
 ///   isTranscriptEdited, meetingStartContext, meetingCaptureReport, engineVariant,
 ///   calendarEventSnapshot, derivedSnippet, splitProvenance, audioTrackOrdinal,
 ///   meetingArtifactFolderPath.
@@ -48,6 +48,13 @@ import GRDB
 /// - `text_snippets` → `snippet`: id; trigger; expansion; isEnabled; useCount; createdAt.
 ///   Keystroke-action snippets (action set) are skipped: Listening snippets only insert text.
 ///
+/// - `meeting_labels` → `meetingLabel`: id; name; colorToken; sortOrder; isArchived; createdAt; updatedAt. A label whose
+///   name (ignoring case) exists already is not added; its assignments go to the existing label.
+///   `transcription_meeting_labels` → `transcriptionLabel` (rows whose transcript or label is not in the library are
+///   skipped). `prompt_label_policies` → `promptLabelPolicy` (only for prompts that exist here: the built-in prompts
+///   keep their earlier ids, custom earlier prompts are not imported). `meeting_types` and
+///   `prompt_meeting_policies` are earlier-version leftovers that v1 itself folded into labels; they are not read.
+///
 /// Earlier tables with no place here are counted by name in `Report.notImported` (see
 /// `notImportedTables`). Derived tables (segments, cards, stats) are rebuilt from the rows above.
 public enum TBDLegacyImport {
@@ -60,11 +67,15 @@ public enum TBDLegacyImport {
     /// Earlier tables that hold data this library has no place for.
     static let notImportedTables = [
         "prompts", "prompt_collections", "quick_prompts", "speaker_profiles", "speaker_corrections",
-        "meeting_labels", "transform_history", "ai_formatter_profiles", "share_publications", "llm_runs",
+        "meeting_types", "transform_history", "ai_formatter_profiles", "share_publications", "llm_runs",
     ]
 
     public enum Kind: String, CaseIterable, Sendable {
         case dictations, transcripts, meetings, summaries, conversations, customWords, snippets
+        case labels, labelAssignments, labelPolicies
+
+        /// Kinds always named in the stored summary line; the label kinds only appear when something was imported.
+        static let core: [Kind] = [.dictations, .transcripts, .meetings, .summaries, .conversations, .customWords, .snippets]
     }
 
     public struct Report: Sendable, Equatable {
@@ -107,7 +118,7 @@ public enum TBDLegacyImport {
 
         /// Compact record stored with the marker.
         var summaryLine: String {
-            let counts = Kind.allCases.map { "\($0.rawValue)=\(count($0))" }.joined(separator: " ")
+            let counts = Kind.allCases.filter { Kind.core.contains($0) || count($0) > 0 }.map { "\($0.rawValue)=\(count($0))" }.joined(separator: " ")
             return counts + " alreadyPresent=\(alreadyPresent.values.reduce(0, +)) skipped=\(skipped.values.reduce(0, +)) errors=\(errors.count)"
         }
 
@@ -148,6 +159,7 @@ public enum TBDLegacyImport {
                 var report = Report(status: .imported)
                 try importDictations(old, db, &report)
                 try importTranscriptions(old, db, now: now, &report)
+                try importLabels(old, db, &report)
                 try importSummaries(old, db, &report)
                 try importConversations(old, db, &report)
                 try importCustomWords(old, db, &report)
@@ -235,6 +247,60 @@ public enum TBDLegacyImport {
         }
     }
 
+    /// Labels, the labels on transcripts and the prompts aimed at labels. Needs the transcripts imported first.
+    private static func importLabels(_ old: Database, _ db: Database, _ report: inout Report) throws {
+        guard try old.tableExists("meeting_labels") else { return }
+        var mapped: [String: String] = [:]  // earlier label id → id here (itself, or the label with the same name)
+        let labels = try Row.fetchCursor(old, sql: "SELECT * FROM meeting_labels ORDER BY sortOrder, createdAt")
+        while let row = try labels.next() {
+            guard let id = uuid(row, "id"), let name = string(row, "name"), !isBlank(name) else { report.skip("unreadable label"); continue }
+            if try TBDMeetingLabel.exists(db, key: id) { mapped[id] = id; report.alreadyPresent[.labels, default: 0] += 1; continue }
+            if let same = try TBDMeetingLabel.filter(sql: "name = ? COLLATE NOCASE", arguments: [name.trimmingCharacters(in: .whitespacesAndNewlines)]).fetchOne(db) {
+                mapped[id] = same.id; report.alreadyPresent[.labels, default: 0] += 1; continue
+            }
+            let createdAt = date(row, "createdAt") ?? Date()
+            let label = TBDMeetingLabel(id: id, name: name.trimmingCharacters(in: .whitespacesAndNewlines), colorToken: string(row, "colorToken"),
+                                        sortOrder: int(row, "sortOrder") ?? 0, isArchived: bool(row, "isArchived") ?? false,
+                                        createdAt: createdAt, updatedAt: date(row, "updatedAt") ?? createdAt)
+            if insert(label, as: .labels, id: id, db, &report) { mapped[id] = id }
+        }
+        if try old.tableExists("transcription_meeting_labels") {
+            let rows = try Row.fetchCursor(old, sql: "SELECT * FROM transcription_meeting_labels")
+            while let row = try rows.next() {
+                guard let transcriptionId = uuid(row, "transcriptionId"), let earlierLabel = uuid(row, "labelId") else {
+                    report.skip("unreadable label assignment"); continue
+                }
+                guard let labelId = mapped[earlierLabel] else { report.skip("label assignment of a label not imported"); continue }
+                guard try TBDTranscription.exists(db, key: transcriptionId) else { report.skip("label assignment of a transcript not imported"); continue }
+                let key = ["transcriptionId": transcriptionId, "labelId": labelId]
+                if try TBDTranscriptionLabel.exists(db, key: key) { report.alreadyPresent[.labelAssignments, default: 0] += 1; continue }
+                insert(TBDTranscriptionLabel(transcriptionId: transcriptionId, labelId: labelId), as: .labelAssignments, id: transcriptionId + "/" + labelId, db, &report)
+            }
+        }
+        if try old.tableExists("prompt_label_policies") {
+            let rows = try Row.fetchCursor(old, sql: "SELECT * FROM prompt_label_policies ORDER BY createdAt")
+            while let row = try rows.next() {
+                guard let id = uuid(row, "id"), let promptId = uuid(row, "promptId"),
+                      let scope = string(row, "scopeKind").flatMap(TBDPromptLabelPolicy.ScopeKind.init(rawValue:)) else {
+                    report.skip("unreadable prompt label rule"); continue
+                }
+                guard try TBDPrompt.exists(db, key: promptId) else { report.skip("label rule of a prompt not imported"); continue }
+                var labelId: String?
+                if scope == .label {
+                    guard let earlier = uuid(row, "labelId"), let known = mapped[earlier] else { report.skip("label rule of a label not imported"); continue }
+                    labelId = known
+                }
+                let duplicate = try TBDPromptLabelPolicy.exists(db, key: id)
+                    || TBDPromptLabelPolicy.filter(Column("promptId") == promptId && Column("scopeKind") == scope.rawValue && Column("labelId") == labelId).fetchCount(db) > 0
+                if duplicate { report.alreadyPresent[.labelPolicies, default: 0] += 1; continue }
+                let createdAt = date(row, "createdAt") ?? Date()
+                let rule = TBDPromptLabelPolicy(id: id, promptId: promptId, scopeKind: scope, labelId: labelId, isAvailable: bool(row, "isAvailable") ?? true,
+                                                createdAt: createdAt, updatedAt: date(row, "updatedAt") ?? createdAt)
+                insert(rule, as: .labelPolicies, id: id, db, &report)
+            }
+        }
+    }
+
     private static func importSummaries(_ old: Database, _ db: Database, _ report: inout Report) throws {
         guard try old.tableExists("summaries") else { return }
         let rows = try Row.fetchCursor(old, sql: "SELECT * FROM summaries ORDER BY createdAt")
@@ -306,15 +372,18 @@ public enum TBDLegacyImport {
     // MARK: - Writing
 
     /// Inserts one row in its own savepoint, so a bad row is reported without losing the others.
-    private static func insert(_ record: some PersistableRecord, as kind: Kind, id: String, _ db: Database, _ report: inout Report) {
+    @discardableResult
+    private static func insert(_ record: some PersistableRecord, as kind: Kind, id: String, _ db: Database, _ report: inout Report) -> Bool {
         do {
             try db.inSavepoint {
                 try record.insert(db)
                 return .commit
             }
             report.imported[kind, default: 0] += 1
+            return true
         } catch {
             report.errors.append("\(kind.rawValue) \(id): \(error.localizedDescription)")
+            return false
         }
     }
 

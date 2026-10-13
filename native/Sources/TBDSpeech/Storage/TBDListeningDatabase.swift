@@ -169,6 +169,8 @@ public final class TBDListeningDatabase: @unchecked Sendable {
                 t.column("savedAt", .datetime).notNull()
             }
         }
+        // Labels on transcripts and prompts aimed at labels (see `TBDMeetingClassification`).
+        migrator.registerMigration("v7-meeting-classification") { db in try TBDMeetingClassification.migrate(db) }
         return migrator
     }
 
