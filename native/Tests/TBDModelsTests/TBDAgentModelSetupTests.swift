@@ -20,11 +20,63 @@ final class TBDAgentModelSetupTests: XCTestCase {
         let (r, _) = registry()
         XCTAssertThrowsError(try TBDAgentModelSetup.resolve(r)) { XCTAssertEqual($0 as? TBDAgentModelError, .noModel) }
         XCTAssertEqual(TBDAgentModelError.noModel.localizedDescription, "No model set for TBD's agent. Set up a model in Settings → Models.")
+        // C142: with no route, the form offers the local option first.
+        let current = TBDAgentModelSetup.current(r)
+        XCTAssertEqual(current.provider, .ollama)
+        XCTAssertEqual(current.endpoint, "http://localhost:11434")
+        XCTAssertEqual(current.model, "gpt-oss:20b")
+        XCTAssertFalse(current.hasKey)
+        XCTAssertEqual(TBDAgentProvider.allCases, [.ollama, .anthropic, .anthropicCompatible])
+        XCTAssertEqual(TBDAgentProvider.anthropic.defaultModel, "claude-opus-5-5")
+    }
+
+    func testAnExistingAnthropicRouteIsShownAndKeptAsItIs() throws {
+        let (r, store) = registry()
+        let c = try TBDAgentModelSetup.save(provider: .anthropic, endpoint: "", apiKey: "key-1", model: "claude-opus-5-5", registry: r)
         let current = TBDAgentModelSetup.current(r)
         XCTAssertEqual(current.provider, .anthropic)
-        XCTAssertEqual(current.endpoint, "https://api.anthropic.com")
         XCTAssertEqual(current.model, "claude-opus-5-5")
-        XCTAssertFalse(current.hasKey)
+        XCTAssertEqual(try TBDAgentModelSetup.resolve(r).baseURL.absoluteString, "https://api.anthropic.com")
+        XCTAssertEqual(try store.get(c.id), "key-1")
+    }
+
+    func testLocalSaveNeedsNoKeyAndResolvesToOllama() throws {
+        let (r, store) = registry()
+        let c = try TBDAgentModelSetup.save(provider: .ollama, endpoint: "", apiKey: "", model: "gpt-oss:20b", registry: r)
+        XCTAssertEqual(c.endpoint, "http://localhost:11434")
+        XCTAssertEqual(try store.get(c.id), "ollama")
+        let config = try TBDAgentModelSetup.resolve(r)
+        XCTAssertEqual(config.kind, .anthropic)
+        XCTAssertEqual(config.model, "gpt-oss:20b")
+        XCTAssertTrue(config.isLocal)
+        XCTAssertEqual(TBDAgentModelSetup.current(r).provider, .ollama)
+        XCTAssertEqual(TBDAgentModelSetup.testKey(provider: .ollama, endpoint: "", typed: "", registry: r), "ollama")
+    }
+
+    func testOllamaModelListAndStatus() async throws {
+        let tags = Data(#"{"models":[{"name":"gpt-oss:20b","model":"gpt-oss:20b"},{"name":"gemma4:e4b"},{"name":"llama3:latest"}]}"#.utf8)
+        XCTAssertEqual(TBDAgentModelSetup.ollamaModels(from: tags), ["gpt-oss:20b", "gemma4:e4b", "llama3:latest"])
+        XCTAssertNil(TBDAgentModelSetup.ollamaModels(from: Data("nope".utf8)))
+        XCTAssertTrue(TBDAgentModelSetup.localModelPresent("gpt-oss:20b", in: ["gpt-oss:20b"]))
+        XCTAssertTrue(TBDAgentModelSetup.localModelPresent("llama3", in: ["llama3:latest"]))
+        XCTAssertFalse(TBDAgentModelSetup.localModelPresent("gpt-oss:120b", in: ["gpt-oss:20b"]))
+        XCTAssertEqual(TBDAgentModelSetup.ollamaTagsRequest().url?.absoluteString, "http://localhost:11434/api/tags")
+
+        let ok: (URLRequest) async throws -> (Data, URLResponse) = { request in
+            (tags, HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+        }
+        let ready = await TBDAgentModelSetup.localStatus(model: "gpt-oss:20b", transport: ok)
+        XCTAssertEqual(ready, .ready)
+        let missing = await TBDAgentModelSetup.localStatus(model: "gpt-oss:120b", transport: ok)
+        XCTAssertEqual(missing, .modelMissing("gpt-oss:120b"))
+        XCTAssertEqual(missing.message, "Ollama is running, but the model \"gpt-oss:120b\" is not downloaded. Run: ollama pull gpt-oss:120b")
+        let down = await TBDAgentModelSetup.localStatus(model: "gpt-oss:20b") { _ in throw URLError(.cannotConnectToHost) }
+        XCTAssertEqual(down, .notRunning)
+        XCTAssertTrue(down.message.contains("ollama.com"))
+        XCTAssertTrue(down.message.contains("ollama pull gpt-oss:20b"))
+        XCTAssertEqual(TBDAgentModelSetup.testResult(.ready), .ok)
+        XCTAssertEqual(TBDAgentModelSetup.testResult(.modelMissing("m")), .unknownModel("m"))
+        XCTAssertFalse(TBDAgentModelSetup.testResult(.notRunning).isOK)
     }
 
     func testSaveCreatesTheAnthropicConnectionAndTheAgentRoute() throws {

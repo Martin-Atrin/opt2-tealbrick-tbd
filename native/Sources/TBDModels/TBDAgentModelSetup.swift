@@ -1,13 +1,30 @@
 import Foundation
 
-/// Where TBD's agent (Claude Agent SDK) gets its model. Anthropic first; an Anthropic-compatible endpoint
-/// (a proxy or gateway that speaks the Messages API) is the only other kind the agent can use.
+/// Where TBD's agent (Claude Agent SDK) gets its model. Local first (C142: TBD's own node prefers local
+/// inference): Ollama on this Mac, which speaks the Anthropic Messages API since 0.14. Then hosted Anthropic,
+/// then any other Anthropic-compatible endpoint (gateway, LM Studio).
 public enum TBDAgentProvider: String, CaseIterable, Sendable {
-    case anthropic, anthropicCompatible
+    case ollama, anthropic, anthropicCompatible
 
-    public var title: String { self == .anthropic ? "Anthropic" : "Anthropic-compatible endpoint" }
-    /// The fixed endpoint for Anthropic; nil when the person enters one.
-    public var fixedEndpoint: String? { self == .anthropic ? TBDAgentModelSetup.anthropicEndpoint : nil }
+    public var title: String {
+        switch self {
+        case .ollama: "On this Mac (Ollama)"
+        case .anthropic: "Anthropic"
+        case .anthropicCompatible: "Anthropic-compatible endpoint"
+        }
+    }
+    /// The fixed endpoint; nil when the person enters one.
+    public var fixedEndpoint: String? {
+        switch self {
+        case .ollama: TBDAgentModelSetup.ollamaEndpoint
+        case .anthropic: TBDAgentModelSetup.anthropicEndpoint
+        case .anthropicCompatible: nil
+        }
+    }
+    /// The model ID the form prefills.
+    public var defaultModel: String { self == .ollama ? TBDAgentModelSetup.defaultLocalModel : TBDAgentModelSetup.defaultModel }
+    /// A local server needs no key; TBD stores a placeholder because the agent SDK requires one.
+    public var needsKey: Bool { self != .ollama }
 }
 
 /// Why TBD's agent cannot answer yet. The texts are what Chat and Settings show.
@@ -45,8 +62,14 @@ public enum TBDAgentModelTestResult: Equatable, Sendable {
 /// one Keychain item per endpoint, and assigns the "agent" route.
 public enum TBDAgentModelSetup {
     public static let anthropicEndpoint = "https://api.anthropic.com"
-    /// Prefilled model ID (the current default Claude model).
+    /// Prefilled model ID for hosted Anthropic (the current default Claude model).
     public static let defaultModel = "claude-opus-5-5"
+    /// Ollama on this Mac (Anthropic Messages API since Ollama 0.14).
+    public static let ollamaEndpoint = "http://localhost:11434"
+    /// Prefilled local model: gpt-oss 20B (about 14 GB, native tool calls, Apache-2.0). Needs about 24 GB of memory.
+    public static let defaultLocalModel = "gpt-oss:20b"
+    /// Stored as the key of a local connection: Ollama ignores it, the agent SDK needs a value.
+    static let localKeyPlaceholder = "ollama"
     static let connectionName = "Anthropic (TBD agent)"
 
     /// The agent route as Chat needs it: an Anthropic connection with a key. Throws the reason it is not ready.
@@ -58,13 +81,21 @@ public enum TBDAgentModelSetup {
     }
 
     /// What the form shows when it opens: the current agent route, else Anthropic with the default model.
+    /// No route yet: the local option first (C142). An existing route is shown as it is (never changed here).
     public static func current(_ registry: TBDModelRegistry) -> (provider: TBDAgentProvider, endpoint: String, model: String, hasKey: Bool) {
         guard let state = try? registry.load(), let route = state.routes[TBDModelTask.agent.rawValue],
               let connection = state.connections.first(where: { $0.id == route.connectionID }), connection.kind == .anthropic else {
-            return (.anthropic, anthropicEndpoint, defaultModel, false)
+            return (.ollama, ollamaEndpoint, defaultLocalModel, false)
         }
-        let provider: TBDAgentProvider = normalized(connection.endpoint) == anthropicEndpoint ? .anthropic : .anthropicCompatible
-        return (provider, connection.endpoint, route.model, registry.hasKey(for: connection.id))
+        return (provider(for: connection.endpoint), connection.endpoint, route.model, registry.hasKey(for: connection.id))
+    }
+
+    static func provider(for endpoint: String) -> TBDAgentProvider {
+        switch normalized(endpoint) {
+        case anthropicEndpoint: .anthropic
+        case ollamaEndpoint, "http://127.0.0.1:11434": .ollama
+        default: .anthropicCompatible
+        }
     }
 
     /// Saves the form: finds or creates the Anthropic connection for `endpoint`, stores a new key when one is
@@ -76,10 +107,12 @@ public enum TBDAgentModelSetup {
         _ = try TBDModelRegistry.endpointURL(url)
         let modelID = model.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !modelID.isEmpty else { throw TBDModelRegistryError.invalidRoute }
-        let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let typed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let key = typed.isEmpty && !provider.needsKey ? localKeyPlaceholder : typed
         let existing = try registry.load().connections.first { $0.kind == .anthropic && normalized($0.endpoint) == url }
-        let connection = existing ?? TBDModelConnection(name: provider == .anthropic ? connectionName : "Anthropic-compatible (TBD agent)",
-                                                        endpoint: url, kind: .anthropic)
+        let names: [TBDAgentProvider: String] = [.ollama: "Ollama on this Mac (TBD agent)", .anthropic: connectionName,
+                                                 .anthropicCompatible: "Anthropic-compatible (TBD agent)"]
+        let connection = existing ?? TBDModelConnection(name: names[provider] ?? connectionName, endpoint: url, kind: .anthropic)
         guard !key.isEmpty || registry.hasKey(for: connection.id) else { throw TBDAgentModelError.noKey }
         try registry.saveConnection(connection, apiKey: key.isEmpty ? nil : key)
         try registry.assign(TBDModelRoute(connectionID: connection.id, model: modelID), to: TBDModelTask.agent.rawValue)
@@ -90,6 +123,7 @@ public enum TBDAgentModelSetup {
     public static func testKey(provider: TBDAgentProvider, endpoint: String, typed: String, registry: TBDModelRegistry) -> String? {
         let key = typed.trimmingCharacters(in: .whitespacesAndNewlines)
         if !key.isEmpty { return key }
+        if !provider.needsKey { return localKeyPlaceholder }
         let url = normalized(provider.fixedEndpoint ?? endpoint)
         guard let connection = (try? registry.load())?.connections.first(where: { $0.kind == .anthropic && normalized($0.endpoint) == url }) else { return nil }
         return registry.storedKey(for: connection.id)   // sent only to that same endpoint
@@ -129,6 +163,65 @@ public enum TBDAgentModelSetup {
             return interpret(status: (response as? HTTPURLResponse)?.statusCode ?? 0, body: data, model: model)
         } catch {
             return .failed(error.localizedDescription)
+        }
+    }
+
+    // MARK: Ollama on this Mac
+
+    /// What the form says about the local option before Test connection.
+    public enum LocalStatus: Equatable, Sendable {
+        /// Ollama does not answer on localhost:11434: install or open it.
+        case notRunning
+        /// Running, but the model is not downloaded.
+        case modelMissing(String)
+        case ready
+        public var message: String {
+            switch self {
+            case .notRunning:
+                return "Ollama is not running on this Mac. Install it from ollama.com and open it. Then run: ollama pull \(TBDAgentModelSetup.defaultLocalModel). Set its context length to 64k in Ollama's settings. About 24 GB of memory is needed."
+            case .modelMissing(let model):
+                return "Ollama is running, but the model \"\(model)\" is not downloaded. Run: ollama pull \(model)"
+            case .ready:
+                return "Ollama is running and the model is downloaded."
+            }
+        }
+    }
+
+    /// Ollama's list of downloaded models (GET /api/tags).
+    public static func ollamaTagsRequest() -> URLRequest {
+        var request = URLRequest(url: URL(string: ollamaEndpoint + "/api/tags")!)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 3
+        return request
+    }
+
+    /// Model names from an /api/tags answer; nil when it is not one.
+    public static func ollamaModels(from data: Data) -> [String]? {
+        guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let models = json["models"] as? [[String: Any]] else { return nil }
+        return models.compactMap { ($0["name"] as? String) ?? ($0["model"] as? String) }
+    }
+
+    /// "gpt-oss:20b" matches "gpt-oss:20b"; a name without a tag matches ":latest".
+    public static func localModelPresent(_ model: String, in names: [String]) -> Bool {
+        let wanted = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        let full = wanted.contains(":") ? wanted : wanted + ":latest"
+        return names.contains { $0 == wanted || $0 == full }
+    }
+
+    public static func localStatus(model: String,
+                                   transport: (URLRequest) async throws -> (Data, URLResponse) = { try await URLSession.shared.data(for: $0) }) async -> LocalStatus {
+        guard let (data, response) = try? await transport(ollamaTagsRequest()),
+              (response as? HTTPURLResponse)?.statusCode == 200, let names = ollamaModels(from: data) else { return .notRunning }
+        return localModelPresent(model, in: names) ? .ready : .modelMissing(model.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    /// "Test connection" for the local option: Ollama's own model list, not /v1/models.
+    public static func testResult(_ status: LocalStatus) -> TBDAgentModelTestResult {
+        switch status {
+        case .ready: .ok
+        case .modelMissing(let model): .unknownModel(model)
+        case .notRunning: .failed(status.message)
         }
     }
 

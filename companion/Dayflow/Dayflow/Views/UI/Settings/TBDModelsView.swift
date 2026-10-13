@@ -127,10 +127,11 @@ private struct TBDModelRouteCard: View {
 /// One form for the model of TBD's agent in Chat: provider, key, model, Test connection, Save (sets the "agent" route).
 private struct TBDAgentModelForm: View {
   let saved: () -> Void
-  @State private var provider: TBDAgentProvider = .anthropic
+  @State private var provider: TBDAgentProvider = .ollama
   @State private var endpoint = ""
   @State private var key = ""
-  @State private var model = TBDAgentModelSetup.defaultModel
+  @State private var model = TBDAgentModelSetup.defaultLocalModel
+  @State private var local: TBDAgentModelSetup.LocalStatus?
   @State private var hasKey = false
   @State private var testing = false
   @State private var result: TBDAgentModelTestResult?
@@ -146,12 +147,22 @@ private struct TBDAgentModelForm: View {
       Picker("Provider", selection: $provider) {
         ForEach(TBDAgentProvider.allCases, id: \.self) { Text($0.title).tag($0) }
       }.pickerStyle(.segmented)
-      .onChange(of: provider) { _, _ in result = nil }
+      .onChange(of: provider) { old, new in
+        result = nil
+        // Switching provider swaps a default model ID for the other default; a typed ID stays.
+        if model == old.defaultModel { model = new.defaultModel }
+        checkLocal()
+      }
+      if provider == .ollama, let local {
+        Text(local.message).font(.callout).foregroundStyle(local == .ready ? Color.secondary : Color.orange).textSelection(.enabled)
+      }
       if provider == .anthropicCompatible {
         TextField("https://gateway.example/anthropic", text: $endpoint).tbdField()
       }
-      SecureField(hasKey ? "API key (stored in Keychain; leave empty to keep it)" : "API key", text: $key).tbdField()
-        .onChange(of: key) { _, _ in result = nil }
+      if provider.needsKey {
+        SecureField(hasKey ? "API key (stored in Keychain; leave empty to keep it)" : "API key", text: $key).tbdField()
+          .onChange(of: key) { _, _ in result = nil }
+      }
       TextField("Model ID", text: $model).tbdField()
         .onChange(of: model) { _, _ in result = nil }
       HStack(spacing: 10) {
@@ -174,7 +185,7 @@ private struct TBDAgentModelForm: View {
   private var canSubmit: Bool {
     !model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
       && !endpointValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-      && (hasKey || !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+      && (!provider.needsKey || hasKey || !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
   }
 
   private func load() {
@@ -183,6 +194,16 @@ private struct TBDAgentModelForm: View {
     endpoint = current.provider == .anthropic ? "" : current.endpoint
     model = current.model
     hasKey = current.hasKey
+    checkLocal()
+  }
+
+  private func checkLocal() {
+    guard provider == .ollama else { local = nil; return }
+    let model = model
+    Task {
+      let status = await TBDAgentModelSetup.localStatus(model: model)
+      await MainActor.run { local = status }
+    }
   }
 
   private func test() {
@@ -190,9 +211,11 @@ private struct TBDAgentModelForm: View {
       result = .failed("enter the API key first."); return
     }
     testing = true; result = nil
-    let endpoint = endpointValue, model = model
+    let endpoint = endpointValue, model = model, provider = provider
     Task {
-      let outcome = await TBDAgentModelSetup.test(endpoint: endpoint, apiKey: apiKey, model: model)
+      let outcome = provider == .ollama
+        ? TBDAgentModelSetup.testResult(await TBDAgentModelSetup.localStatus(model: model))
+        : await TBDAgentModelSetup.test(endpoint: endpoint, apiKey: apiKey, model: model)
       await MainActor.run { result = outcome; testing = false }
     }
   }

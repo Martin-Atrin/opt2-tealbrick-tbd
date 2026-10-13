@@ -6,6 +6,7 @@ import { buildOptions, BRIDGE_SERVER_NAME, BRIDGE_TOOL_PATTERN } from "@opt2-tea
 import { AGENT_TOOLS, ASK_TOOL, describeToolCall, needsPermission, type AgentConfig, type AgentQuestion, type AgentToHelper, type HelperToAgent } from "./protocol";
 import type { ContentBlock } from "../shared/message";
 import { listeningServer } from "./listeningTools";
+import { modelEnv } from "./modelEnv";
 
 /**
  * TBD's default agent process (C24): the Claude Agent SDK harness with the
@@ -74,7 +75,7 @@ function options(c: AgentConfig, id: string, abort: AbortController, sessionId?:
       ...base.env,
       // The harness's own state, isolated from the person's Claude setup.
       CLAUDE_CONFIG_DIR: join(c.stateDir, "claude"),
-      ...(c.model.baseUrl ? { ANTHROPIC_BASE_URL: c.model.baseUrl } : {}),
+      ...modelEnv(c.model),
     },
     canUseTool: async (tool, input, { signal }): Promise<PermissionResult> => {
       if (tool === ASK_TOOL) return ask(id, input, signal);
