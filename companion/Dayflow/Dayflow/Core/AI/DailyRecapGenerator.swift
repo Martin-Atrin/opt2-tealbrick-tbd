@@ -1,4 +1,5 @@
 import Foundation
+import TBDModels
 
 struct DailyRecapGenerationContext: Sendable {
   let targetDayString: String
@@ -23,6 +24,7 @@ enum DailyRecapGeneratorError: LocalizedError {
   case missingGeminiAPIKey
   case missingCodexCLI
   case missingClaudeCLI
+  case agentModelNotReady(reason: String)
   case emptyGeneratedContent(day: String)
   case invalidJSONResponse(rawResponse: String)
   case invalidResponseShape(rawResponse: String)
@@ -35,7 +37,7 @@ enum DailyRecapGeneratorError: LocalizedError {
       return
         String(
           localized:
-            "No Daily provider is selected. Choose one from the gear button above to turn Daily generation back on."
+            "Choose a model for Daily. Pick one from the gear button above to turn Daily generation on."
         )
     case .missingLocalConfiguration:
       return
@@ -49,6 +51,8 @@ enum DailyRecapGeneratorError: LocalizedError {
       return String(localized: "Codex CLI is not installed.")
     case .missingClaudeCLI:
       return String(localized: "Claude Code is not installed.")
+    case .agentModelNotReady(let reason):
+      return reason
     case .emptyGeneratedContent(let day):
       return String(localized: "Daily generation returned no usable items for \(day).")
     case .invalidJSONResponse(let rawResponse):
@@ -161,8 +165,13 @@ final class DailyRecapGenerator {
     let claudeInstalled = LoginShellRunner.isInstalled("claude")
     let isLocalConfigured = localProviderIsConfigured()
     let localModel = DailyRecapProvider.local.modelOrTool
+    let agentModel = DailyRecapProvider.agentModelID()
 
     return [
+      .agent: DailyRecapProviderAvailability(
+        isAvailable: agentModel != nil,
+        detail: agentModel ?? DailyRecapProvider.agent.pickerSubtitle
+      ),
       .local: DailyRecapProviderAvailability(
         isAvailable: isLocalConfigured,
         detail: isLocalConfigured
@@ -206,6 +215,8 @@ final class DailyRecapGenerator {
     )
 
     switch provider {
+    case .agent:
+      return try await generateWithAgent(context: context, metadata: metadata)
     case .local:
       return try await generateWithLocal(context: context, metadata: metadata)
     case .gemini:
@@ -214,7 +225,7 @@ final class DailyRecapGenerator {
       return try await generateWithChatGPT(context: context, metadata: metadata)
     case .claude:
       return try await generateWithClaude(context: context, metadata: metadata)
-    case .none:
+    case .none, .unchosen:
       throw DailyRecapGeneratorError.noProviderSelected
     }
   }
@@ -348,6 +359,31 @@ final class DailyRecapGenerator {
     )
     let parsed = try Self.parseLocalResponse(rawText)
     return try makeDraft(from: parsed, context: context, metadata: metadata)
+  }
+
+  /// TBD's agent model route over `TBDChatClient`. Same as `generateWithLocal`: one plain chat
+  /// completion with the shared prompt and `parseLocalResponse` (no CLI, no tools).
+  private func generateWithAgent(
+    context: DailyRecapGenerationContext,
+    metadata: DailyStandupGenerationMetadata
+  ) async throws -> DailyStandupDraft {
+    let config: TBDModelConfig
+    do {
+      config = try TBDAgentModelSetup.resolve(TBDModelRegistry())
+    } catch {
+      throw DailyRecapGeneratorError.agentModelNotReady(reason: error.localizedDescription)
+    }
+
+    let prompt = Self.makeLocalPrompt(day: context.sourceDayString, cards: context.cards)
+    let rawText = try await TBDChatClient(config: config).complete(
+      [TBDChatMessage(.user, prompt)],
+      maxTokens: Self.localRecapMaxOutputTokens
+    )
+    try Task.checkCancellation()
+    let parsed = try Self.parseLocalResponse(rawText)
+    var actualMetadata = metadata
+    actualMetadata.modelOrTool = config.model
+    return try makeDraft(from: parsed, context: context, metadata: actualMetadata)
   }
 
   private func generateWithChatGPT(

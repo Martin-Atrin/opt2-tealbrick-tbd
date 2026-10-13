@@ -115,11 +115,15 @@ final class DailyRecapScheduler: @unchecked Sendable {
       "daily_model_or_tool": selectedProvider.modelOrTool as Any,
     ]
 
+    // Nothing is generated, saved or announced without a usable model. The Daily view shows
+    // "Choose a model for Daily" (DailyStandupPlaceholder.noProviderSelectedMessage); the log says why.
     guard selectedProvider.canGenerate else {
+      print("[Daily] Recap not generated: no model chosen for Daily (provider=\(selectedProvider.analyticsName))")
       return
     }
 
     guard providerAvailability.isAvailable else {
+      print("[Daily] Recap not generated: \(selectedProvider.analyticsName) is not ready: \(providerAvailability.detail)")
       return
     }
 

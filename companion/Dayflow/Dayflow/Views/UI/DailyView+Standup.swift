@@ -159,7 +159,9 @@ extension DailyView {
           .foregroundStyle(theme.textSecondary)
       }
 
-      if useSingleColumn {
+      if !dailyRecapProvider.canGenerate && !hasPersistedStandupEntry {
+        chooseModelPrompt(scale: scale)
+      } else if useSingleColumn {
         VStack(alignment: .leading, spacing: 12 * scale) {
           DailyBulletCard(
             style: .highlights,
@@ -209,6 +211,38 @@ extension DailyView {
         }
       }
     }
+  }
+  /// Shown instead of the empty recap cards while Daily has no model (C137).
+  func chooseModelPrompt(scale: CGFloat) -> some View {
+    VStack(alignment: .leading, spacing: 10 * scale) {
+      Text("Choose a model for Daily")
+        .font(.custom("Switzer-Semibold", size: 16 * scale))
+        .foregroundStyle(theme.textPrimary)
+
+      Text(
+        "Daily needs a model to write the recap. Use TBD's agent model (Settings → Models) or pick another provider."
+      )
+      .font(.custom("Switzer-Regular", size: 13 * scale))
+      .foregroundStyle(theme.textSecondary)
+      .fixedSize(horizontal: false, vertical: true)
+
+      Button {
+        refreshProviderAvailability()
+        isShowingProviderPicker = true
+      } label: {
+        Text("Choose a model")
+          .font(.custom("Switzer-Medium", size: 14 * scale))
+      }
+      .buttonStyle(TBDButtonStyle(.primary))
+      .pointingHandCursorOnHover(reassertOnPressEnd: true)
+    }
+    .padding(16 * scale)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(theme.chipFill)
+    .overlay(
+      RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
+        .stroke(theme.chipBorder, lineWidth: max(1, 1.2 * scale))
+    )
   }
   func copyStandupUpdateToClipboard() {
     let clipboardText = standupClipboardText(for: selectedDate)
@@ -486,7 +520,7 @@ extension DailyView {
     let entry = StorageManager.shared.fetchDailyStandup(forDay: storageDayString)
     hasPersistedStandupEntry = entry != nil
 
-    if dailyRecapProvider == .none, entry == nil {
+    if !dailyRecapProvider.canGenerate, entry == nil {
       guard !isSameDraftDay || !isSameFallbackSourceDay || standupDraft != .noProviderSelected
       else {
         return
@@ -553,7 +587,7 @@ extension DailyView {
     }
   }
   func placeholderStandupDraft(sourceDay: DailyStandupDayInfo?) -> DailyStandupDraft {
-    if dailyRecapProvider == .none {
+    if !dailyRecapProvider.canGenerate {
       return .noProviderSelected
     }
 
