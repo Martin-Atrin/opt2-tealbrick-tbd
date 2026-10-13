@@ -52,6 +52,9 @@ public struct TBDListeningPreferences: @unchecked Sendable {
         static let calendarSkips = "tbd.listening.calendarSkips"
         static let practiceCompleted = "tbd.listening.practiceCompleted"
         static let lastRetentionSweep = "tbd.listening.lastRetentionSweep"
+        // MARK: transcribe-vocab
+        static let processingMode = "tbd.listening.processingMode"
+        static let spokenPunctuation = "tbd.listening.spokenPunctuation"
     }
 
     /// In-memory override of both routes for this process only (argument domain; nothing is written).
@@ -284,4 +287,17 @@ public struct TBDListeningPreferences: @unchecked Sendable {
     Correct punctuation and obvious recognition mistakes. Preserve language, meaning and all factual details. \
     Return only the corrected transcript.
     """
+
+    // MARK: transcribe-vocab
+
+    /// Raw: text as spoken, no cleanup. Clean: fillers, vocabulary, snippets, spoken punctuation. v1 default: raw.
+    public var processingMode: TBDProcessingMode {
+        get { defaults.string(forKey: Key.processingMode).flatMap(TBDProcessingMode.init(rawValue:)) ?? .raw }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Key.processingMode) }
+    }
+    /// "question mark" becomes "?" in Clean mode (v1 default: on).
+    public var spokenPunctuation: Bool {
+        get { bool(Key.spokenPunctuation, default: true) }
+        nonmutating set { defaults.set(newValue, forKey: Key.spokenPunctuation) }
+    }
 }

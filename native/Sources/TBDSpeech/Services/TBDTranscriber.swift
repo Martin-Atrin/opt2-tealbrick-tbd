@@ -11,10 +11,14 @@ public final class TBDTranscriber: @unchecked Sendable {
 
     public let speech: TBDSpeechService
     public let database: TBDListeningDatabase
+    /// Read at each run, so a change on the Vocabulary page applies to the next file.
+    private let processing: @Sendable () -> TBDProcessingSettings
 
-    public init(speech: TBDSpeechService = .shared, database: TBDListeningDatabase) {
+    public init(speech: TBDSpeechService = .shared, database: TBDListeningDatabase,
+                processing: @escaping @Sendable () -> TBDProcessingSettings = { TBDListeningPreferences().processingSettings }) {
         self.speech = speech
         self.database = database
+        self.processing = processing
     }
 
     /// Transcribes `file` and saves the result. The record exists (status `processing`) from the start,
@@ -57,10 +61,21 @@ public final class TBDTranscriber: @unchecked Sendable {
 
     /// Fills text, words, speakers and segments from an engine result, applying custom vocabulary.
     func apply(_ transcript: TBDTranscript, words: [TBDWord], to item: inout TBDTranscription) throws {
-        let vocabulary = (try? database.customWords()) ?? []
+        let settings = processing()
+        let vocabulary = settings.appliesVocabulary(to: item.sourceKind) ? ((try? database.customWords()) ?? []) : []
         item.rawText = transcript.trimmedText
-        let corrected = TBDTextPipeline.applyCustomWords(item.rawText, words: vocabulary)
-        item.cleanText = corrected == item.rawText ? nil : corrected
+        if settings.appliesCleanPipeline(to: item.sourceKind) {
+            // v1 ran the full Clean pipeline on files and links.
+            let snippets = ((try? database.snippets()) ?? [])
+            let cleaned = TBDTextPipeline().process(item.rawText, customWords: vocabulary, snippets: snippets,
+                                                    removeFillers: settings.removeFillers, mode: .clean,
+                                                    spokenPunctuation: settings.spokenPunctuation)
+            try? database.incrementSnippetUse(ids: cleaned.expandedSnippetIDs)
+            item.cleanText = cleaned.text == item.rawText ? nil : cleaned.text
+        } else {
+            let corrected = TBDTextPipeline.applyCustomWords(item.rawText, words: vocabulary)
+            item.cleanText = corrected == item.rawText ? nil : corrected
+        }
         item.words = vocabulary.isEmpty ? words : words.map { word in
             var fixed = word
             fixed.text = TBDTextPipeline.applyCustomWords(word.text, words: vocabulary)

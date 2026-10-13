@@ -54,22 +54,33 @@ final class TBDFileQueue: ObservableObject {
         enqueue(link: field.stringValue)
     }
 
+    /// What dropping or choosing `files` will queue, and the note to show (pure; the queue only adds the items).
+    struct Plan: Equatable {
+        var files: [URL]
+        var message: String?
+    }
+
+    /// Folders are searched recursively for audio and video (up to 200 files, natural name order).
+    static func plan(files: [URL]) -> Plan {
+        let result = TBDAudioFileEnumerator.expand(files)
+        if result.files.isEmpty {
+            let formats = TBDAudioDecoder.supportedExtensions.map { $0.uppercased() }.sorted().joined(separator: ", ")
+            return Plan(files: [], message: "Unsupported file type. Supported formats: \(formats).")
+        }
+        if result.dropped > 0 {
+            return Plan(files: result.files, message: "Queued the first \(result.files.count) files; \(result.stoppedEarly ? "at least " : "")\(result.dropped) more were skipped (\(TBDAudioFileEnumerator.defaultMaxFiles)-file limit).")
+        }
+        return Plan(files: result.files, message: result.skippedUnsupported > 0 ? "Some files were skipped: not audio or video." : nil)
+    }
+
     /// Queues files; folders are searched recursively for audio and video (up to 200 files, natural name order).
     func enqueue(files: [URL]) {
         let scoped = files.filter { $0.startAccessingSecurityScopedResource() }
         defer { scoped.forEach { $0.stopAccessingSecurityScopedResource() } }
-        let result = TBDAudioFileEnumerator.expand(files)
-        if result.files.isEmpty {
-            let formats = TBDAudioDecoder.supportedExtensions.map { $0.uppercased() }.sorted().joined(separator: ", ")
-            onMessage?("Unsupported file type. Supported formats: \(formats).")
-            return
-        }
-        if result.dropped > 0 {
-            onMessage?("Queued the first \(result.files.count) files; \(result.stoppedEarly ? "at least " : "")\(result.dropped) more were skipped (\(TBDAudioFileEnumerator.defaultMaxFiles)-file limit).")
-        } else if result.skippedUnsupported > 0 {
-            onMessage?("Some files were skipped: not audio or video.")
-        }
-        items += result.files.map { Item(source: .file($0), title: $0.lastPathComponent) }
+        let plan = Self.plan(files: files)
+        if let message = plan.message { onMessage?(message) }
+        guard !plan.files.isEmpty else { return }
+        items += plan.files.map { Item(source: .file($0), title: $0.lastPathComponent) }
         pump()
     }
 

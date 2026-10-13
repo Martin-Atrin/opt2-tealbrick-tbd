@@ -255,7 +255,7 @@ extension TBDListeningDatabase {
         if projection.hasTextEdits {
             text = projection.item.cleanText
         } else {
-            let vocabulary = try TBDCustomWord.fetchAll(db)
+            let vocabulary = TBDListeningPreferences().processingSettings.appliesVocabulary(to: item.sourceKind) ? try TBDCustomWord.fetchAll(db) : []
             let corrected = TBDTextPipeline.applyCustomWords(item.rawText, words: vocabulary)
             text = corrected == item.rawText ? nil : corrected
         }

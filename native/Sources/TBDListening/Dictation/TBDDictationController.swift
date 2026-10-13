@@ -274,7 +274,8 @@ final class TBDDictationController: ObservableObject {
         }
         let words = (try? env.database?.customWords()) ?? []
         let snippets = (try? env.database?.snippets()) ?? []
-        let processed = TBDTextPipeline().process(raw, customWords: words, snippets: snippets, removeFillers: prefs.removeFillers)
+        let processed = TBDTextPipeline().process(raw, customWords: words, snippets: snippets, removeFillers: prefs.removeFillers,
+                                                  mode: prefs.processingMode, spokenPunctuation: prefs.spokenPunctuation)
         try? env.database?.incrementSnippetUse(ids: processed.expandedSnippetIDs)
         var text = processed.text
         if prefs.dictationCleanup {

@@ -75,8 +75,8 @@ final class TBDListeningContext {
         switch action.effect {
         case .toggleDictation: dictation.toggle()
         case .toggleMeeting: meetings.toggle()
-        case .pickFiles: show(.library); files.pickFiles()
-        case .promptForURL: show(.library); files.promptForURL()
+        case .pickFiles: show(.transcribe); files.pickFiles()
+        case .promptForURL: show(.transcribe); files.promptForURL()
         case .chooseTransform: transforms.chooseAndRun()
         case .show(let page): show(TBDListeningTab(rawValue: page) ?? .library)
         }

@@ -10,13 +10,16 @@ public struct TBDTextPipeline: Sendable {
 
     public init() {}
 
+    /// `mode == .raw` returns the input untouched (v1: Raw skips the whole pipeline). Spoken punctuation can be
+    /// switched off on its own; it never runs in Raw.
     public func process(_ text: String, customWords: [TBDCustomWord] = [], snippets: [TBDSnippet] = [],
-                        removeFillers: Bool = true) -> Result {
+                        removeFillers: Bool = true, mode: TBDProcessingMode = .clean, spokenPunctuation: Bool = true) -> Result {
+        guard mode == .clean else { return Result(text: text, expandedSnippetIDs: []) }
         guard !text.isEmpty else { return Result(text: "", expandedSnippetIDs: []) }
         var result = removeFillers ? Self.removeFillers(text) : text
         result = Self.applyCustomWords(result, words: customWords)
         let expanded = Self.expandSnippets(result, snippets: snippets)
-        result = Self.spokenPunctuation(expanded.text)
+        result = spokenPunctuation ? Self.spokenPunctuation(expanded.text) : expanded.text
         return Result(text: Self.cleanWhitespace(result), expandedSnippetIDs: expanded.ids)
     }
 
@@ -48,7 +51,7 @@ public struct TBDTextPipeline: Sendable {
     static func expandSnippets(_ text: String, snippets: [TBDSnippet]) -> (text: String, ids: Set<String>) {
         var result = text
         var ids = Set<String>()
-        for snippet in snippets.filter({ $0.isEnabled && !$0.trigger.isEmpty }).sorted(by: { $0.trigger.count > $1.trigger.count }) {
+        for snippet in snippets.filter({ $0.isEnabled && $0.action == nil && !$0.trigger.isEmpty }).sorted(by: { $0.trigger.count > $1.trigger.count }) {
             let pattern = "\\b\(NSRegularExpression.escapedPattern(for: snippet.trigger).replacingOccurrences(of: " ", with: "\\s+"))\\b[.!?]?"
             guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else { continue }
             let range = NSRange(result.startIndex..., in: result)

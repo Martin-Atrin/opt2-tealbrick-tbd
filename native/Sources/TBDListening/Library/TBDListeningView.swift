@@ -13,12 +13,15 @@ struct TBDListeningView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: TBDTokens.Space.lg) {
             TBDPageHeader("Listening", label: "Speech") {
-                HStack(spacing: TBDTokens.Space.sm) {
-                    Button { context.files.pickFiles() } label: { Label("Transcribe file", systemImage: "doc.badge.plus") }
-                        .buttonStyle(TBDButtonStyle(.secondary))
-                    Button { context.files.promptForURL() } label: { Label("Link", systemImage: "link") }
-                        .buttonStyle(TBDButtonStyle(.secondary))
-                    TBDMeetingButton(meetings: context.meetings)
+                // The Transcribe page carries its own file, link and meeting controls.
+                if env.selectedTab != .transcribe {
+                    HStack(spacing: TBDTokens.Space.sm) {
+                        Button { context.files.pickFiles() } label: { Label("Transcribe file", systemImage: "doc.badge.plus") }
+                            .buttonStyle(TBDButtonStyle(.secondary))
+                        Button { context.files.promptForURL() } label: { Label("Link", systemImage: "link") }
+                            .buttonStyle(TBDButtonStyle(.secondary))
+                        TBDMeetingButton(meetings: context.meetings)
+                    }
                 }
             }
             if let error = env.databaseError {
@@ -30,12 +33,14 @@ struct TBDListeningView: View {
                 ForEach(TBDListeningTab.allCases) { Text($0.title).tag($0) }
             }
             .pickerStyle(.segmented).labelsHidden().fixedSize()
-            TBDQueueStrip(queue: context.files)
+            if env.selectedTab != .transcribe { TBDQueueStrip(queue: context.files) }
             Group {
                 switch env.selectedTab {
+                case .transcribe: TBDTranscribeView(context: context)
                 case .library: TBDLibraryView(context: context, kind: nil)
                 case .dictations: TBDDictationHistoryView()
                 case .meetings: TBDMeetingsView(context: context)
+                case .vocabulary: TBDVocabularyView(env: env)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -53,12 +58,8 @@ struct TBDListeningView: View {
             }
         }
         .onDrop(of: [.fileURL], isTargeted: $dropTargeted) { providers in
-            for provider in providers {
-                _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                    guard let url else { return }
-                    Task { @MainActor in context.files.enqueue(files: [url]) }
-                }
-            }
+            // Gather every dropped file and folder first, then queue them once, in drop order.
+            Task { @MainActor in context.files.enqueue(files: await TBDDropCollector.urls(from: providers)) }
             return true
         }
     }
