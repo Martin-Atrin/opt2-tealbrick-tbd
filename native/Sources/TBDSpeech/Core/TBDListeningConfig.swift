@@ -56,7 +56,8 @@ extension TBDListeningPreferences {
         case "diarize": return .bool(diarize)
         case "calendarReminders": return .bool(calendarReminders)
         case "calendarAutoStart": return .bool(calendarAutoStart)
-        case "dictationHotkey": return .string(dictationHotkey)
+        // The v1 push-to-talk key (the old single key moved there, see migrateDictationHotkeys).
+        case "dictationHotkey": return .string(hotkey(for: .pushToTalk)?.serialized ?? "")
         case "transformHotkey": return optional(transformHotkey.isEmpty ? nil : transformHotkey)
         case "microphoneUID": return optional(microphoneUID)
         case "youtubeAudioQuality": return .string(youtubeAudioQuality.configValue)
@@ -113,8 +114,9 @@ extension TBDListeningPreferences {
         case "calendarReminders": calendarReminders = try bool()
         case "calendarAutoStart": calendarAutoStart = try bool()
         case "dictationHotkey":
-            guard !value.isEmpty else { throw TBDConfigError.invalidValue(key: key, value: text, expected: "a hotkey such as fn or ctrl+opt+space") }
-            dictationHotkey = value
+            guard let hotkey = try? TBDHotkey.parse(value) else { throw TBDConfigError.invalidValue(key: key, value: text, expected: "a hotkey such as fn or ctrl+opt+space") }
+            // One key for both: hold to talk, double-tap for hands-free (v1 shared gesture).
+            setHotkey(hotkey, for: .pushToTalk); setHotkey(hotkey, for: .handsFree)
         case "transformHotkey": transformHotkey = clears ? "" : value
         case "microphoneUID": microphoneUID = clears ? nil : value
         case "youtubeAudioQuality":

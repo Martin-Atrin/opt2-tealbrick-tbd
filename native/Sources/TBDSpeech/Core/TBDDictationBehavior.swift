@@ -240,11 +240,3 @@ public enum TBDDiscardedDictation {
         return row
     }
 }
-
-extension TBDHotkeyGesture {
-    /// Escape with the "Escape cancels dictation" switch: when off, Escape does nothing here (and keeps its job in the
-    /// app being dictated into), and the gesture state does not change.
-    public mutating func escape(keyHeld: Bool, cancelsDictation: Bool) -> Action {
-        cancelsDictation ? escape(keyHeld: keyHeld) : .none
-    }
-}

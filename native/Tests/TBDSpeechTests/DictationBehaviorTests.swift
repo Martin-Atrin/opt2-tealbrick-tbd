@@ -152,23 +152,23 @@ final class DictationBehaviorTests: XCTestCase {
 
     // MARK: Escape
 
-    func testEscapeToggleOnAndOff() {
-        var gesture = TBDHotkeyGesture()
-        _ = gesture.press(at: 0)
-        XCTAssertEqual(gesture.armed(), .start)
-        XCTAssertEqual(gesture.state, .holding)
-        XCTAssertEqual(gesture.escape(keyHeld: true, cancelsDictation: false), .none)
-        XCTAssertEqual(gesture.state, .holding, "off: the gesture is untouched")
-        XCTAssertEqual(gesture.escape(keyHeld: true, cancelsDictation: true), .cancel)
-        XCTAssertEqual(gesture.state, .blocked)
-
-        var handsFree = TBDHotkeyGesture()
-        _ = handsFree.press(at: 0)
-        XCTAssertEqual(handsFree.release(at: 10), .startHandsFree)
-        XCTAssertEqual(handsFree.escape(keyHeld: false, cancelsDictation: false), .none)
-        XCTAssertEqual(handsFree.state, .handsFree)
-        XCTAssertEqual(handsFree.escape(keyHeld: false, cancelsDictation: true), .cancel)
-        XCTAssertEqual(handsFree.state, .idle)
+    func testEscapeToggleOnAndOff() throws {
+        func handsFreeTake(_ cancels: Bool) throws -> TBDDictationHotkeyMatcher {
+            var m = TBDDictationHotkeyMatcher(hotkey: try TBDHotkey.parse("fn"), gesture: TBDHotkeyGestureController(mode: .doubleTapAndHold, startupDebounceMs: 100))
+            m.escapeCancels = { cancels }
+            let fn: UInt64 = 0x800000
+            _ = m.handle(.flagsChanged(keyCode: 63, flags: fn, timestampMs: 0))
+            _ = m.handle(.flagsChanged(keyCode: 63, flags: 0, timestampMs: 80))
+            _ = m.handle(.flagsChanged(keyCode: 63, flags: fn, timestampMs: 200))
+            _ = m.handle(.flagsChanged(keyCode: 63, flags: 0, timestampMs: 260))
+            return m
+        }
+        var off = try handsFreeTake(false)
+        XCTAssertEqual(off.activeRecordingMode, .persistent)
+        XCTAssertEqual(off.handle(.keyDown(keyCode: TBDHotkey.escapeKeyCode, flags: 0, timestampMs: 400)).outputs, [])
+        XCTAssertEqual(off.activeRecordingMode, .persistent, "off: the take keeps recording")
+        var on = try handsFreeTake(true)
+        XCTAssertTrue(on.handle(.keyDown(keyCode: TBDHotkey.escapeKeyCode, flags: 0, timestampMs: 400)).outputs.contains(.cancelRecording))
     }
 
     // MARK: Streaming cursor

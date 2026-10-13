@@ -41,7 +41,7 @@ struct TBDPracticeDictation: View {
     }
 
     private var hasResult: Bool { !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-    private var key: String { env.preferences.dictationHotkey }
+    private var key: String { env.preferences.pushToTalkHotkeyLabel }
 
     private var hotkeyStep: some View {
         VStack(alignment: .leading, spacing: TBDTokens.Space.sm) {

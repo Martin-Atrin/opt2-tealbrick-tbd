@@ -15,12 +15,16 @@ public enum TBDListeningSettingsSection: String, CaseIterable, Sendable {
     }
 }
 
-/// The workflow shown inside Capture (v1 `SettingsCaptureWorkflow`, without the file workflow, which has no settings yet).
+/// The workflow shown inside Capture (v1 `SettingsCaptureWorkflow`: Dictation, Transcription, Meetings).
 public enum TBDCaptureWorkflow: String, CaseIterable, Identifiable, Sendable {
     case dictation, transcription, meetings
     public var id: String { rawValue }
     public var title: String {
-        switch self { case .dictation: "Dictation"; case .transcription: "Transcription"; case .meetings: "Meetings" }
+        switch self {
+        case .dictation: "Dictation"
+        case .transcription: "Transcription"
+        case .meetings: "Meetings"
+        }
     }
     /// Remembered across launches, as in v1.
     public static let defaultsKey = "tbd.listening.settingsCaptureWorkflow"
@@ -84,7 +88,9 @@ struct TBDCaptureSettings: View {
             .onChange(of: workflow) { _, value in UserDefaults.standard.set(value.rawValue, forKey: TBDCaptureWorkflow.defaultsKey) }
             switch workflow {
             case .dictation: TBDDictationSettings(context: context)
-            case .transcription: TBDTranscriptionSettings()
+            case .transcription:
+                TBDTranscriptionHotkeySettings(context: context)
+                TBDTranscriptionSettings()
             case .meetings: TBDMeetingSettings(context: context)
             }
         }
@@ -368,6 +374,8 @@ struct TBDMeetingSettings: View {
     var body: some View {
         let prefs = env.preferences
         VStack(alignment: .leading, spacing: 0) {
+            TBDHotkeyRow(title: "Meeting hotkey", help: "Global shortcut that immediately starts or stops meeting recording.",
+                         surface: .meeting, context: context) { tick += 1 }
             TBDSettingsRow("Meeting reminders", help: "A minute before a calendar meeting, offer to record it. Uses your calendars on this Mac.") {
                 Toggle("", isOn: tbdBinding({ prefs.calendarReminders }, { prefs.calendarReminders = $0 },
                                             refresh: { tick += 1; context.meetings.configureCalendar() })).labelsHidden().toggleStyle(.switch)
