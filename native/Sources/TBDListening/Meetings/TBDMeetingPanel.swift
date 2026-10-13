@@ -83,6 +83,9 @@ struct TBDMeetingPanelView: View {
                 Spacer()
                 TBDMeetingIconControls(meetings: meetings, onDark: false)
             }
+            if let notice = meetings.captureNotice {
+                Label(notice, systemImage: "exclamationmark.triangle.fill").font(.system(size: 12)).foregroundStyle(TBDTokens.alert)
+            }
             if let warning = meetings.warning {
                 Text(warning).font(.system(size: 12)).foregroundStyle(TBDTokens.alert)
             }

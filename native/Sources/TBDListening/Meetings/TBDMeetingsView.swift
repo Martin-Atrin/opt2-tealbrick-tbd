@@ -35,6 +35,9 @@ struct TBDMeetingsView: View {
             if let stage = meetings.finalizingStage {
                 HStack(spacing: TBDTokens.Space.sm) { ProgressView().controlSize(.small); Text(stage).foregroundStyle(TBDTokens.muted) }
             }
+            if let notice = meetings.captureNotice {
+                Label(notice, systemImage: "exclamationmark.triangle.fill").font(TBDTokens.Typography.body).foregroundStyle(TBDTokens.alert)
+            }
             if let warning = meetings.warning {
                 Text(warning).font(TBDTokens.Typography.body).foregroundStyle(TBDTokens.alert)
             }

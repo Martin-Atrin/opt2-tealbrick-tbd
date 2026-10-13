@@ -463,3 +463,55 @@ final class StopConfirmationTests: XCTestCase {
         XCTAssertFalse(stop.press(now: t0.addingTimeInterval(1)))
     }
 }
+
+/// C124: in "microphone + system audio" mode a failed system track falls back to the microphone, never silently.
+final class SystemAudioFallbackNoticeTests: XCTestCase {
+    func testTheExactWarningShowsWhenSystemAudioFailsInMicPlusSystemMode() {
+        XCTAssertEqual(TBDMeetingWarnings.systemAudioMissing, "System audio is not recorded — only your microphone")
+        XCTAssertEqual(TBDMeetingWarnings.systemAudioNotice(source: .microphoneAndSystem, systemStarted: false),
+                       "System audio is not recorded — only your microphone")
+    }
+
+    func testNoWarningWhenBothSourcesStart() {
+        XCTAssertNil(TBDMeetingWarnings.systemAudioNotice(source: .microphoneAndSystem, systemStarted: true))
+    }
+
+    func testNoFallbackWarningInTheOtherModes() {
+        // System-only refuses to start (an error, not a warning); microphone-only never asked for system audio.
+        XCTAssertNil(TBDMeetingWarnings.systemAudioNotice(source: .systemOnly, systemStarted: false))
+        XCTAssertNil(TBDMeetingWarnings.systemAudioNotice(source: .microphoneOnly, systemStarted: false))
+        XCTAssertNil(TBDMeetingWarnings.systemAudioNotice(source: .microphoneOnly, systemStarted: true))
+    }
+
+    func testAnIdleRecorderShowsNoNotice() {
+        XCTAssertNil(TBDMeetingRecorder().captureNotice)
+    }
+
+    func testSystemOnlyStartFailureIsAPlainError() {
+        XCTAssertTrue(TBDMeetingStartError.systemAudioUnavailable.localizedDescription.hasPrefix("System audio could not start."))
+    }
+
+    func testThePillGrowsATextRowWhileTheNoticeShows() {
+        XCTAssertEqual(TBDMeetingPillRules.size(for: .recording, hasNotice: true), CGSize(width: 330, height: 62))
+        XCTAssertEqual(TBDMeetingPillRules.size(for: .paused, hasNotice: true), CGSize(width: 330, height: 62))
+        XCTAssertEqual(TBDMeetingPillRules.size(for: .recording, hasNotice: false), CGSize(width: 330, height: 40))
+        XCTAssertEqual(TBDMeetingPillRules.size(for: .saved, hasNotice: true), CGSize(width: 120, height: 40))
+    }
+
+    func testTheNoticeIsKeptWithTheSavedMeeting() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("tbd-notice-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        func save(folder: String, transcription: String, missing: Bool?) throws {
+            let url = root.appendingPathComponent(folder, isDirectory: true)
+            try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+            var manifest = TBDMeetingManifest(id: folder, title: "M", startedAt: Date(), state: .done, durationMs: 0, transcriptionID: transcription)
+            manifest.systemAudioMissing = missing
+            try manifest.write(to: url)
+        }
+        try save(folder: "a", transcription: "t-missing", missing: true)
+        try save(folder: "b", transcription: "t-full", missing: nil)
+        XCTAssertEqual(TBDMeetingManifest.systemAudioNotice(transcriptionID: "t-missing", root: root), "System audio is not recorded — only your microphone")
+        XCTAssertNil(TBDMeetingManifest.systemAudioNotice(transcriptionID: "t-full", root: root))
+        XCTAssertNil(TBDMeetingManifest.systemAudioNotice(transcriptionID: "unknown", root: root))
+    }
+}

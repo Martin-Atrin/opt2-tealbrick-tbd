@@ -75,6 +75,19 @@ extension TBDListeningPreferences {
     }
 }
 
+// MARK: - System audio fallback (C124)
+
+public enum TBDMeetingWarnings {
+    /// Shown on the pill, the panel and the live panel, and kept with the meeting, when the system track is missing.
+    public static let systemAudioMissing = "System audio is not recorded — only your microphone"
+
+    /// "Microphone + system audio" falls back to the microphone when system audio cannot start, but never silently.
+    /// Other modes have no fallback: "System audio only" refuses to start, "Microphone only" never wanted it.
+    public static func systemAudioNotice(source: TBDMeetingAudioSource, systemStarted: Bool) -> String? {
+        source == .microphoneAndSystem && !systemStarted ? systemAudioMissing : nil
+    }
+}
+
 // MARK: - Mic mute (v1 `MeetingRecordingService.setMicrophoneMuted`)
 
 public enum TBDMicMute {
@@ -347,7 +360,12 @@ public enum TBDMeetingPillRules {
     public static func isVisible(_ face: TBDMeetingPillFace, showSetting: Bool) -> Bool { showSetting && face != .hidden }
 
     /// Width and height per face; the recording face carries the controls.
-    public static func size(for face: TBDMeetingPillFace) -> CGSize {
+    public static func size(for face: TBDMeetingPillFace, hasNotice: Bool = false) -> CGSize {
+        let base = baseSize(for: face)
+        return hasNotice && face.isLive ? CGSize(width: max(base.width, 330), height: base.height + 22) : base
+    }
+
+    private static func baseSize(for face: TBDMeetingPillFace) -> CGSize {
         switch face {
         case .hidden: .zero
         case .starting, .saving: CGSize(width: 150, height: 40)

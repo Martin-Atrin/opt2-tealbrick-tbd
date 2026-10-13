@@ -18,17 +18,17 @@ final class TBDMeetingPill {
     var isVisible: Bool { panel != nil }
 
     /// Brings the pill in line with the meeting: shows, resizes for the face, or hides.
-    func sync(face: TBDMeetingPillFace, showSetting: Bool) {
+    func sync(face: TBDMeetingPillFace, showSetting: Bool, hasNotice: Bool = false) {
         if TBDMeetingPillRules.isVisible(face, showSetting: showSetting) {
-            show(face: face)
+            show(face: face, hasNotice: hasNotice)
         } else {
             // A hidden setting keeps the place; the end of a meeting forgets it.
             hide(keepPlace: face != .hidden && !showSetting)
         }
     }
 
-    private func show(face: TBDMeetingPillFace) {
-        let size = TBDMeetingPillRules.size(for: face)
+    private func show(face: TBDMeetingPillFace, hasNotice: Bool) {
+        let size = TBDMeetingPillRules.size(for: face, hasNotice: hasNotice)
         if let panel {
             panel.setFrame(TBDMeetingPillRules.resized(frame: panel.frame, to: size), display: true)
             panel.orderFront(nil)
@@ -107,6 +107,16 @@ struct TBDMeetingPillView: View {
     }
 
     private var running: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            controls
+            if let notice = meetings.captureNotice {
+                Label(notice, systemImage: "exclamationmark.triangle.fill").font(.system(size: 11)).foregroundStyle(.orange)
+                    .lineLimit(1).minimumScaleFactor(0.8)
+            }
+        }
+    }
+
+    private var controls: some View {
         HStack(spacing: TBDTokens.Space.sm) {
             Circle().fill(meetings.pillFace == .paused ? Color.orange : Color.red).frame(width: 8, height: 8)
             Text(TBDPillClock.text(meetings.elapsedMs))

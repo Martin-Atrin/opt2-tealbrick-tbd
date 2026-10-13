@@ -14,6 +14,8 @@ public struct TBDMeetingManifest: Codable, Sendable, Equatable {
     public var finalEngine: TBDEngineSelection?
     /// The person's notes, rewritten on every save so a crash keeps them.
     public var notes: String?
+    /// "Microphone + system audio" was chosen but system audio could not start: only the microphone was recorded (C124).
+    public var systemAudioMissing: Bool?
 
     static let fileName = "meeting.json"
 
@@ -27,6 +29,17 @@ public struct TBDMeetingManifest: Codable, Sendable, Equatable {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return (try? Data(contentsOf: folder.appendingPathComponent(fileName))).flatMap { try? decoder.decode(Self.self, from: $0) }
+    }
+
+    /// The system-audio notice kept with a saved meeting, found by transcript id (nil when the meeting had system audio
+    /// or its folder is gone). The transcript detail shows it.
+    public static func systemAudioNotice(transcriptionID: String, root: URL = TBDListeningPaths.meetings) -> String? {
+        let folders = (try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? []
+        for folder in folders {
+            guard let manifest = read(from: folder), manifest.transcriptionID == transcriptionID else { continue }
+            return manifest.systemAudioMissing == true ? TBDMeetingWarnings.systemAudioMissing : nil
+        }
+        return nil
     }
 }
 
@@ -72,6 +85,7 @@ public final class TBDMeetingRecorder: @unchecked Sendable {
     private var systemLevel: Float = 0
     private var source: TBDMeetingAudioSource = .microphoneAndSystem
     private var micMuted = false
+    private var systemStartFailed = false
 
     public var onPreview: (@Sendable (TBDPreviewLine) -> Void)?
     public var onWarning: (@Sendable (String) -> Void)?
@@ -89,6 +103,10 @@ public final class TBDMeetingRecorder: @unchecked Sendable {
     /// The sources this recording captures (fixed at start).
     public var audioSource: TBDMeetingAudioSource { lock.withLock { source } }
     public var isMicMuted: Bool { lock.withLock { micMuted } }
+    /// The visible warning while system audio is missing from a "microphone + system audio" recording.
+    public var captureNotice: String? {
+        lock.withLock { TBDMeetingWarnings.systemAudioNotice(source: source, systemStarted: !systemStartFailed) }
+    }
     /// The mute control works while a recording runs and the microphone is part of it.
     public var canMuteMic: Bool { lock.withLock { TBDMicMute.canMute(source: source, recording: state != .idle) } }
 
@@ -138,6 +156,7 @@ public final class TBDMeetingRecorder: @unchecked Sendable {
                 self.plan = plan
                 self.source = source
                 micMuted = TBDMicMute.startsMuted(setting: startMuted, source: source)
+                systemStartFailed = false
                 micFeed = feeds?.mic; systemFeed = feeds?.system; feedTasks = feeds?.tasks ?? []
             }
         } catch {
@@ -176,19 +195,29 @@ public final class TBDMeetingRecorder: @unchecked Sendable {
             }
         }
         if source.capturesSystemAudio {
-            let started = await startSystemAudio(folder: folder, session: current, warnOnFailure: source != .systemOnly)
+            let started = await startSystemAudio(folder: folder, session: current)
             // System audio is the only track of this recording: without it there is nothing to record.
             if !started, source == .systemOnly {
                 _ = try? await stop()
                 try? FileManager.default.removeItem(at: folder)
                 throw TBDMeetingStartError.systemAudioUnavailable
             }
+            // Mic + system falls back to the microphone, never silently: the notice shows live and stays in the manifest.
+            if !started, TBDMeetingWarnings.systemAudioNotice(source: source, systemStarted: false) != nil {
+                manifest.systemAudioMissing = true
+                lock.withLock {
+                    guard session == current else { return }
+                    systemStartFailed = true
+                    self.manifest?.systemAudioMissing = true
+                    if let stored = self.manifest { try? stored.write(to: folder) }
+                }
+            }
         }
         return manifest
     }
 
     /// Starts the system track. Returns false when it could not start (the track is removed).
-    private func startSystemAudio(folder: URL, session current: UUID, warnOnFailure: Bool) async -> Bool {
+    private func startSystemAudio(folder: URL, session current: UUID) async -> Bool {
         let capture = TBDSystemAudioCapture()
         do {
             let writer = try TBDWAVWriter(url: folder.appendingPathComponent("system.wav"))
@@ -205,9 +234,6 @@ public final class TBDMeetingRecorder: @unchecked Sendable {
                 return systemWriter
             }
             if let writer { try? writer.close(); try? FileManager.default.removeItem(at: writer.url) }
-            if warnOnFailure, isCurrent(current) {
-                onWarning?("Recording the microphone only. Allow Screen & System Audio Recording for TBD to include other participants.")
-            }
             return false
         }
     }
@@ -325,7 +351,7 @@ public final class TBDMeetingRecorder: @unchecked Sendable {
             defer {
                 state = .idle; session = nil; micToken = nil; self.system = nil; micWriter = nil; systemWriter = nil
                 self.manifest = nil; self.folder = nil; micLevel = 0; systemLevel = 0; clockStarted = nil
-                micMuted = false; source = .default
+                micMuted = false; source = .default; systemStartFailed = false
             }
             return [micWriter, systemWriter].compactMap { $0 }
         }

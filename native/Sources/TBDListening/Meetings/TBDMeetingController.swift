@@ -24,6 +24,8 @@ final class TBDMeetingController: ObservableObject {
     @Published private(set) var captureSource: TBDMeetingAudioSource = .default
     /// The microphone is muted for this recording: the track carries silence, system audio keeps recording.
     @Published private(set) var isMicMuted = false
+    /// Standing warning while system audio is missing from a mic + system recording (C124).
+    @Published private(set) var captureNotice: String?
     /// What the floating pill shows.
     @Published private(set) var pillFace: TBDMeetingPillFace = .hidden { didSet { if oldValue != pillFace { syncPill() } } }
     /// Ask during the meeting; saved with the transcript afterwards.
@@ -134,6 +136,7 @@ final class TBDMeetingController: ObservableObject {
         phase = .starting
         captureSource = source
         isMicMuted = TBDMicMute.startsMuted(setting: prefs.startMeetingsMuted, source: source)
+        captureNotice = nil
         pillFace = .starting
         warning = nil
         preview = []
@@ -146,12 +149,14 @@ final class TBDMeetingController: ObservableObject {
                 _ = try await recorder.start(title: currentTitle, source: source, startMuted: prefs.startMeetingsMuted)
                 phase = .recording
                 isMicMuted = recorder.isMicMuted
+                captureNotice = recorder.captureNotice
                 pillFace = .recording
                 startTicker()
                 autoStop.recordingDidStart()
             } catch {
                 phase = .idle
                 isMicMuted = false
+                captureNotice = nil
                 pillFace = .hidden
                 onMessage?(error.localizedDescription)
             }
@@ -181,7 +186,7 @@ final class TBDMeetingController: ObservableObject {
     /// Re-applies the "floating meeting controls" setting to a running meeting.
     func refreshPill() { syncPill() }
 
-    private func syncPill() { pill.sync(face: pillFace, showSetting: env.preferences.showMeetingRecordingPill) }
+    private func syncPill() { pill.sync(face: pillFace, showSetting: env.preferences.showMeetingRecordingPill, hasNotice: captureNotice != nil) }
 
     /// Stops the recording and throws the audio away, after the person confirms (v1 "Discard Recording").
     func confirmDiscard() {
@@ -229,11 +234,13 @@ final class TBDMeetingController: ObservableObject {
                 phase = .idle
                 isMicMuted = false
                 micLevel = 0; systemLevel = 0
+                captureNotice = nil
                 showSavedThenHidePill()
                 await finalize(folder, askHistory: askHistory, transcriptionID: manifest.transcriptionID, liveEnd: true)
             } catch {
                 phase = .idle
                 isMicMuted = false
+                captureNotice = nil
                 pillFace = .hidden
                 onMessage?(error.localizedDescription)
             }
