@@ -172,7 +172,7 @@ final class LegacyImportTests: XCTestCase {
         XCTAssertEqual(marker["sourcePath"] as String, legacyURL.path)
         XCTAssertEqual(marker["completedAt"] as Date, at(9_000))
         XCTAssertEqual(marker["summary"] as String,
-                       "dictations=3 transcripts=2 meetings=1 summaries=2 conversations=1 customWords=2 snippets=2 alreadyPresent=0 skipped=5 errors=0")
+                       "dictations=3 transcripts=2 meetings=1 summaries=2 conversations=1 customWords=2 snippets=2 alreadyPresent=0 skipped=5 errors=0 favorites=0")
     }
 
     func testSecondRunImportsNothing() throws {

@@ -108,16 +108,6 @@ final class TBDTranscriptDetailModel: ObservableObject {
 
     func copy() { if let item { TBDPasteService.copy(TBDExport.render(item, as: .txt)) } }
 
-    func export(_ format: TBDExportFormat) {
-        guard let item else { return }
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = item.title.replacingOccurrences(of: "/", with: "-") + "." + format.fileExtension
-        if let type = UTType(filenameExtension: format == .dapt ? "xml" : format.fileExtension) { panel.allowedContentTypes = [type] }
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        do { try TBDExport.data(item, as: format, summaries: summaries).write(to: url, options: .atomic) }
-        catch { self.error = error.localizedDescription }
-    }
-
     func rename(_ title: String) {
         guard item != nil, !title.trimmingCharacters(in: .whitespaces).isEmpty else { return }
         try? env.database?.rename(transcriptionId: id, title: title)
@@ -182,14 +172,10 @@ final class TBDTranscriptDetailModel: ObservableObject {
         alert.addButton(withTitle: "Delete")
         alert.addButton(withTitle: "Cancel")
         guard alert.runModal() == .alertFirstButtonReturn else { return }
-        for path in item.audioPaths where path.hasPrefix(TBDListeningPaths.root.path) {
-            try? FileManager.default.removeItem(atPath: path)
-        }
-        if item.sourceKind == .meeting, let folder = item.audioPaths.first.map({ URL(fileURLWithPath: $0).deletingLastPathComponent() }),
-           folder.path.hasPrefix(TBDListeningPaths.meetings.path) {
-            try? FileManager.default.removeItem(at: folder)
-        }
-        try? env.database?.deleteTranscription(id: item.id)
+        guard let database = env.database else { return }
+        // Same removal as the Library's bulk delete: a failure keeps the item and says why.
+        let outcome = TBDRetentionSweeper(database: database).deleteFromLibrary(ids: [item.id])
+        if let failure = outcome.failed.first { error = "Could not delete: \(failure.reason)"; return }
         env.selectedTranscriptionID = nil
         env.changed()
     }
@@ -304,10 +290,8 @@ struct TBDTranscriptDetailView: View {
             }
             HStack(spacing: TBDTokens.Space.sm) {
                 Button { model.copy() } label: { Label("Copy", systemImage: "doc.on.doc") }.buttonStyle(TBDButtonStyle(.secondary))
-                Menu {
-                    ForEach(TBDExportFormat.allCases, id: \.self) { format in Button(format.title) { model.export(format) } }
-                } label: { Label("Export", systemImage: "square.and.arrow.up") }
-                .menuStyle(.borderlessButton).fixedSize()
+                TBDExportButton(item: item, summaries: model.summaries)
+                TBDFavoriteButton(item: item)
                 TBDKnowledgeButton(item: item, knowledge: context.knowledge)
                 if !item.speakers.isEmpty {
                     Menu {

@@ -171,14 +171,15 @@ extension TBDListeningDatabase {
 
     /// Library items sorted as asked (search keeps full-text matching).
     public func transcriptions(limit: Int = 500, kind: TBDSourceKind? = nil, matching query: String? = nil,
-                               sort: TBDLibrarySort) throws -> [TBDTranscription] {
+                               favoritesOnly: Bool = false, sort: TBDLibrarySort) throws -> [TBDTranscription] {
         guard Self.pattern(query) == nil else {
-            let items = try transcriptions(limit: limit, kind: kind, matching: query)
+            let items = try transcriptions(limit: limit, kind: kind, matching: query, favoritesOnly: favoritesOnly)
             return Self.sorted(items, by: sort)
         }
         return try writer.read { db in
             var request = TBDTranscription.all()
             if let kind { request = request.filter(Column("sourceKind") == kind.rawValue) }
+            if favoritesOnly { request = request.filter(Column("isFavorite") == true) }
             switch sort {
             case .newest: request = request.order(Column("createdAt").desc)
             case .oldest: request = request.order(Column("createdAt").asc)

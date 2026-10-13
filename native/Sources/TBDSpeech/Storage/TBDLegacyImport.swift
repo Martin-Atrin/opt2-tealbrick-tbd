@@ -26,7 +26,7 @@ import GRDB
 ///   `file`, youtube / podcast → `url`, meeting → `meeting`; title = the earlier display title
 ///   (meeting: fileName; else titleOverride, then fileName for files or derivedTitle for links);
 ///   filePath → sourcePath for files, → audioPaths for links and meetings (paths kept, audio not
-///   copied); sourceURL → sourceURL; durationMs (NULL → 0); language; engine; status (error →
+///   copied); isFavorite → isFavorite; sourceURL → sourceURL; durationMs (NULL → 0); language; engine; status (error →
 ///   failed, processing → failed "Interrupted before it finished."); errorMessage; rawTranscript
 ///   (NULL → "") → rawText; cleanTranscript → cleanText; userNotes → userNotes; wordTimestamps
 ///   {word,startMs,endMs,confidence,speakerId} → words; speakers ([{id,label}] or the older
@@ -34,7 +34,7 @@ import GRDB
 ///   the words when absent, as for new items). audioRetentionStartedAt = import time when audio is
 ///   attached (imports start the retention clock at import time).
 ///   Fields with no place: fileSizeBytes, speakerCount, diarizationSegments, exportPath,
-///   thumbnailURL, channelName, videoDescription, isFavorite, meetingTypeId (the earlier version folded types into labels), recoveredFromCrash,
+///   thumbnailURL, channelName, videoDescription, meetingTypeId (the earlier version folded types into labels), recoveredFromCrash,
 ///   isTranscriptEdited, meetingStartContext, meetingCaptureReport, engineVariant,
 ///   calendarEventSnapshot, derivedSnippet, splitProvenance, audioTrackOrdinal,
 ///   meetingArtifactFolderPath.
@@ -88,6 +88,8 @@ public enum TBDLegacyImport {
         public var skipped: [String: Int] = [:]
         /// Earlier tables with rows that have no place here: table name → row count.
         public var notImported: [String: Int] = [:]
+        /// Imported or updated transcripts that are starred.
+        public var favorites = 0
         /// Rows that could not be written (not retried).
         public var errors: [String] = []
 
@@ -119,7 +121,7 @@ public enum TBDLegacyImport {
         /// Compact record stored with the marker.
         var summaryLine: String {
             let counts = Kind.allCases.filter { Kind.core.contains($0) || count($0) > 0 }.map { "\($0.rawValue)=\(count($0))" }.joined(separator: " ")
-            return counts + " alreadyPresent=\(alreadyPresent.values.reduce(0, +)) skipped=\(skipped.values.reduce(0, +)) errors=\(errors.count)"
+            return counts + " alreadyPresent=\(alreadyPresent.values.reduce(0, +)) skipped=\(skipped.values.reduce(0, +)) errors=\(errors.count) favorites=\(favorites)"
         }
 
         mutating func skip(_ reason: String) { skipped[reason, default: 0] += 1 }
@@ -136,7 +138,10 @@ public enum TBDLegacyImport {
     public static func runAtStart(into database: TBDListeningDatabase, legacyURL: URL = defaultLegacyURL) -> StartOutcome {
         do {
             let report = try run(legacyURL: legacyURL, into: database)
-            return StartOutcome(message: report.message, changed: report.totalImported > 0)
+            var changed = report.totalImported > 0
+            // An import from before favorites existed has no stars: copy them once.
+            if report.status == .alreadyImported { changed = try backfillFavorites(legacyURL: legacyURL, into: database) > 0 }
+            return StartOutcome(message: report.message, changed: changed)
         } catch {
             let message = "Could not import Listening data from the earlier TBD version: \(error.localizedDescription) TBD tries again at next start."
             return StartOutcome(message: message, changed: false)
@@ -173,6 +178,32 @@ public enum TBDLegacyImport {
                                arguments: [source, legacyURL.path, now, report.summaryLine])
                 return report
             }
+        }
+    }
+
+    /// Copies the stars of an earlier import made before favorites were imported, once: the marker's summary
+    /// gains `favorites=N`, which new imports write from the start. Returns the number of items starred.
+    @discardableResult
+    public static func backfillFavorites(legacyURL: URL = defaultLegacyURL, into database: TBDListeningDatabase) throws -> Int {
+        let summary = try database.writer.read { try String.fetchOne($0, sql: "SELECT summary FROM legacyImport WHERE source = ?", arguments: [source]) }
+        guard let summary, !summary.contains(" favorites="), FileManager.default.fileExists(atPath: legacyURL.path) else { return 0 }
+        var configuration = Configuration()
+        configuration.readonly = true
+        configuration.busyMode = .timeout(2)
+        let legacy = try DatabaseQueue(path: legacyURL.path, configuration: configuration)
+        defer { try? legacy.close() }
+        let ids: [String] = try legacy.read { old in
+            guard try old.tableExists("transcriptions"), try old.columns(in: "transcriptions").contains(where: { $0.name == "isFavorite" }) else { return [] }
+            return try Row.fetchAll(old, sql: "SELECT id FROM transcriptions WHERE isFavorite = 1").compactMap { uuid($0, "id") }
+        }
+        return try database.writer.write { db in
+            var starred = 0
+            for id in ids {
+                try db.execute(sql: "UPDATE transcription SET isFavorite = 1 WHERE id = ? AND isFavorite = 0", arguments: [id])
+                starred += db.changesCount
+            }
+            try db.execute(sql: "UPDATE legacyImport SET summary = summary || ? WHERE source = ?", arguments: [" favorites=\(starred)", source])
+            return starred
         }
     }
 
@@ -243,7 +274,8 @@ public enum TBDLegacyImport {
                 : segments
             item.audioPaths = kind == .file ? [] : filePath.map { [$0] } ?? []
             item.audioRetentionStartedAt = item.audioPaths.isEmpty ? nil : now
-            insert(item, as: counted, id: id, db, &report)
+            item.isFavorite = bool(row, "isFavorite") ?? false
+            if insert(item, as: counted, id: id, db, &report), item.isFavorite { report.favorites += 1 }
         }
     }
 
