@@ -33,7 +33,7 @@ struct TBDLibraryView: View {
         HStack(alignment: .top, spacing: TBDTokens.Space.lg) {
             VStack(alignment: .leading, spacing: TBDTokens.Space.sm) {
                 HStack(spacing: TBDTokens.Space.sm) {
-                    Image(systemName: "magnifyingglass").foregroundStyle(TBDTokens.muted)
+                    Image(systemName: "magnifyingglass").font(TBDFonts.symbol(14)).foregroundStyle(TBDColor.muted)
                     TextField("Search transcripts", text: $query).textFieldStyle(.plain)
                 }
                 .tbdField()
@@ -49,8 +49,11 @@ struct TBDLibraryView: View {
                         ForEach(TBDLibrarySort.allCases, id: \.self) { Text($0.title).tag($0) }
                     }
                     .pickerStyle(.menu).labelsHidden().fixedSize()
-                    Toggle(isOn: $favoritesOnly) { Label("Favorites", systemImage: favoritesOnly ? "star.fill" : "star") }
-                        .toggleStyle(.button).help("Show only favorites")
+                    Spacer(minLength: 0)
+                }
+                // Second row: the filter chip and Select (one row overflowed the 340pt column with Nunito labels).
+                HStack(spacing: TBDTokens.Space.sm) {
+                    TBDFilterChip("Favorites", isOn: $favoritesOnly).help("Show only favorites")
                     Spacer(minLength: 0)
                     if !bulk.selection.isActive, !items.isEmpty {
                         Button { bulk.selection.begin() } label: { Label("Select", systemImage: "checklist") }
@@ -59,7 +62,7 @@ struct TBDLibraryView: View {
                 }
                 if let message = bulk.message {
                     HStack(alignment: .top, spacing: TBDTokens.Space.sm) {
-                        Text(message).font(.system(size: 12)).foregroundStyle(TBDTokens.alert).fixedSize(horizontal: false, vertical: true)
+                        TBDNotice(message, tone: .needsYou)
                         Spacer(minLength: 0)
                         Button { bulk.message = nil } label: { Image(systemName: "xmark") }
                             .buttonStyle(TBDButtonStyle(.icon)).accessibilityLabel("Dismiss message")
@@ -74,8 +77,15 @@ struct TBDLibraryView: View {
                     .buttonStyle(TBDButtonStyle(.quiet))
                 }
                 if items.isEmpty {
-                    Text(!query.isEmpty || favoritesOnly ? "No matches." : "Nothing here yet. Drop a file, paste a link or record a meeting.")
-                        .foregroundStyle(TBDTokens.muted).font(TBDTokens.Typography.body).padding(.top, TBDTokens.Space.lg)
+                    VStack(alignment: .leading, spacing: TBDKit.s1) {
+                        if !query.isEmpty || favoritesOnly {
+                            Text("No matches.").font(TBDTokens.Typography.body).foregroundStyle(TBDColor.inkSoft)
+                        } else {
+                            Text("Nothing here yet.").font(TBDTokens.Typography.title).foregroundStyle(TBDColor.ink)
+                            Text("Drop a file, paste a link or record a meeting.").font(TBDTokens.Typography.body).foregroundStyle(TBDColor.inkSoft)
+                        }
+                    }
+                    .padding(.top, TBDTokens.Space.lg)
                     Spacer()
                 } else {
                     if bulk.selection.isActive {
@@ -85,18 +95,18 @@ struct TBDLibraryView: View {
                     }
                 }
             }
-            .frame(width: 300)
+            .frame(width: 340)
             .focusable(bulk.selection.isActive)
             .focused($selectionFocus)
             .focusEffectDisabled()
             .onChange(of: bulk.selection.isActive) { _, active in if active { selectionFocus = true } }
             .onKeyPress(keys: [.delete, .deleteForward, "a", "A"]) { press in handleKey(press) }
-            Rectangle().fill(TBDTokens.border).frame(width: TBDTokens.Stroke.hairline)
+            Rectangle().fill(TBDColor.line).frame(width: TBDKit.hair)
             Group {
                 if let id = env.selectedTranscriptionID, items.contains(where: { $0.id == id }) || kind == nil {
                     TBDTranscriptDetailView(context: context, id: id).id(id)
                 } else {
-                    Text("Select a transcript").foregroundStyle(TBDTokens.muted).frame(maxWidth: .infinity, maxHeight: .infinity)
+                    Text("Select a transcript").font(TBDTokens.Typography.body).foregroundStyle(TBDColor.inkSoft).frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -140,7 +150,11 @@ extension TBDLibraryView {
             ForEach(items) { row($0) }
         } else {
             ForEach(Self.groups(items), id: \.0) { group, entries in
-                Section(group.title) { ForEach(entries) { row($0) } }
+                Section {
+                    ForEach(entries) { row($0) }
+                } header: {
+                    Text(group.title).font(TBDTokens.Typography.label).foregroundStyle(TBDColor.muted)
+                }
             }
         }
     }
@@ -152,9 +166,19 @@ extension TBDLibraryView {
                 .contentShape(Rectangle())
                 .onTapGesture { if !bulk.isBusy { bulk.selection.toggle(item.id) } }
                 .contextMenu { menu(item) }
+                .listRowBackground(rowBackground(bulk.selection.contains(item.id)))
+                .listRowSeparatorTint(TBDColor.line)
         } else {
             TBDLibraryRow(item: item).tag(item.id).contextMenu { menu(item) }
+                .listRowBackground(rowBackground(env.selectedTranscriptionID == item.id))
+                .listRowSeparatorTint(TBDColor.line)
         }
+    }
+
+    /// Ruled rows: a hairline between rows, the chosen row a teal-wash brick.
+    @ViewBuilder
+    private func rowBackground(_ chosen: Bool) -> some View {
+        if chosen { TBDBrickShape().fill(TBDColor.tealWash).padding(.horizontal, TBDKit.s1) } else { Color.clear }
     }
 
     @ViewBuilder
@@ -193,9 +217,9 @@ extension TBDLibraryView {
         return VStack(alignment: .leading, spacing: TBDTokens.Space.sm) {
             HStack(spacing: TBDTokens.Space.sm) {
                 if let working = bulk.working { ProgressView().controlSize(.small); Text(working) }
-                else { Image(systemName: "checkmark.circle.fill").foregroundStyle(TBDTokens.accent); Text("\(chosen.count) selected") }
+                else { Image(systemName: "checkmark.circle.fill").font(TBDFonts.symbol(14)).foregroundStyle(TBDColor.tealInk); Text("\(chosen.count) selected") }
             }
-            .font(TBDTokens.Typography.control)
+            .font(TBDTokens.Typography.control).foregroundStyle(TBDColor.ink)
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 84), spacing: 6)], alignment: .leading, spacing: 6) {
                 Button("Cancel") { bulk.selection.exit() }
                     .keyboardShortcut(.escape, modifiers: []).disabled(bulk.isBusy)
@@ -209,12 +233,13 @@ extension TBDLibraryView {
                         .disabled(bulk.isBusy || withAudio.isEmpty)
                 }
                 Button("Delete…", role: .destructive) { bulk.requestDelete(chosen) }.disabled(bulk.isBusy || chosen.isEmpty)
+                    .buttonStyle(TBDButtonStyle(.destructive))
             }
             .buttonStyle(TBDButtonStyle(.secondary))
         }
         .padding(TBDTokens.Space.sm)
-        .background(TBDTokens.selected.opacity(0.5))
-        .overlay(alignment: .bottom) { Rectangle().fill(TBDTokens.border).frame(height: TBDTokens.Stroke.hairline) }
+        .background(TBDColor.tealWash, in: TBDBrickShape())
+        .overlay(TBDBrickShape().strokeBorder(TBDColor.tealWashLine, lineWidth: TBDKit.hair))
         .popover(item: $bulk.exportResult, arrowEdge: .bottom) { result in exportResultView(result) }
     }
 
@@ -228,11 +253,11 @@ extension TBDLibraryView {
     private func exportResultView(_ result: TBDBulkExportResult) -> some View {
         VStack(alignment: .leading, spacing: TBDTokens.Space.sm) {
             Label(result.title, systemImage: result.isCompleteSuccess ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                .font(TBDTokens.Typography.control)
-            Text(result.directory.lastPathComponent).font(.system(size: 11)).foregroundStyle(TBDTokens.muted).lineLimit(1)
+                .font(TBDTokens.Typography.control).foregroundStyle(TBDColor.ink)
+            Text(result.directory.lastPathComponent).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted).lineLimit(1)
             if result.failedCount > 0 {
-                Text("\(result.failedCount) \(result.failedCount == 1 ? "file" : "files") failed.").font(.system(size: 12)).foregroundStyle(TBDTokens.alert)
-                ForEach(result.failureLines.prefix(5), id: \.self) { Text($0).font(.system(size: 11)).foregroundStyle(TBDTokens.muted) }
+                Text("\(result.failedCount) \(result.failedCount == 1 ? "file" : "files") failed.").font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.brickInk)
+                ForEach(result.failureLines.prefix(5), id: \.self) { Text($0).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted) }
             }
             Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting(result.exportedURLs); bulk.exportResult = nil }
                 .buttonStyle(TBDButtonStyle(.secondary))
@@ -278,33 +303,33 @@ struct TBDLibraryRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: TBDTokens.Space.sm) {
             if let ticked {
-                Image(systemName: ticked ? "checkmark.square.fill" : "square").foregroundStyle(ticked ? TBDTokens.accent : TBDTokens.muted)
+                Image(systemName: ticked ? "checkmark.square.fill" : "square").font(TBDFonts.symbol(14)).foregroundStyle(ticked ? TBDColor.tealInk : TBDColor.muted)
                     .accessibilityLabel(ticked ? "Selected" : "Not selected")
             }
             details
             Spacer(minLength: 0)
             if item.isFavorite {
-                Image(systemName: "star.fill").font(.system(size: 11)).foregroundStyle(TBDTokens.accent).help("Favorite").accessibilityLabel("Favorite")
+                Image(systemName: "star.fill").font(TBDFonts.symbol(12)).foregroundStyle(TBDColor.tealInk).help("Favorite").accessibilityLabel("Favorite")
             }
         }
     }
 
     private var details: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(item.title).font(TBDTokens.Typography.control).foregroundStyle(TBDTokens.ink).lineLimit(1)
+            Text(item.title).font(TBDTokens.Typography.control).foregroundStyle(TBDColor.ink).lineLimit(1)
             HStack(spacing: TBDTokens.Space.sm) {
-                Text(item.sourceKind.label.uppercased()).font(TBDTokens.Typography.label).tracking(TBDTokens.Typography.labelTracking)
+                Text(item.sourceKind.label).font(TBDTokens.Typography.label)
                 Text(item.createdAt.formatted(date: .abbreviated, time: .shortened))
-                if item.durationMs > 0 { Text(TBDExport.clock(item.durationMs)) }
+                if item.durationMs > 0 { Text(TBDExport.clock(item.durationMs)).font(TBDFonts.mono()) }
                 TBDLabelBadges(transcriptionID: item.id)
                 switch item.status {
-                case .processing: Text("Processing").foregroundStyle(TBDTokens.accent)
-                case .failed: Text("Failed").foregroundStyle(TBDTokens.alert)
+                case .processing: Text("Processing").foregroundStyle(TBDColor.tealInk)
+                case .failed: Text("Failed").foregroundStyle(TBDColor.brickInk)
                 case .cancelled: Text("Cancelled")
                 case .completed: EmptyView()
                 }
             }
-            .font(.system(size: 11)).foregroundStyle(TBDTokens.muted)
+            .font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted).lineLimit(1)
         }
         .padding(.vertical, 3)
     }

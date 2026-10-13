@@ -54,7 +54,8 @@ struct SettingsStorageTabView: View {
 
     return SettingsSection(
       title: String(localized: "Recording status"),
-      subtitle: String(localized: "Ensure Tealbrick can capture your screen.")
+      subtitle: String(localized: "Ensure Tealbrick can capture your screen."),
+      isFirst: true
     ) {
       VStack(alignment: .leading, spacing: 0) {
         SettingsRow(label: String(localized: "Screen recording permission")) {
@@ -144,22 +145,29 @@ struct SettingsStorageTabView: View {
         Button(option.label) { onSelect(option.value) }
       }
     } label: {
-      HStack(spacing: 5) {
-        Text(selected)
-          .font(.custom("Switzer", size: 13))
-          .fontWeight(.semibold)
-        Image(systemName: "chevron.down")
-          .font(.system(size: 10, weight: .semibold))
-      }
-      .foregroundColor(SettingsStyle.ink)
-      .padding(.horizontal, 12)
-      .padding(.vertical, 7)
-      .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.base).strokeBorder(SettingsStyle.divider, lineWidth: 1))
+      menuTrigger(selected)
     }
     .menuStyle(BorderlessButtonMenuStyle())
     .menuIndicator(.hidden)
     .fixedSize()
     .pointingHandCursor()
+  }
+
+  /// The drawn trigger of a settings dropdown: a field-look brick with the
+  /// current value and a chevron. The option list stays the system menu.
+  private func menuTrigger(_ title: String) -> some View {
+    HStack(spacing: TBDKit.s2) {
+      Text(title)
+        .font(TBDTokens.Typography.control)
+      Image(systemName: "chevron.down")
+        .font(TBDFonts.symbol(10, .heavy))
+    }
+    .foregroundStyle(TBDColor.fieldOn)
+    .padding(.horizontal, TBDTokens.Control.paddingX)
+    .frame(minHeight: TBDTokens.Control.minHeight)
+    .background(TBDColor.fieldFill, in: TBDBrickShape())
+    .overlay(TBDBrickShape().strokeBorder(TBDColor.fieldEdge, lineWidth: TBDKit.hair))
+    .contentShape(TBDBrickShape())
   }
 
   // MARK: - Disk usage
@@ -189,8 +197,8 @@ struct SettingsStorageTabView: View {
         )
 
         Text(viewModel.storageFooterText())
-          .font(.custom("Switzer", size: 12))
-          .foregroundColor(SettingsStyle.meta)
+          .font(TBDTokens.Typography.hint)
+          .foregroundStyle(TBDColor.muted)
           .fixedSize(horizontal: false, vertical: true)
           .padding(.top, 18)
       }
@@ -221,12 +229,11 @@ struct SettingsStorageTabView: View {
       HStack(alignment: .center, spacing: 16) {
         VStack(alignment: .leading, spacing: 3) {
           Text(label)
-            .font(.custom("Switzer", size: 14))
-            .fontWeight(.semibold)
-            .foregroundColor(SettingsStyle.text)
+            .font(TBDTokens.Typography.control)
+            .foregroundStyle(TBDColor.ink)
           Text(metadata)
-            .font(.custom("Switzer", size: 12))
-            .foregroundColor(SettingsStyle.secondary)
+            .font(TBDTokens.Typography.hint)
+            .foregroundStyle(TBDColor.muted)
         }
         Spacer(minLength: 12)
 
@@ -240,17 +247,7 @@ struct SettingsStorageTabView: View {
               }
             }
           } label: {
-            HStack(spacing: 5) {
-              Text(option.label)
-                .font(.custom("Switzer", size: 13))
-                .fontWeight(.semibold)
-              Image(systemName: "chevron.down")
-                .font(.system(size: 10, weight: .semibold))
-            }
-            .foregroundColor(SettingsStyle.ink)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.base).strokeBorder(SettingsStyle.divider, lineWidth: 1))
+            menuTrigger(option.label)
           }
           .menuStyle(BorderlessButtonMenuStyle())
           .menuIndicator(.hidden)
@@ -262,14 +259,14 @@ struct SettingsStorageTabView: View {
 
       if let progress {
         ProgressView(value: progress)
-          .progressViewStyle(LinearProgressViewStyle(tint: SettingsStyle.ink))
+          .progressViewStyle(LinearProgressViewStyle(tint: TBDColor.tealInk))
           .padding(.bottom, 14)
       }
 
       if showsDivider {
         Rectangle()
-          .fill(SettingsStyle.divider)
-          .frame(height: 1)
+          .fill(TBDColor.line)
+          .frame(height: TBDKit.hair)
       }
     }
   }

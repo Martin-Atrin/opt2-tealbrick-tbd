@@ -203,6 +203,7 @@ struct TBDTranscriptDetailView: View {
     @State private var findPausedFollow = false
     @State private var pauseTask: Task<Void, Never>?
     @State private var scrollMonitor: Any?
+    @Environment(\.colorScheme) private var colorScheme
 
     init(context: TBDListeningContext, id: String) {
         self.context = context
@@ -224,17 +225,16 @@ struct TBDTranscriptDetailView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: TBDTokens.Space.lg) {
                         header(item)
-                        if let error = model.error { Text(error).foregroundStyle(TBDTokens.alert).font(TBDTokens.Typography.body) }
+                        if let error = model.error { TBDNotice(error, tone: .needsYou) }
                         switch item.status {
-                        case .processing: HStack { ProgressView().controlSize(.small); Text("Transcribing…").foregroundStyle(TBDTokens.muted) }
+                        case .processing:
+                            HStack { ProgressView().controlSize(.small); Text("Transcribing…").font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted) }
                         case .failed, .cancelled: failure(item)
                         case .completed: EmptyView()
                         }
                         if model.tabs.count > 1 {
-                            Picker("", selection: $model.tab) {
-                                ForEach(model.tabs) { Text($0 == .ask && model.ask.streaming ? "Ask •" : $0.title).tag($0) }
-                            }
-                            .pickerStyle(.segmented).labelsHidden().fixedSize()
+                            TBDSegmented(selection: $model.tab,
+                                         options: model.tabs.map { ($0, $0 == .ask && model.ask.streaming ? "Ask •" : $0.title) })
                         }
                         switch model.tab {
                         case .transcript:
@@ -258,7 +258,7 @@ struct TBDTranscriptDetailView: View {
                     }
                 }
             } else {
-                Text("This item no longer exists.").foregroundStyle(TBDTokens.muted)
+                Text("This item no longer exists.").font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
             }
         }
         .onAppear { model.load(); title = model.item?.title ?? ""; syncPlayer(); installScrollMonitor() }
@@ -286,10 +286,10 @@ struct TBDTranscriptDetailView: View {
                 .onSubmit { model.rename(title) }
             TBDTranscriptLabelsBar(transcriptionID: item.id)
             if let notice = item.captureNotice {
-                Label(notice, systemImage: "exclamationmark.triangle.fill").font(.system(size: 11)).foregroundStyle(.orange)
+                Label(notice, systemImage: "exclamationmark.triangle.fill").font(TBDTokens.Typography.label).foregroundStyle(TBDColor.brickInk)
             }
             if let link = item.sourceURL, let url = URL(string: link) {
-                Link(link, destination: url).font(.system(size: 11)).lineLimit(1)
+                Link(link, destination: url).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.link).lineLimit(1)
             }
             HStack(spacing: TBDTokens.Space.sm) {
                 Button { model.copy() } label: { Label("Copy", systemImage: "doc.on.doc") }.buttonStyle(TBDButtonStyle(.secondary))
@@ -299,7 +299,7 @@ struct TBDTranscriptDetailView: View {
                 if !item.speakers.isEmpty {
                     Menu {
                         ForEach(item.speakers, id: \.id) { speaker in Button("Rename \(speaker.label)…") { model.renameSpeaker(speaker) } }
-                    } label: { Text(item.speakers.map(\.label).joined(separator: ", ")).font(.system(size: 11)) }
+                    } label: { Text(item.speakers.map(\.label).joined(separator: ", ")).font(TBDTokens.Typography.label) }
                     .menuStyle(.borderlessButton).fixedSize().help("Rename speakers")
                 }
                 if model.editCount > 0 {
@@ -323,7 +323,7 @@ struct TBDTranscriptDetailView: View {
 
     private func failure(_ item: TBDTranscription) -> some View {
         HStack {
-            Text(item.errorMessage ?? "Transcription did not finish.").foregroundStyle(TBDTokens.alert)
+            Text(item.errorMessage ?? "Transcription did not finish.").font(TBDTokens.Typography.body).foregroundStyle(TBDColor.brickInk)
             Spacer()
             if item.sourceKind == .meeting {
                 Button("Transcribe again") { context.meetings.retranscribe(item.id) }.buttonStyle(TBDButtonStyle(.secondary))
@@ -354,7 +354,7 @@ struct TBDTranscriptDetailView: View {
                     .buttonStyle(TBDButtonStyle(.secondary))
             }
             if let working = model.working {
-                HStack { ProgressView().controlSize(.small); Text(working).foregroundStyle(TBDTokens.muted) }
+                HStack { ProgressView().controlSize(.small); Text(working).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted) }
             }
             ForEach(model.summaries) { summary in
                 VStack(alignment: .leading, spacing: TBDTokens.Space.xs) {
@@ -366,7 +366,8 @@ struct TBDTranscriptDetailView: View {
                         Button { model.deleteSummary(summary) } label: { Image(systemName: "xmark") }
                             .buttonStyle(TBDButtonStyle(.icon)).help("Remove")
                     }
-                    Text(LocalizedStringKey(summary.content)).font(TBDTokens.Typography.body).textSelection(.enabled)
+                    Text(LocalizedStringKey(summary.content)).font(TBDTokens.Typography.body).foregroundStyle(TBDColor.ink)
+                        .lineSpacing(bodyLineSpacing).textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .tbdCard(padding: TBDTokens.Space.md)
@@ -396,7 +397,10 @@ struct TBDTranscriptDetailView: View {
         TBDTranscriptReader.hasTimedView(item) ? viewMode : .text
     }
 
-    private var bodyFont: Font { .custom("Switzer", size: TBDTranscriptFontScale.pointSize(fontScale)) }
+    /// Reading size: the kit body (15) times the reader's A-/A+ scale; leading 1.6 (TBDKit.leadingBody).
+    private var bodySize: CGFloat { TBDKit.textLabel * CGFloat(TBDTranscriptFontScale.clamped(fontScale)) }
+    private var bodyFont: Font { TBDFonts.nunito(bodySize, TBDKit.weightBody) }
+    private var bodyLineSpacing: CGFloat { bodySize * (TBDKit.leadingBody - 1) }
 
     private func transcript(_ item: TBDTranscription) -> some View {
         let mode = effectiveMode(item)
@@ -406,14 +410,12 @@ struct TBDTranscriptDetailView: View {
                 TBDLabel("Transcript")
                 if item.status == .completed, !list.isEmpty {
                     Text(mode == .timed ? "Right-click a passage to edit it or change its speaker." : "Switch to Timed to edit passages or speakers.")
-                        .font(.system(size: 11)).foregroundStyle(TBDTokens.muted)
+                        .font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
                 }
                 Spacer()
                 if TBDTranscriptReader.hasTimedView(item) {
-                    Picker("Transcript view", selection: $viewMode) {
-                        ForEach(TBDTranscriptViewMode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-                    }
-                    .pickerStyle(.segmented).labelsHidden().frame(width: 150)
+                    TBDSegmented(selection: $viewMode, options: TBDTranscriptViewMode.allCases.map { ($0, $0.rawValue) })
+                        .accessibilityElement(children: .contain).accessibilityLabel("Transcript view")
                 }
                 fontControls
                 Button { openFind() } label: { Image(systemName: "magnifyingglass") }
@@ -444,7 +446,7 @@ struct TBDTranscriptDetailView: View {
         let text = TBDTranscriptReader.bodyText(item)
         return Group {
             if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                if item.status == .completed { Text("No transcript available").foregroundStyle(TBDTokens.muted) }
+                if item.status == .completed { Text("No transcript available").font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted) }
             } else {
                 Group {
                     if findVisible, find.hasMatches {
@@ -453,7 +455,7 @@ struct TBDTranscriptDetailView: View {
                         Text(text).font(bodyFont)
                     }
                 }
-                .foregroundStyle(TBDTokens.ink).lineSpacing(6).textSelection(.enabled)
+                .foregroundStyle(TBDColor.ink).lineSpacing(bodyLineSpacing).textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(alignment: .topLeading) { textFindAnchor(text) }
                 .tbdCard(padding: TBDTokens.Space.lg)
@@ -466,7 +468,7 @@ struct TBDTranscriptDetailView: View {
     private func textFindAnchor(_ text: String) -> some View {
         if findVisible, let current = find.current,
            let prefix = TBDTranscriptReader.prefix(of: text, utf16Offset: current.range.location) {
-            Text(prefix).font(bodyFont).lineSpacing(6).foregroundStyle(.clear)
+            Text(prefix).font(bodyFont).lineSpacing(bodyLineSpacing).foregroundStyle(.clear)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .overlay(alignment: .bottomLeading) { Color.clear.frame(width: 1, height: 1).id(Self.textAnchorID) }
                 .allowsHitTesting(false).accessibilityHidden(true)
@@ -478,17 +480,16 @@ struct TBDTranscriptDetailView: View {
     private var fontControls: some View {
         HStack(spacing: 2) {
             Button { fontScale = TBDTranscriptFontScale.adjusted(fontScale, by: -TBDTranscriptFontScale.step) } label: {
-                Image(systemName: "textformat.size.smaller").font(.system(size: 13, weight: .semibold))
+                Image(systemName: "textformat.size.smaller").font(TBDFonts.symbol(13, TBDKit.weightNav))
             }
-            .buttonStyle(.plain).disabled(!TBDTranscriptFontScale.canDecrease(fontScale))
+            .buttonStyle(TBDButtonStyle(.icon)).disabled(!TBDTranscriptFontScale.canDecrease(fontScale))
             .help("Smaller transcript text").accessibilityLabel("Smaller transcript text")
             Button { fontScale = TBDTranscriptFontScale.adjusted(fontScale, by: TBDTranscriptFontScale.step) } label: {
-                Image(systemName: "textformat.size.larger").font(.system(size: 13, weight: .semibold))
+                Image(systemName: "textformat.size.larger").font(TBDFonts.symbol(13, TBDKit.weightNav))
             }
-            .buttonStyle(.plain).disabled(!TBDTranscriptFontScale.canIncrease(fontScale))
+            .buttonStyle(TBDButtonStyle(.icon)).disabled(!TBDTranscriptFontScale.canIncrease(fontScale))
             .help("Larger transcript text").accessibilityLabel("Larger transcript text")
         }
-        .foregroundStyle(TBDTokens.muted)
     }
 
     // MARK: Find
@@ -607,16 +608,16 @@ struct TBDTranscriptDetailView: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: TBDTokens.Space.xs) {
                     if let speaker = item.speakerLabel(segment.speaker) {
-                        Text(speaker).font(TBDTokens.Typography.label).tracking(TBDTokens.Typography.labelTracking)
+                        Text(speaker).font(TBDTokens.Typography.control)
                             .foregroundStyle(speakerColor(segment.speaker, in: item))
                     }
-                    if passage.edited { Text("Edited").font(.system(size: 10)).foregroundStyle(TBDTokens.muted) }
+                    if passage.edited { Text("Edited").font(TBDTokens.Typography.label).foregroundStyle(TBDColor.muted) }
                 }
                 if let range, editing == range {
-                    TextEditor(text: $draft).font(TBDTokens.Typography.body).frame(minHeight: 60)
+                    TextEditor(text: $draft).font(TBDTokens.Typography.body).foregroundStyle(TBDColor.fieldOn).frame(minHeight: 60)
                         .scrollContentBackground(.hidden).padding(TBDTokens.Space.xs)
-                        .background(TBDTokens.paper, in: RoundedRectangle(cornerRadius: TBDTokens.Radius.sm))
-                        .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.sm).strokeBorder(TBDTokens.accent))
+                        .background(TBDColor.fieldFill, in: TBDBrickShape())
+                        .overlay(TBDBrickShape().strokeBorder(TBDColor.tealInk, lineWidth: TBDKit.hair))
                     HStack {
                         Button("Save") { model.apply(.editText(range: range, text: draft)); editing = nil }
                             .buttonStyle(TBDButtonStyle(.primary)).disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -624,13 +625,15 @@ struct TBDTranscriptDetailView: View {
                     }
                 } else {
                     segmentText(segment.text, block: passage.index)
-                        .foregroundStyle(TBDTokens.ink).textSelection(.enabled)
+                        .lineSpacing(bodyLineSpacing)
+                        .foregroundStyle(TBDColor.ink).textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
         .padding(isActive ? TBDTokens.Space.sm : 0)
-        .background(isActive ? TBDTokens.accent.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: TBDTokens.Radius.base))
+        .background(isActive ? TBDColor.tealWash : Color.clear, in: TBDBrickShape())
+        .overlay { if isActive { TBDBrickShape().strokeBorder(TBDColor.tealWashLine, lineWidth: TBDKit.hair) } }
         .id(passage.index)
         .contextMenu {
             if player.isAvailable { Button("Play from here") { player.play(fromMs: segment.start) } }
@@ -658,13 +661,13 @@ struct TBDTranscriptDetailView: View {
     /// Clicking the time plays from there when the audio is kept (v1 timestamp chip).
     @ViewBuilder
     private func timestamp(_ segment: TBDSegment) -> some View {
-        let label = Text(TBDExport.clock(segment.start)).font(.system(size: 11, design: .monospaced))
+        let label = Text(TBDExport.clock(segment.start)).font(TBDFonts.mono(12))
         if player.isAvailable {
-            Button { player.play(fromMs: segment.start) } label: { label.foregroundStyle(TBDTokens.accent) }
+            Button { player.play(fromMs: segment.start) } label: { label.foregroundStyle(TBDColor.tealInk) }
                 .buttonStyle(.plain).frame(width: 52, alignment: .trailing).help("Play from here")
                 .accessibilityLabel("Play from \(TBDExport.clock(segment.start))")
         } else {
-            label.foregroundStyle(TBDTokens.muted).frame(width: 52, alignment: .trailing)
+            label.foregroundStyle(TBDColor.muted).frame(width: 52, alignment: .trailing)
         }
     }
 
@@ -675,8 +678,12 @@ struct TBDTranscriptDetailView: View {
     }
 
     private func speakerColor(_ id: String?, in item: TBDTranscription) -> Color {
-        guard let id, let index = item.speakers.firstIndex(where: { $0.id == id }) else { return TBDTokens.muted }
-        return TBDTokens.data[index % TBDTokens.data.count]
+        guard let id, let index = item.speakers.firstIndex(where: { $0.id == id }) else { return TBDColor.muted }
+        // Kit ink tones only. The tone inks are fixed light-mode values, so dark mode keeps to the readable twins and ink greys.
+        let tones: [Color] = colorScheme == .dark
+            ? [TBDColor.tealInk, TBDColor.brickInk, TBDColor.ink, TBDColor.tealDeep, TBDColor.inkSoft, TBDColor.muted]
+            : [TBDColor.tealInk, TBDColor.toneMossInk, TBDColor.toneWoodInk, TBDColor.brickInk, TBDColor.toneStoneInk, TBDColor.inkSoft]
+        return tones[index % tones.count]
     }
 }
 
@@ -706,14 +713,14 @@ struct TBDSplitSheet: View {
         VStack(alignment: .leading, spacing: TBDTokens.Space.md) {
             Text("Split “\(item.title)”").font(TBDTokens.Typography.title)
             Text("Each part becomes its own meeting with its own audio and transcript. The original stays as it is; notes, summaries and answers stay with it.")
-                .font(.system(size: 12)).foregroundStyle(TBDTokens.muted).fixedSize(horizontal: false, vertical: true)
+                .font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted).fixedSize(horizontal: false, vertical: true)
             TBDSettingsRow("Split at", help: "m:ss or h:mm:ss; separate several points with commas. Length \(TBDExport.clock(item.durationMs)).") {
                 TextField("12:30", text: $points).tbdField().frame(width: 180)
             }
             ForEach(titles.indices, id: \.self) { index in
                 TextField("Part \(index + 1)", text: $titles[index]).tbdField()
             }
-            if let error { Text(error).font(.system(size: 12)).foregroundStyle(TBDTokens.alert) }
+            if let error { Text(error).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.brickInk) }
             HStack {
                 Spacer()
                 Button("Cancel") { dismiss() }.buttonStyle(TBDButtonStyle(.quiet))

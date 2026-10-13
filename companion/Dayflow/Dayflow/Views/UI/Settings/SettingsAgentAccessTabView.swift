@@ -30,7 +30,8 @@ struct SettingsAgentAccessTabView: View {
         String(
           localized:
             "Let Codex, Claude, Cursor, and other AI tools read your Tealbrick timeline. Copy the entry below and paste it into the MCP configuration of the tool you use. Tealbrick never changes another app's settings. Nothing leaves your Mac except what you send in your own conversations."
-        )
+        ),
+      isFirst: true
     ) {
       SettingsRow(
         label: String(localized: "MCP config"),
@@ -93,10 +94,7 @@ struct SettingsAgentAccessTabView: View {
         }
 
         if let error = viewModel.terminalError {
-          Text(error)
-            .font(.custom("Switzer", size: 12))
-            .foregroundColor(SettingsStyle.statusBad)
-            .fixedSize(horizontal: false, vertical: true)
+          TBDNotice(error, tone: .needsYou)
         }
 
         SettingsCommandBlock(
@@ -151,8 +149,8 @@ private struct SettingsCommandBlock: View {
   var body: some View {
     ScrollView(.horizontal, showsIndicators: false) {
       Text(command)
-        .font(.system(size: 12, design: .monospaced))
-        .foregroundColor(SettingsStyle.ink.opacity(0.82))
+        .font(TBDFonts.mono(12))
+        .foregroundStyle(TBDColor.inkSoft)
         .textSelection(.enabled)
         .padding(.leading, 14)
         .padding(.trailing, 104)
@@ -160,19 +158,17 @@ private struct SettingsCommandBlock: View {
         .fixedSize(horizontal: true, vertical: false)
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(TBDTokens.paper)
+    .background(TBDColor.tile, in: TBDBrickShape())
     .overlay(
-      RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-        .strokeBorder(TBDTokens.border, lineWidth: TBDTokens.Stroke.hairline)
+      TBDBrickShape()
+        .strokeBorder(TBDColor.line, lineWidth: TBDKit.hair)
     )
     .overlay(alignment: .trailing) {
       Button(action: copy) {
         HStack(spacing: 5) {
           Image(systemName: copied ? "checkmark" : "doc.on.doc")
-            .font(.system(size: 11, weight: .medium))
+            .font(TBDFonts.symbol(11))
           Text(copied ? String(localized: "Copied") : String(localized: "Copy"))
-            .font(.custom("Switzer", size: 12))
-            .fontWeight(.medium)
         }
       }
       .buttonStyle(TBDButtonStyle(.secondary))

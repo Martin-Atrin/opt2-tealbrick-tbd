@@ -1,35 +1,16 @@
 import SwiftUI
 
-/// Palette sampled from tealbrick.com's live logo on 2026-09-22.
-enum TealbrickPalette: String, CaseIterable, Identifiable {
-  case teal, burgundy
-  var id: String { rawValue }
-  var title: String { rawValue.capitalized }
-  var hex: String { self == .teal ? "059393" : "A94944" }
-  var deepHex: String { self == .teal ? "034A4A" : "552522" }
-  static let key = "tealbrickPalette"
-  static var current: Self { Self(rawValue: UserDefaults.standard.string(forKey: key) ?? "teal") ?? .teal }
-}
-struct TealbrickCompanionSettings: View {
-  @AppStorage(TealbrickPalette.key) private var palette: TealbrickPalette = .teal
-  var body: some View {
-    SettingsSection(title: "Appearance", subtitle: "App colors") {
-      VStack(spacing: 0) {
-        SettingsRow(label: "Palette") {
-          Picker("Palette", selection: $palette) {
-            ForEach(TealbrickPalette.allCases) { Text($0.title).tag($0) }
-          }.pickerStyle(.segmented).labelsHidden().frame(width: 210)
-        }
-      }
-    }
-  }
+/// The companion's brand teal (sampled from tealbrick.com's logo, 2026-09-22). One design, no palettes (C145).
+enum TealbrickBrand {
+  static let hex = "059393"
+  static let deepHex = "034A4A"
 }
 
 extension DayflowTheme {
-  func tealbrick(_ palette: TealbrickPalette) -> DayflowTheme {
+  func tealbrick() -> DayflowTheme {
     var t = self
-    let primary = Color(hex: palette.hex)
-    let deep = Color(hex: palette.deepHex)
+    let primary = Color(hex: TealbrickBrand.hex)
+    let deep = Color(hex: TealbrickBrand.deepHex)
     let paper = Color(hex: "F3F1E9")
     let ink = Color(hex: "173F3C")
     let surface = isDark ? Color(hex: "1C2B2A") : Color(hex: "FFFEFA")
@@ -86,15 +67,8 @@ enum CompanionPalette {
   private static func adaptive(_ light: String, _ dark: String) -> Color {
     Color.dayflowAdaptive(light: NSColor(hex: light)!, dark: NSColor(hex: dark)!)
   }
-  private static func brand(teal: (String, String), burgundy: (String, String)) -> Color {
-    Color(nsColor: NSColor(name: nil) { appearance in
-      let pair = TealbrickPalette.current == .burgundy ? burgundy : teal
-      let dark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-      return NSColor(hex: dark ? pair.1 : pair.0)!
-    })
-  }
-  static var accent: Color { brand(teal: ("087373", "72D4CA"), burgundy: ("A94944", "E7ACA7")) }
-  static var fill: Color { brand(teal: ("034A4A", "17544F"), burgundy: ("552522", "813F3B")) }
+  static var accent: Color { adaptive("087373", "72D4CA") }
+  static var fill: Color { adaptive("034A4A", "17544F") }
   static var soft: Color { accent.opacity(0.12) }
   static var canvas: Color { adaptive("F3F1E9", "142321") }
   static var surface: Color { adaptive("FFFEFA", "1C2B2A") }

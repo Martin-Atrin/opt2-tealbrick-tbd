@@ -37,6 +37,30 @@ public final class TBDListeningRuntime: ObservableObject {
         return AnyView(TBDListeningView(context: context).environmentObject(context.env))
     }
 
+    /// Screenshots and design checks only (tbd-design-shots): the Listening UI on a scratch library, without starting
+    /// capture, hotkeys, meetings, retention, imports or downloads. Refuses unless TBD_LISTENING_ROOT points at a scratch
+    /// root, so it can never open the person's library. `tab`: a `TBDListeningTab` raw value; `transcriptID` opens one item.
+    public func previewContent(tab: String, transcriptID: String? = nil) -> AnyView {
+        guard let context = previewContext() else { return AnyView(Text("Preview needs TBD_LISTENING_ROOT")) }
+        context.env.selectedTab = TBDListeningTab(rawValue: tab) ?? .transcribe
+        context.env.selectedTranscriptionID = transcriptID
+        return AnyView(TBDListeningView(context: context).environmentObject(context.env))
+    }
+
+    /// Settings sections for screenshots, with the same guard as `previewContent`.
+    public func previewSettings(section: String) -> AnyView {
+        guard let context = previewContext() else { return AnyView(Text("Preview needs TBD_LISTENING_ROOT")) }
+        return AnyView(TBDListeningSettingsView(section: section, context: context).environmentObject(context.env))
+    }
+
+    private func previewContext() -> TBDListeningContext? {
+        guard !started, let root = ProcessInfo.processInfo.environment[TBDListeningPaths.rootEnvironmentKey], !root.isEmpty else { return nil }
+        if let context { return context }
+        let context = TBDListeningContext(runtime: self)
+        self.context = context
+        return context
+    }
+
     /// Sections: `TBDListeningSettingsSection` raw values ("capture", "engine", "ai", "dictation", "meetings", "system").
     public func settingsContent(section: String) -> AnyView {
         guard let context else { return AnyView(EmptyView()) }

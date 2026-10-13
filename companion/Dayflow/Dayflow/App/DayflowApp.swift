@@ -175,17 +175,10 @@ final class MainWindowController {
   }
 }
 
-/// Brand surface behind the main app; follows the same light/dark palette.
+/// The window ground behind the main app: the kit's paper (one design, no palettes; C145).
 private struct DayflowWindowBackground: View {
-  @Environment(\.dayflowTheme) private var theme
-  @AppStorage("tealbrickPalette") private var palette = "teal"
   var body: some View {
-    LinearGradient(
-      colors: theme.isDark
-        ? [Color(hex: "142321"), Color(hex: palette == "burgundy" ? "332423" : "153D3A")]
-        : [Color(hex: "F3F1E9"), Color(hex: palette == "burgundy" ? "EBDAD4" : "D4E7DF")],
-      startPoint: .topLeading, endPoint: .bottomTrailing
-    ).ignoresSafeArea()
+    TBDColor.paper.ignoresSafeArea()
   }
 }
 

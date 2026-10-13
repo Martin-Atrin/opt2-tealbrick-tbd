@@ -16,15 +16,13 @@ struct TBDDictationSettings: View {
                          surface: .transform, context: context) { tick += 1 }
             TBDDictationPillSettings(context: context)
             TBDSettingsRow("Undo window", help: "How long cancel waits before discarding a dictation. Undo in the pill transcribes and pastes it.") {
-                Picker("", selection: tbdBinding({ prefs.dictationUndoWindow }, { prefs.dictationUndoWindow = $0 }, refresh: { tick += 1 })) {
-                    ForEach(TBDCancelUndo.Window.allCases, id: \.self) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented).labelsHidden().frame(width: 160)
+                TBDSegmented(selection: tbdBinding({ prefs.dictationUndoWindow }, { prefs.dictationUndoWindow = $0 }, refresh: { tick += 1 }),
+                             options: TBDCancelUndo.Window.allCases.map { ($0, $0.title) })
             }
             TBDDictationBehaviorSettings(context: context)
             TBDSettingsRow("Accessibility", help: "Needed for global hotkeys and pasting into other apps.") {
                 if TBDPasteService.isTrusted && !context.hotkeyPermissionMissing {
-                    TBDChip("Allowed")
+                    TBDTag("Allowed", status: .live)
                 } else {
                     Button("Allow…") { TBDPasteService.requestTrust(); TBDPasteService.openAccessibilitySettings() }
                         .buttonStyle(TBDButtonStyle(.secondary))
@@ -71,10 +69,10 @@ struct TBDDictationHotkeyRows: View {
                 VStack(alignment: .leading, spacing: TBDTokens.Space.xs) {
                     ForEach(guide, id: \.action) { row in
                         HStack(spacing: TBDTokens.Space.sm) {
-                            TBDChip(row.key)
-                            Text(row.verb).foregroundStyle(TBDTokens.muted).frame(width: 72, alignment: .leading)
-                            Text(row.action).foregroundStyle(TBDTokens.ink)
-                            Text(row.detail).foregroundStyle(TBDTokens.muted)
+                            TBDKeyCap(row.key)
+                            Text(row.verb).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted).frame(width: 72, alignment: .leading)
+                            Text(row.action).font(TBDTokens.Typography.control).foregroundStyle(TBDColor.ink)
+                            Text(row.detail).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
                         }
                     }
                 }

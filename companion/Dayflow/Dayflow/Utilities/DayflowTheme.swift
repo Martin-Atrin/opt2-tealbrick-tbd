@@ -8,6 +8,7 @@
 //
 
 import SwiftUI
+import TBDDesign
 
 // MARK: - Appearance preference
 
@@ -667,15 +668,14 @@ extension EnvironmentValues {
 private struct DayflowThemeResolver: ViewModifier {
   @Environment(\.colorScheme) private var colorScheme
   @ObservedObject private var preview = StylePreview.shared
-  @AppStorage(TealbrickPalette.key) private var brandPalette: TealbrickPalette = .teal
 
   func body(content: Content) -> some View {
     content.environment(
       \.dayflowTheme,
       (colorScheme == .dark
         ? (preview.showAfter ? .dark : .darkBefore)
-        : (preview.showAfter ? DayflowTheme.light : DayflowTheme.lightBefore)).tealbrick(brandPalette))
-      .tint(Color(hex: brandPalette.hex))
+        : (preview.showAfter ? DayflowTheme.light : DayflowTheme.lightBefore)).tealbrick())
+      .tint(TBDColor.tealInk)
   }
 }
 

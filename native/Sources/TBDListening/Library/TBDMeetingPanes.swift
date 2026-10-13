@@ -22,15 +22,15 @@ struct TBDNotesEditor: View {
                     .padding(TBDTokens.Space.xs)
                 if text.isEmpty {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(placeholder).foregroundStyle(TBDTokens.muted)
-                        Text("Type / for Action, Decision or Timestamp.").font(.system(size: 11)).foregroundStyle(TBDTokens.muted)
+                        Text(placeholder).font(TBDTokens.Typography.body).foregroundStyle(TBDColor.fieldPlaceholder)
+                        Text("Type / for Action, Decision or Timestamp.").font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.fieldPlaceholder)
                     }
                     .padding(.horizontal, TBDTokens.Space.sm).padding(.vertical, TBDTokens.Space.sm)
                     .allowsHitTesting(false)
                 }
             }
-            .background(TBDTokens.paper, in: RoundedRectangle(cornerRadius: TBDTokens.Radius.sm))
-            .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.sm).strokeBorder(TBDTokens.border))
+            .background(TBDColor.fieldFill, in: TBDBrickShape())
+            .overlay(TBDBrickShape().strokeBorder(TBDColor.fieldEdge, lineWidth: TBDKit.hair))
             if !suggestions.isEmpty {
                 HStack(spacing: TBDTokens.Space.sm) {
                     ForEach(suggestions) { command in
@@ -44,12 +44,12 @@ struct TBDNotesEditor: View {
                 Text(footnote)
                 Spacer()
                 if words >= TBDNotesCommands.softCapWords {
-                    Text("Prompts may trim notes past ~8,000 words.").foregroundStyle(TBDTokens.alert)
+                    Text("Prompts may trim notes past ~8,000 words.").foregroundStyle(TBDColor.brickInk)
                 }
                 if let status { Text(status) }
                 Text("\(words) word\(words == 1 ? "" : "s")")
             }
-            .font(.system(size: 11)).foregroundStyle(TBDTokens.muted)
+            .font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
         }
         .animation(TBDMotion.instant, value: suggestions)
     }
@@ -68,9 +68,9 @@ struct TBDAskView: View {
         VStack(alignment: .leading, spacing: TBDTokens.Space.sm) {
             if !model.available {
                 VStack(alignment: .leading, spacing: TBDTokens.Space.xs) {
-                    Text("Turn on AI for Ask").font(TBDTokens.Typography.control).foregroundStyle(TBDTokens.ink)
+                    Text("Turn on AI for Ask").font(TBDTokens.Typography.control).foregroundStyle(TBDColor.ink)
                     Text("Assign a model to the Analysis route in Settings → Models. Questions go only to that model.")
-                        .font(.system(size: 12)).foregroundStyle(TBDTokens.muted)
+                        .font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
                 }
                 .tbdCard(padding: TBDTokens.Space.md)
             }
@@ -93,7 +93,7 @@ struct TBDAskView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: TBDTokens.Space.md) {
                         if model.lines.isEmpty {
-                            Text("Start with a quick prompt, then keep drilling down.").foregroundStyle(TBDTokens.muted)
+                            Text("Start with a quick prompt, then keep drilling down.").foregroundStyle(TBDColor.muted)
                                 .font(TBDTokens.Typography.body)
                             prompts(starters, grouped: true)
                         }
@@ -110,7 +110,7 @@ struct TBDAskView: View {
                     if let last = model.lines.last { proxy.scrollTo(last.id, anchor: .bottom) }
                 }
             }
-            if let error = model.error { Text(error).font(.system(size: 12)).foregroundStyle(TBDTokens.alert) }
+            if let error = model.error { TBDNotice(error, tone: .needsYou) }
             HStack(spacing: TBDTokens.Space.sm) {
                 TextField(placeholder, text: $model.input).onSubmit { model.send() }.tbdField()
                 if model.streaming {
@@ -150,10 +150,10 @@ struct TBDAskView: View {
             if line.streaming && line.text.isEmpty {
                 ProgressView().controlSize(.small)
             } else if line.role == .assistant {
-                Text(LocalizedStringKey(line.text)).font(TBDTokens.Typography.body).foregroundStyle(TBDTokens.ink)
-                    .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+                Text(LocalizedStringKey(line.text)).font(TBDTokens.Typography.body).foregroundStyle(TBDColor.ink)
+                    .lineSpacing(TBDKit.textLabel * (TBDKit.leadingBody - 1)).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
             } else {
-                Text(line.text).font(TBDTokens.Typography.control).foregroundStyle(TBDTokens.ink).textSelection(.enabled)
+                Text(line.text).font(TBDTokens.Typography.control).foregroundStyle(TBDColor.ink).textSelection(.enabled)
             }
             if line.role == .assistant, !line.streaming {
                 Button { TBDPasteService.copy(line.text) } label: { Label("Copy", systemImage: "doc.on.doc") }

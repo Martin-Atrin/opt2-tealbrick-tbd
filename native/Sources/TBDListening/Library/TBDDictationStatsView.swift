@@ -8,7 +8,7 @@ struct TBDDictationStatsView: View {
 
     var body: some View {
         if insights.count == 0 {
-            Text("Your stats will appear here.").foregroundStyle(TBDTokens.muted).font(TBDTokens.Typography.body)
+            Text("Your stats will appear here.").foregroundStyle(TBDColor.inkSoft).font(TBDTokens.Typography.body)
             Spacer()
         } else {
             ScrollView {
@@ -31,8 +31,8 @@ struct TBDDictationStatsView: View {
     private func tile(_ label: String, _ value: String, _ detail: String) -> some View {
         VStack(alignment: .leading, spacing: TBDTokens.Space.xs) {
             TBDLabel(label)
-            Text(value).font(TBDTokens.Typography.title).foregroundStyle(TBDTokens.ink)
-            Text(detail).font(.system(size: 12)).foregroundStyle(TBDTokens.muted)
+            Text(value).font(TBDFonts.nunito(TBDKit.textH2, TBDKit.weightHead)).foregroundStyle(TBDColor.ink)
+            Text(detail).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .tbdCard(padding: TBDTokens.Space.md)
@@ -42,17 +42,17 @@ struct TBDDictationStatsView: View {
         VStack(alignment: .leading, spacing: TBDTokens.Space.sm) {
             HStack {
                 Text(insights.currentStreak > 0 ? "\(insights.currentStreak) day streak" : "Build a streak")
-                    .font(TBDTokens.Typography.control).foregroundStyle(TBDTokens.ink)
+                    .font(TBDTokens.Typography.control).foregroundStyle(TBDColor.ink)
                 Spacer()
                 Text("Longest streak · \(insights.longestStreak) day\(insights.longestStreak == 1 ? "" : "s")")
-                    .font(.system(size: 12)).foregroundStyle(TBDTokens.muted)
+                    .font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
             }
             heatmap
             HStack(spacing: 3) {
                 Spacer()
-                Text("Less").font(.system(size: 10)).foregroundStyle(TBDTokens.muted)
+                Text("Less").font(TBDTokens.Typography.label).foregroundStyle(TBDColor.muted)
                 ForEach(0..<5) { level in cell(level) }
-                Text("More").font(.system(size: 10)).foregroundStyle(TBDTokens.muted)
+                Text("More").font(TBDTokens.Typography.label).foregroundStyle(TBDColor.muted)
             }
         }
         .tbdCard(padding: TBDTokens.Space.md)
@@ -82,8 +82,8 @@ struct TBDDictationStatsView: View {
 
     private func cell(_ level: Int) -> some View {
         let opacity: Double = [0, 0.30, 0.55, 0.78, 1.0][min(4, max(0, level))]
-        return RoundedRectangle(cornerRadius: 2)
-            .fill(level == 0 ? TBDTokens.ink.opacity(0.07) : TBDTokens.accent.opacity(opacity))
+        return RoundedRectangle(cornerRadius: TBDKit.radiusSwatch)
+            .fill(level == 0 ? TBDColor.plate : TBDColor.teal.opacity(opacity))
             .frame(width: 10, height: 10)
     }
 
@@ -92,21 +92,21 @@ struct TBDDictationStatsView: View {
         let most = max(1, insights.topApps.map(\.count).max() ?? 1)
         return VStack(alignment: .leading, spacing: TBDTokens.Space.sm) {
             HStack {
-                Text("Where you dictate").font(TBDTokens.Typography.control).foregroundStyle(TBDTokens.ink)
+                Text("Where you dictate").font(TBDTokens.Typography.control).foregroundStyle(TBDColor.ink)
                 Spacer()
-                Text("Top \(insights.topApps.count) app\(insights.topApps.count == 1 ? "" : "s")").font(.system(size: 12)).foregroundStyle(TBDTokens.muted)
+                Text("Top \(insights.topApps.count) app\(insights.topApps.count == 1 ? "" : "s")").font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
             }
             ForEach(insights.topApps, id: \.name) { app in
                 HStack(spacing: TBDTokens.Space.md) {
-                    Text(app.name).font(TBDTokens.Typography.body).frame(width: 140, alignment: .leading).lineLimit(1)
+                    Text(app.name).font(TBDTokens.Typography.body).foregroundStyle(TBDColor.ink).frame(width: 140, alignment: .leading).lineLimit(1)
                     GeometryReader { geometry in
-                        Capsule().fill(TBDTokens.accent.opacity(0.8))
+                        Capsule().fill(TBDColor.teal)
                             .frame(width: max(4, geometry.size.width * CGFloat(app.count) / CGFloat(most)), height: 6)
                             .frame(maxHeight: .infinity)
                     }
                     .frame(height: 12)
-                    Text("\(Int((Double(app.count) / Double(total) * 100).rounded()))%").font(.system(size: 12, design: .monospaced))
-                        .foregroundStyle(TBDTokens.muted).frame(width: 40, alignment: .trailing)
+                    Text("\(Int((Double(app.count) / Double(total) * 100).rounded()))%").font(TBDFonts.mono())
+                        .foregroundStyle(TBDColor.muted).frame(width: 40, alignment: .trailing)
                 }
             }
         }

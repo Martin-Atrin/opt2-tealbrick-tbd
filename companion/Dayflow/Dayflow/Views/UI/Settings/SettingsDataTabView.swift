@@ -27,7 +27,8 @@ struct SettingsDataTabView: View {
 
     return SettingsSection(
       title: String(localized: "Export your data"),
-      subtitle: String(localized: "Move your timeline into tools you already use.")
+      subtitle: String(localized: "Move your timeline into tools you already use."),
+      isFirst: true
     ) {
       VStack(alignment: .leading, spacing: 14) {
         HStack(alignment: .center, spacing: 10) {
@@ -45,8 +46,8 @@ struct SettingsDataTabView: View {
           )
 
           Image(systemName: "arrow.right")
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundColor(SettingsStyle.meta)
+            .font(TBDFonts.symbol(12))
+            .foregroundStyle(TBDColor.muted)
 
           datePill(
             label: String(localized: "To"),
@@ -77,8 +78,8 @@ struct SettingsDataTabView: View {
         Text(
           "Use Markdown exports to archive in Notion, share with teammates, or paste into ChatGPT / Claude / Gemini for deeper analysis."
         )
-        .font(.custom("Switzer", size: 12))
-        .foregroundColor(SettingsStyle.secondary)
+        .font(TBDTokens.Typography.hint)
+        .foregroundStyle(TBDColor.muted)
         .fixedSize(horizontal: false, vertical: true)
 
         HStack(spacing: 12) {
@@ -92,22 +93,16 @@ struct SettingsDataTabView: View {
           )
 
           if rangeInvalid {
-            Text("Start must be on or before end.")
-              .font(.custom("Switzer", size: 12))
-              .foregroundColor(SettingsStyle.destructive)
+            TBDTag(String(localized: "Start must be on or before end."), status: .needsYou)
           }
         }
 
         if let message = viewModel.exportStatusMessage {
-          Text(message)
-            .font(.custom("Switzer", size: 12))
-            .foregroundColor(SettingsStyle.statusGood)
+          TBDNotice(message, tone: .live)
         }
 
         if let error = viewModel.exportErrorMessage {
-          Text(error)
-            .font(.custom("Switzer", size: 12))
-            .foregroundColor(SettingsStyle.destructive)
+          TBDNotice(error, tone: .needsYou)
         }
       }
     }
@@ -152,21 +147,20 @@ struct SettingsDataTabView: View {
         }
 
         Text(dayString)
-          .font(.custom("Switzer", size: 12))
-          .foregroundColor(SettingsStyle.meta)
+          .font(TBDFonts.mono(13))
+          .foregroundStyle(TBDColor.muted)
 
         VStack(alignment: .leading, spacing: 4) {
           Text(
             "Clears existing cards and observations for that day, then runs analysis again from the original recordings."
           )
-          .font(.custom("Switzer", size: 12))
-          .foregroundColor(SettingsStyle.secondary)
+          .font(TBDTokens.Typography.hint)
+          .foregroundStyle(TBDColor.muted)
           .fixedSize(horizontal: false, vertical: true)
 
           Text("Heads up: this can consume a large number of API calls.")
-            .font(.custom("Switzer", size: 12))
-            .fontWeight(.semibold)
-            .foregroundColor(SettingsStyle.text)
+            .font(TBDTokens.Typography.label)
+            .foregroundStyle(TBDColor.ink)
         }
 
         HStack(spacing: 12) {
@@ -180,15 +174,13 @@ struct SettingsDataTabView: View {
 
           if let status = viewModel.reprocessStatusMessage {
             Text(status)
-              .font(.custom("Switzer", size: 12))
-              .foregroundColor(SettingsStyle.secondary)
+              .font(TBDTokens.Typography.hint)
+              .foregroundStyle(TBDColor.muted)
           }
         }
 
         if let error = viewModel.reprocessErrorMessage {
-          Text(error)
-            .font(.custom("Switzer", size: 12))
-            .foregroundColor(SettingsStyle.destructive)
+          TBDNotice(error, tone: .needsYou)
         }
       }
       .alert("Reprocess day?", isPresented: $viewModel.showReprocessDayConfirm) {
@@ -218,10 +210,8 @@ struct SettingsDataTabView: View {
   ) -> some View {
     VStack(alignment: .leading, spacing: 6) {
       Text(label)
-        .font(.custom("Switzer", size: 11))
-        .fontWeight(.semibold)
-        .textCase(.uppercase)
-        .foregroundColor(SettingsStyle.meta)
+        .font(TBDTokens.Typography.label)
+        .foregroundStyle(TBDColor.muted)
 
       Button {
         guard !disabled else { return }
@@ -229,19 +219,22 @@ struct SettingsDataTabView: View {
       } label: {
         HStack(spacing: 8) {
           Text(formattedTimelineDate(date))
-            .font(.custom("Switzer", size: 13))
-            .fontWeight(.semibold)
-            .foregroundColor(SettingsStyle.ink.opacity(disabled ? 0.4 : 1))
+            .font(TBDTokens.Typography.control)
+
+          Spacer(minLength: 0)
 
           Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-            .font(.system(size: 10, weight: .semibold))
-            .foregroundColor(SettingsStyle.ink.opacity(disabled ? 0.4 : 0.65))
+            .font(TBDFonts.symbol(10, .heavy))
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .frame(minWidth: 170, alignment: .leading)
-        .background(Color.black.opacity(disabled ? 0.02 : 0.05))
-        .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.base).strokeBorder(SettingsStyle.divider, lineWidth: 1))
+        .foregroundStyle(disabled ? TBDColor.disabledOn : TBDColor.fieldOn)
+        .padding(.horizontal, TBDTokens.Control.paddingX)
+        .frame(minWidth: 170, minHeight: TBDTokens.Control.minHeight, alignment: .leading)
+        .background(disabled ? TBDColor.disabledFill : TBDColor.fieldFill, in: TBDBrickShape())
+        .overlay(
+          TBDBrickShape().strokeBorder(
+            disabled ? TBDColor.line : TBDColor.fieldEdge, lineWidth: TBDKit.hair)
+        )
+        .contentShape(TBDBrickShape())
       }
       .buttonStyle(.plain)
       .disabled(disabled)
@@ -253,7 +246,7 @@ struct SettingsDataTabView: View {
   // MARK: - Inline calendar
   //
   // Shown as an expanded panel underneath a date pill. Keeps its own
-  // surface (white fill + hairline black stroke) because it's an input
+  // floating surface (tile + hairline ring) because it's an input
   // widget, not a section container — like any dropdown menu.
 
   private func inlineCalendar(
@@ -305,7 +298,7 @@ private struct DayflowCalendarGrid: View {
     }
     .padding(14)
     .frame(maxWidth: 290, alignment: .leading)
-    // Brick: a dropdown-style floating panel gets a hard offset shadow.
+    // A dropdown-style floating panel: tile, brick, hair ring and the one float shadow.
     .tbdFloating()
     .onAppear {
       displayedMonth =
@@ -318,9 +311,8 @@ private struct DayflowCalendarGrid: View {
   private var monthHeader: some View {
     HStack {
       Text(monthYearString)
-        .font(.custom("Switzer", size: 14))
-        .fontWeight(.semibold)
-        .foregroundColor(SettingsStyle.text)
+        .font(TBDTokens.Typography.control)
+        .foregroundStyle(TBDColor.ink)
 
       Spacer()
 
@@ -329,24 +321,18 @@ private struct DayflowCalendarGrid: View {
           changeMonth(by: -1)
         } label: {
           Image(systemName: "chevron.left")
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundColor(SettingsStyle.ink)
-            .frame(width: 24, height: 24)
-            .background(SettingsStyle.subtleFill)
+            .font(TBDFonts.symbol(12))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TBDButtonStyle(.icon))
         .pointingHandCursor()
 
         Button {
           changeMonth(by: 1)
         } label: {
           Image(systemName: "chevron.right")
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundColor(SettingsStyle.ink)
-            .frame(width: 24, height: 24)
-            .background(SettingsStyle.subtleFill)
+            .font(TBDFonts.symbol(12))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TBDButtonStyle(.icon))
         .pointingHandCursor()
       }
     }
@@ -360,9 +346,8 @@ private struct DayflowCalendarGrid: View {
     return LazyVGrid(columns: columns, spacing: 2) {
       ForEach(ordered.indices, id: \.self) { index in
         Text(ordered[index])
-          .font(.custom("Switzer", size: 11))
-          .fontWeight(.medium)
-          .foregroundColor(SettingsStyle.meta)
+          .font(TBDTokens.Typography.label)
+          .foregroundStyle(TBDColor.muted)
           .frame(maxWidth: .infinity)
           .frame(height: 22)
       }
@@ -397,19 +382,22 @@ private struct DayflowCalendarGrid: View {
           }
         } label: {
           Text("\(day)")
-            .font(.custom("Switzer", size: 13))
-            .fontWeight(isSelected ? .bold : (isToday ? .semibold : .regular))
-            .foregroundColor(
-              isSelected ? .white : (isToday ? SettingsStyle.ink : SettingsStyle.text)
+            .font(
+              isSelected || isToday
+                ? TBDFonts.nunito(TBDKit.textControl, TBDKit.weightLabel)
+                : TBDFonts.nunito(TBDKit.textControl, TBDKit.weightBody)
+            )
+            .foregroundStyle(
+              isSelected ? TBDColor.primaryOn : (isToday ? TBDColor.tealInk : TBDColor.ink)
             )
             .frame(maxWidth: .infinity)
             .frame(height: 30)
             .background {
               if isSelected {
-                Circle().fill(SettingsStyle.primaryButtonFill).frame(width: 28, height: 28)
+                TBDBrickShape().fill(TBDColor.primaryFill).frame(width: 28, height: 28)
               } else if isToday {
-                Circle()
-                  .stroke(SettingsStyle.ink.opacity(0.35), lineWidth: 1.2)
+                TBDBrickShape()
+                  .strokeBorder(TBDColor.tealInk, lineWidth: TBDKit.hair)
                   .frame(width: 28, height: 28)
               }
             }

@@ -110,59 +110,96 @@ struct SettingsAccountSection: View {
   @ObservedObject private var account = TBDAccountCoordinator.shared
   @State private var portalName = ""
   @State private var portalURL = ""
+
+  private var statusState: SettingsStatusDot.State {
+    if account.signedIn { return account.status == "Signed in" ? .good : .warn }
+    return account.error.isEmpty ? .idle : .warn
+  }
+
   var body: some View {
-    VStack(alignment: .leading, spacing: 16) {
-      Text("Account & Workspace").font(.title2)
-      Text(account.status)
-      if !account.email.isEmpty { Text(account.email).textSelection(.enabled) }
-      Picker("Portal", selection: Binding(get: { account.activeProfile }, set: { id in
-        Task { await account.perform("activateControlPlane", args: [id]) }
-      })) {
-        ForEach(account.profiles) { Text($0.name).tag($0.id) }
-      }.disabled(account.signedIn || account.busy)
-      if let profile = account.profiles.first(where: { $0.id == account.activeProfile }) {
-        Text(profile.issuer).font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
-      }
-      if account.signedIn {
-        Picker("Workspace", selection: Binding(get: { account.activeWorkspace }, set: { id in
-          guard !id.isEmpty else { return }
-          Task { await account.perform("selectPortalWorkspace", args: [id]) }
-        })) {
-          Text("Select workspace").tag("")
-          ForEach(account.workspaces) { Text($0.name).tag($0.id) }
-        }.disabled(account.busy)
-        Button("Sign out") { Task { await account.perform("signOut") } }
-          .buttonStyle(TBDButtonStyle(.secondary))
-          .disabled(account.busy)
-        Text("Sign out before changing Portal.").font(.caption).foregroundStyle(.secondary)
-      } else if account.busy {
-        if !account.code.isEmpty {
-          Text(account.code).font(.title.monospaced()).textSelection(.enabled)
-          Button("Cancel sign-in") { Task { await account.cancel() } }
-            .buttonStyle(TBDButtonStyle(.secondary))
-        } else { ProgressView() }
-      } else {
-        Button("Sign in") { Task { await account.signIn() } }
-          .buttonStyle(TBDButtonStyle(.primary))
-        DisclosureGroup("Self-hosted Portal") {
-          VStack(alignment: .leading, spacing: 10) {
-            TextField("Name", text: $portalName).tbdField()
-            TextField("https://portal.example.com", text: $portalURL).tbdField()
-            Button("Add Portal") {
-              Task { await account.perform("addControlPlane", args: [["name": portalName, "issuer": portalURL]]) }
-            }
-            .buttonStyle(TBDButtonStyle(.secondary))
-            .disabled(portalName.trimmingCharacters(in: .whitespaces).isEmpty || portalURL.isEmpty)
-          }.padding(.top, 8)
+    SettingsSection(title: String(localized: "Account & Workspace"), isFirst: true) {
+      VStack(alignment: .leading, spacing: TBDKit.s4) {
+        SettingsStatusDot(state: statusState, label: account.status)
+        if !account.email.isEmpty {
+          Text(account.email)
+            .font(TBDTokens.Typography.body)
+            .foregroundStyle(TBDColor.ink)
+            .textSelection(.enabled)
         }
+        SettingsRow(label: String(localized: "Portal"), showsDivider: false) {
+          Picker("Portal", selection: Binding(get: { account.activeProfile }, set: { id in
+            Task { await account.perform("activateControlPlane", args: [id]) }
+          })) {
+            ForEach(account.profiles) { Text($0.name).tag($0.id) }
+          }
+          .labelsHidden()
+          .frame(maxWidth: 260)
+          .disabled(account.signedIn || account.busy)
+        }
+        if let profile = account.profiles.first(where: { $0.id == account.activeProfile }) {
+          Text(profile.issuer)
+            .font(TBDFonts.mono(TBDKit.textHint))
+            .foregroundStyle(TBDColor.muted)
+            .textSelection(.enabled)
+        }
+        if account.signedIn {
+          SettingsRow(label: String(localized: "Workspace"), showsDivider: false) {
+            Picker("Workspace", selection: Binding(get: { account.activeWorkspace }, set: { id in
+              guard !id.isEmpty else { return }
+              Task { await account.perform("selectPortalWorkspace", args: [id]) }
+            })) {
+              Text("Select workspace").tag("")
+              ForEach(account.workspaces) { Text($0.name).tag($0.id) }
+            }
+            .labelsHidden()
+            .frame(maxWidth: 260)
+            .disabled(account.busy)
+          }
+          Button("Sign out") { Task { await account.perform("signOut") } }
+            .buttonStyle(TBDButtonStyle(.secondary))
+            .disabled(account.busy)
+          Text("Sign out before changing Portal.")
+            .font(TBDTokens.Typography.hint)
+            .foregroundStyle(TBDColor.muted)
+        } else if account.busy {
+          if !account.code.isEmpty {
+            Text(account.code)
+              .font(TBDFonts.mono(TBDKit.textH2, TBDKit.weightLabel))
+              .foregroundStyle(TBDColor.ink)
+              .textSelection(.enabled)
+            Button("Cancel sign-in") { Task { await account.cancel() } }
+              .buttonStyle(TBDButtonStyle(.secondary))
+          } else { ProgressView() }
+        } else {
+          Button("Sign in") { Task { await account.signIn() } }
+            .buttonStyle(TBDButtonStyle(.primary))
+          DisclosureGroup {
+            VStack(alignment: .leading, spacing: 10) {
+              TextField("Name", text: $portalName).tbdField()
+              TextField("https://portal.example.com", text: $portalURL).tbdField()
+              Button("Add Portal") {
+                Task { await account.perform("addControlPlane", args: [["name": portalName, "issuer": portalURL]]) }
+              }
+              .buttonStyle(TBDButtonStyle(.secondary))
+              .disabled(portalName.trimmingCharacters(in: .whitespaces).isEmpty || portalURL.isEmpty)
+            }.padding(.top, 8)
+          } label: {
+            Text("Self-hosted Portal")
+              .font(TBDTokens.Typography.control)
+              .foregroundStyle(TBDColor.ink)
+          }
+        }
+        Button("Refresh status") { Task { await account.refresh(workspace: true) } }
+          .buttonStyle(TBDButtonStyle(.quiet))
+          .disabled(account.busy)
+        if !account.error.isEmpty {
+          TBDNotice(account.error, tone: .needsYou)
+        }
+        Rectangle().fill(TBDColor.line).frame(height: TBDKit.hair)
+        Text("Portal sign-in enables Chat and remote agents. Companion and Listening work without an account. macOS permissions are managed separately in Access.")
+          .font(TBDTokens.Typography.hint)
+          .foregroundStyle(TBDColor.muted)
       }
-      Button("Refresh status") { Task { await account.refresh(workspace: true) } }
-        .buttonStyle(TBDButtonStyle(.quiet))
-        .disabled(account.busy)
-      if !account.error.isEmpty { Text(account.error).foregroundStyle(.red).textSelection(.enabled) }
-      Divider()
-      Text("Portal sign-in enables Chat and remote agents. Companion and Listening work without an account. macOS permissions are managed separately in Access.")
-        .font(.callout).foregroundStyle(.secondary)
     }
     .task {
       await account.refresh(workspace: true)

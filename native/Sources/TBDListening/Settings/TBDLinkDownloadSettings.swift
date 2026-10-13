@@ -13,10 +13,9 @@ struct TBDLinkDownloadSettings: View {
     var body: some View {
         VStack(spacing: 0) {
             TBDSettingsRow("Video download audio quality", help: quality.detail) {
-                Picker("", selection: Binding(get: { quality }, set: { quality = $0; preferences.youtubeAudioQuality = $0 })) {
-                    ForEach(TBDYtDlpAudioQuality.allCases, id: \.self) { Text($0.displayTitle).tag($0) }
-                }
-                .labelsHidden().frame(width: 260)
+                TBDSelect(selection: Binding(get: { quality }, set: { quality = $0; preferences.youtubeAudioQuality = $0 }),
+                          options: TBDYtDlpAudioQuality.allCases.map { ($0, $0.displayTitle) })
+                    .frame(width: 260)
             }
             TBDSettingsRow("yt-dlp", help: status) {
                 Button(updating ? "Updating…" : "Update yt-dlp") { update() }

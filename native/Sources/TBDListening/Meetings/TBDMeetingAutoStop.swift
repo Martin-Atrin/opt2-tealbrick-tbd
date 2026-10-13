@@ -149,26 +149,28 @@ struct TBDAutoStopToastView: View {
     var body: some View {
         HStack(spacing: TBDTokens.Space.md) {
             ZStack {
-                Circle().stroke(.white.opacity(0.2), lineWidth: 3)
+                Circle().stroke(TBDColor.overlayOn.opacity(0.2), lineWidth: 3)
                 Circle().trim(from: 0, to: model.progress)
-                    .stroke(.white, style: StrokeStyle(lineWidth: 3, lineCap: .round)).rotationEffect(.degrees(-90))
-                Image(systemName: "stop.fill").font(.system(size: 10)).foregroundStyle(.white)
+                    .stroke(TBDColor.brick, style: StrokeStyle(lineWidth: 3, lineCap: .round)).rotationEffect(.degrees(-90))
+                Image(systemName: "stop.fill").font(TBDFonts.symbol(10, TBDKit.weightNav)).foregroundStyle(TBDColor.overlayOn)
             }
             .frame(width: 36, height: 36)
             VStack(alignment: .leading, spacing: 2) {
-                Text(model.title).font(TBDTokens.Typography.control).foregroundStyle(.white).lineLimit(1)
-                Text("Stopping soon").font(.system(size: 11)).foregroundStyle(.white.opacity(0.75))
+                Text(model.title).font(TBDTokens.Typography.control).foregroundStyle(TBDColor.overlayOn).lineLimit(1)
+                Text("Stopping soon").font(TBDTokens.Typography.label).foregroundStyle(TBDColor.overlayOn.opacity(0.75))
             }
             Spacer(minLength: 0)
             Button("Keep recording") { model.keepRecording() }
-                .buttonStyle(.plain).font(TBDTokens.Typography.control).foregroundStyle(.white)
-                .padding(.horizontal, 10).padding(.vertical, 4).background(.white.opacity(0.18), in: Capsule())
+                .buttonStyle(.plain).font(TBDTokens.Typography.control).foregroundStyle(TBDColor.overlayFill)
+                .padding(.horizontal, TBDKit.s3).frame(minHeight: 36).background(TBDColor.overlayOn, in: TBDBrickShape())
+                .contentShape(TBDBrickShape())
                 .accessibilityLabel("Keep recording")
         }
         .padding(.horizontal, TBDTokens.Space.lg)
         .frame(width: 340, height: 64)
-        .background(TBDDesign.recordingSurface, in: RoundedRectangle(cornerRadius: TBDTokens.Radius.sm + 10, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.sm + 10, style: .continuous).strokeBorder(.white.opacity(0.12)))
+        // Fixed dark ground in both appearances (floats over arbitrary desktop content); the panel's window shadow is the float shadow.
+        .background(TBDColor.overlayFill, in: TBDBrickShape())
+        .overlay(TBDBrickShape().strokeBorder(TBDColor.overlayOn.opacity(0.14), lineWidth: TBDKit.hair))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

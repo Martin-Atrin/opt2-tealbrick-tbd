@@ -20,15 +20,11 @@ struct SettingsProvidersTabView: View {
       }
 
       if let status = viewModel.upgradeStatusMessage {
-        Text(status)
-          .font(.custom("Switzer", size: 13))
-          .foregroundColor(SettingsStyle.statusGood)
+        TBDNotice(status, tone: .live)
       }
 
       if let error = viewModel.providerRoutingErrorMessage {
-        Text(error)
-          .font(.custom("Switzer", size: 13))
-          .foregroundColor(.red.opacity(0.8))
+        TBDNotice(error, tone: .needsYou)
       }
 
       currentConfigurationSection
@@ -51,7 +47,8 @@ struct SettingsProvidersTabView: View {
   private var currentConfigurationSection: some View {
     SettingsSection(
       title: String(localized: "Current configuration"),
-      subtitle: String(localized: "Active provider and runtime details.")
+      subtitle: String(localized: "Active provider and runtime details."),
+      isFirst: true
     ) {
       VStack(alignment: .leading, spacing: 0) {
         summaryRows
@@ -164,9 +161,8 @@ struct SettingsProvidersTabView: View {
     ) {
       VStack(alignment: .leading, spacing: 14) {
         Text(viewModel.connectionHealthLabel)
-          .font(.custom("Switzer", size: 13))
-          .fontWeight(.semibold)
-          .foregroundColor(SettingsStyle.text)
+          .font(TBDTokens.Typography.control)
+          .foregroundStyle(TBDColor.ink)
 
         switch viewModel.currentProvider {
         case .gemini:
@@ -200,8 +196,8 @@ struct SettingsProvidersTabView: View {
             Text(
               "The setup test sends a small image to verify multimodal support and may incur a provider charge."
             )
-            .font(.custom("Switzer", size: 12))
-            .foregroundColor(SettingsStyle.secondary)
+            .font(TBDTokens.Typography.hint)
+            .foregroundStyle(TBDColor.muted)
             .fixedSize(horizontal: false, vertical: true)
             SettingsSecondaryButton(title: String(localized: "Test connection")) {
               viewModel.editProviderConfiguration(.openAICompatible)
@@ -219,21 +215,18 @@ struct SettingsProvidersTabView: View {
       title: String(localized: "Failover routing"),
       subtitle: String(localized: "Choose primary and secondary providers.")
     ) {
-      VStack(alignment: .leading, spacing: 0) {
+      VStack(alignment: .leading, spacing: TBDKit.s3) {
         let providers = viewModel.routingProviders
-        ForEach(Array(providers.enumerated()), id: \.element.id) { index, provider in
-          routingRow(
-            provider: provider,
-            showsDivider: index < providers.count - 1
-          )
+        ForEach(providers, id: \.id) { provider in
+          routingRow(provider: provider)
         }
       }
     }
   }
 
+  /// A provider is an object, so it is a card.
   private func routingRow(
-    provider: CompactProviderInfo,
-    showsDivider: Bool
+    provider: CompactProviderInfo
   ) -> some View {
     let isConfigured = viewModel.isProviderConfigured(provider.id)
     let isChecking = viewModel.isProviderReadinessChecking(provider.id)
@@ -246,9 +239,8 @@ struct SettingsProvidersTabView: View {
     return VStack(alignment: .leading, spacing: 10) {
       HStack(alignment: .center, spacing: 10) {
         Text(provider.providerTableName)
-          .font(.custom("Switzer", size: 14))
-          .fontWeight(.semibold)
-          .foregroundColor(SettingsStyle.text)
+          .font(TBDTokens.Typography.title)
+          .foregroundStyle(TBDColor.ink)
 
         Spacer()
 
@@ -272,8 +264,8 @@ struct SettingsProvidersTabView: View {
       }
 
       Text(provider.summary)
-        .font(.custom("Switzer", size: 12))
-        .foregroundColor(SettingsStyle.secondary)
+        .font(TBDTokens.Typography.hint)
+        .foregroundStyle(TBDColor.muted)
         .fixedSize(horizontal: false, vertical: true)
 
       HStack(spacing: 8) {
@@ -310,12 +302,8 @@ struct SettingsProvidersTabView: View {
 
       }
     }
-    .padding(.vertical, 14)
-    .overlay(alignment: .bottom) {
-      if showsDivider {
-        Rectangle().fill(SettingsStyle.divider).frame(height: 1)
-      }
-    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .tbdCard()
   }
 
   // MARK: - Gemini model preference
@@ -326,26 +314,25 @@ struct SettingsProvidersTabView: View {
       subtitle: String(localized: "Choose which Gemini model Tealbrick should prioritize.")
     ) {
       VStack(alignment: .leading, spacing: 14) {
-        Picker("Gemini model", selection: $viewModel.selectedGeminiModel) {
-          ForEach(GeminiModel.allCases, id: \.self) { model in
-            Text(model.displayName).tag(model)
-          }
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
+        TBDSegmented(
+          selection: $viewModel.selectedGeminiModel,
+          options: GeminiModel.allCases.map { ($0, $0.displayName) }
+        )
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Text("Gemini model"))
         .onChange(of: viewModel.selectedGeminiModel) { _, newValue in
           viewModel.persistGeminiModelSelection(newValue, source: "settings")
         }
 
         Text(GeminiModelPreference(primary: viewModel.selectedGeminiModel).fallbackSummary)
-          .font(.custom("Switzer", size: 12))
-          .foregroundColor(SettingsStyle.secondary)
+          .font(TBDTokens.Typography.hint)
+          .foregroundStyle(TBDColor.muted)
 
         Text(
           "Tealbrick automatically downgrades if your chosen model is rate limited or unavailable."
         )
-        .font(.custom("Switzer", size: 11))
-        .foregroundColor(SettingsStyle.meta)
+        .font(TBDTokens.Typography.hint)
+        .foregroundStyle(TBDColor.muted)
       }
     }
   }
@@ -506,18 +493,17 @@ struct SettingsProvidersTabView: View {
     SettingsSection(title: title, subtitle: subtitle) {
       VStack(alignment: .leading, spacing: 18) {
         if showsAgentProviderPicker {
-          Picker("Provider", selection: $viewModel.selectedAgentPromptProvider) {
-            Text("ChatGPT").tag(LLMProviderID.chatGPT)
-            Text("Claude").tag(LLMProviderID.claude)
-          }
-          .pickerStyle(.segmented)
-          .labelsHidden()
-          .frame(maxWidth: 320)
+          TBDSegmented(
+            selection: $viewModel.selectedAgentPromptProvider,
+            options: [(LLMProviderID.chatGPT, "ChatGPT"), (LLMProviderID.claude, "Claude")]
+          )
+          .accessibilityElement(children: .contain)
+          .accessibilityLabel(Text("Provider"))
         }
 
         Text(intro)
-          .font(.custom("Switzer", size: 12))
-          .foregroundColor(SettingsStyle.secondary)
+          .font(TBDTokens.Typography.hint)
+          .foregroundStyle(TBDColor.muted)
           .fixedSize(horizontal: false, vertical: true)
 
         ForEach(sections.indices, id: \.self) { index in
@@ -536,31 +522,29 @@ struct SettingsProvidersTabView: View {
     }
   }
 
-  /// A prompt-customization block: toggle + text-editor pair. Keeps its
-  /// own subtle container because the text editor needs input-affordance
-  /// against the paper background.
+  /// A prompt-customization block: toggle + text-editor pair. The editor is
+  /// a field brick (tile, line-strong ring) so it reads as an input.
   private func promptEditorBlock(config: PromptEditorConfig) -> some View {
     VStack(alignment: .leading, spacing: 12) {
       Toggle(isOn: config.isEnabled) {
         VStack(alignment: .leading, spacing: 3) {
           Text(config.heading)
-            .font(.custom("Switzer", size: 14))
-            .fontWeight(.semibold)
-            .foregroundColor(SettingsStyle.text)
+            .font(TBDTokens.Typography.control)
+            .foregroundStyle(TBDColor.ink)
           Text(config.description)
-            .font(.custom("Switzer", size: 12))
-            .foregroundColor(SettingsStyle.secondary)
+            .font(TBDTokens.Typography.hint)
+            .foregroundStyle(TBDColor.muted)
             .fixedSize(horizontal: false, vertical: true)
         }
       }
-      .toggleStyle(SwitchToggleStyle(tint: SettingsStyle.ink))
+      .toggleStyle(TBDSwitchStyle())
       .pointingHandCursor()
 
       ZStack(alignment: .topLeading) {
         if config.text.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
           Text(config.defaultText)
-            .font(.custom("Switzer", size: 12))
-            .foregroundColor(SettingsStyle.secondary)
+            .font(TBDTokens.Typography.hint)
+            .foregroundStyle(TBDColor.muted)
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .fixedSize(horizontal: false, vertical: true)
@@ -568,9 +552,9 @@ struct SettingsProvidersTabView: View {
         }
 
         TextEditor(text: config.text)
-          .font(.custom("Switzer", size: 12))
-          .foregroundColor(
-            config.isEnabled.wrappedValue ? SettingsStyle.text : SettingsStyle.secondary
+          .font(TBDTokens.Typography.hint)
+          .foregroundStyle(
+            config.isEnabled.wrappedValue ? TBDColor.ink : TBDColor.muted
           )
           .scrollContentBackground(.hidden)
           .disabled(!config.isEnabled.wrappedValue)
@@ -578,16 +562,16 @@ struct SettingsProvidersTabView: View {
           .padding(.vertical, 8)
           .frame(minHeight: config.isEnabled.wrappedValue ? 140 : 120)
       }
-      .background(SettingsStyle.editorFill)
-      .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.base).strokeBorder(SettingsStyle.editorBorder, lineWidth: 1))
+      .background(SettingsStyle.editorFill, in: TBDBrickShape())
+      .overlay(TBDBrickShape().strokeBorder(SettingsStyle.editorBorder, lineWidth: TBDKit.hair))
     }
   }
 }
 
-// MARK: - Upgrade banner (kept as an exception — it's a promotional unit)
+// MARK: - Upgrade banner
 //
-// This is the one dark surface on the settings page. Semantically it's
-// advertising, not configuration, so it gets to play by different rules.
+// Semantically this is a promotion, not configuration, so it is the one
+// tinted panel on the page (teal wash). Its two actions are the kit buttons.
 
 private struct LocalModelUpgradeBanner: View {
   let preset: LocalModelPreset
@@ -598,17 +582,16 @@ private struct LocalModelUpgradeBanner: View {
     VStack(alignment: .leading, spacing: 14) {
       HStack(spacing: 10) {
         Image(systemName: "sparkles")
-          .foregroundStyle(Color.white)
+          .foregroundStyle(TBDColor.primaryOn)
           .padding(8)
-          .background(Color(red: 0.12, green: 0.09, blue: 0.02))
+          .background(TBDColor.primaryFill, in: TBDBrickShape())
         VStack(alignment: .leading, spacing: 4) {
           Text("Upgrade to \(preset.displayName)")
-            .font(.custom("Switzer", size: 16))
-            .fontWeight(.semibold)
-            .foregroundColor(.white)
+            .font(TBDTokens.Typography.title)
+            .foregroundStyle(TBDColor.ink)
           Text("Upgrade to Qwen3VL for a big improvement in quality.")
-            .font(.custom("Switzer", size: 13))
-            .foregroundColor(.white.opacity(0.8))
+            .font(TBDTokens.Typography.hint)
+            .foregroundStyle(TBDColor.inkSoft)
         }
         Spacer()
       }
@@ -617,12 +600,12 @@ private struct LocalModelUpgradeBanner: View {
         ForEach(preset.highlightBullets, id: \.self) { bullet in
           HStack(alignment: .top, spacing: 8) {
             Image(systemName: "checkmark.circle.fill")
-              .font(.system(size: 12))
-              .foregroundColor(Color(red: 0.76, green: 1, blue: 0.74))
+              .font(TBDFonts.symbol(12))
+              .foregroundStyle(TBDColor.tealInk)
               .padding(.top, 2)
             Text(bullet)
-              .font(.custom("Switzer", size: 13))
-              .foregroundColor(.white.opacity(0.85))
+              .font(TBDTokens.Typography.hint)
+              .foregroundStyle(TBDColor.inkSoft)
           }
         }
       }
@@ -630,35 +613,23 @@ private struct LocalModelUpgradeBanner: View {
       HStack(spacing: 12) {
         Button(action: onKeepLegacy) {
           Text("Keep Qwen2.5")
-            .font(.custom("Switzer", size: 13))
-            .fontWeight(.semibold)
-            .foregroundColor(.white)
-            .padding(.horizontal, 18)
-            .padding(.vertical, 9)
-            .background(Color.white.opacity(0.12))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TBDButtonStyle(.secondary))
         .pointingHandCursor()
 
         Button(action: onUpgrade) {
           HStack(spacing: 6) {
             Text("Upgrade now")
-              .font(.custom("Switzer", size: 13))
-              .fontWeight(.semibold)
             Image(systemName: "arrow.right")
-              .font(.system(size: 12, weight: .semibold))
+              .font(TBDFonts.symbol(12))
           }
-          .foregroundColor(.black)
-          .padding(.horizontal, 18)
-          .padding(.vertical, 9)
-          .background(Color.white)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TBDButtonStyle(.primary))
         .pointingHandCursor()
       }
     }
-    .padding(20)
-    .background(Color(red: 0.16, green: 0.11, blue: 0))
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .tbdPanelTint(padding: TBDKit.s5)
   }
 }
 
@@ -711,21 +682,20 @@ struct LocalModelUpgradeSheet: View {
         HStack {
           VStack(alignment: .leading, spacing: 6) {
             Text("Upgrade to \(preset.displayName)")
-              .font(.custom("Switzer", size: 22))
-              .fontWeight(.semibold)
+              .font(TBDTokens.Typography.title)
+              .foregroundStyle(TBDColor.ink)
             Text(
               "Follow the steps below, run a quick test, and Tealbrick will switch you over automatically."
             )
-            .font(.custom("Switzer", size: 13))
-            .foregroundColor(SettingsStyle.secondary)
+            .font(TBDTokens.Typography.hint)
+            .foregroundStyle(TBDColor.muted)
           }
           Spacer()
           Button(action: onCancel) {
-            Image(systemName: "xmark.circle.fill")
-              .font(.system(size: 20))
-              .foregroundColor(SettingsStyle.meta)
+            Image(systemName: "xmark")
+              .font(TBDFonts.symbol(14))
           }
-          .buttonStyle(.plain)
+          .buttonStyle(TBDButtonStyle(.icon))
           .pointingHandCursor()
         }
 
@@ -733,26 +703,28 @@ struct LocalModelUpgradeSheet: View {
           ForEach(preset.highlightBullets, id: \.self) { bullet in
             HStack(spacing: 8) {
               Image(systemName: "sparkle")
-                .font(.system(size: 12))
-                .foregroundColor(SettingsStyle.ink)
+                .font(TBDFonts.symbol(12))
+                .foregroundStyle(TBDColor.tealInk)
               Text(bullet)
-                .font(.custom("Switzer", size: 13))
-                .foregroundColor(SettingsStyle.text)
+                .font(TBDTokens.Typography.body)
+                .foregroundStyle(TBDColor.ink)
             }
           }
         }
 
         VStack(alignment: .leading, spacing: 12) {
           Text("Which local runtime are you using?")
-            .font(.custom("Switzer", size: 14))
-            .foregroundColor(SettingsStyle.secondary)
-          Picker("Engine", selection: $selectedEngine) {
-            Text("Ollama").tag(LocalEngine.ollama)
-            Text("LM Studio").tag(LocalEngine.lmstudio)
-            Text("Custom").tag(LocalEngine.custom)
-          }
-          .pickerStyle(.segmented)
-          .frame(maxWidth: 420)
+            .font(TBDTokens.Typography.hint)
+            .foregroundStyle(TBDColor.muted)
+          TBDSegmented(
+            selection: $selectedEngine,
+            options: [
+              (LocalEngine.ollama, "Ollama"), (LocalEngine.lmstudio, "LM Studio"),
+              (LocalEngine.custom, "Custom"),
+            ]
+          )
+          .accessibilityElement(children: .contain)
+          .accessibilityLabel(Text("Engine"))
         }
 
         instructionView(for: selectedEngine)
@@ -778,8 +750,8 @@ struct LocalModelUpgradeSheet: View {
         Text(
           "Once the test succeeds, Tealbrick updates your settings to \(preset.displayName) automatically."
         )
-        .font(.custom("Switzer", size: 12))
-        .foregroundColor(SettingsStyle.secondary)
+        .font(TBDTokens.Typography.hint)
+        .foregroundStyle(TBDColor.muted)
 
         HStack {
           Spacer()
@@ -790,6 +762,7 @@ struct LocalModelUpgradeSheet: View {
       .padding(32)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    .background(TBDColor.tile)
     .onChange(of: selectedEngine) { _, newEngine in
       candidateModelId = preset.modelId(for: newEngine == .custom ? .ollama : newEngine)
       if newEngine != .custom {
@@ -804,21 +777,21 @@ struct LocalModelUpgradeSheet: View {
     let instruction = preset.instructions(for: engine == .custom ? .ollama : engine)
     VStack(alignment: .leading, spacing: 12) {
       Text(instruction.title)
-        .font(.custom("Switzer", size: 16))
-        .fontWeight(.semibold)
+        .font(TBDFonts.nunito(TBDKit.textLabel, TBDKit.weightLabel))
+        .foregroundStyle(TBDColor.ink)
       Text(instruction.subtitle)
-        .font(.custom("Switzer", size: 13))
-        .foregroundColor(SettingsStyle.secondary)
+        .font(TBDTokens.Typography.hint)
+        .foregroundStyle(TBDColor.muted)
       VStack(alignment: .leading, spacing: 6) {
         ForEach(Array(instruction.bullets.enumerated()), id: \.offset) { index, bullet in
           HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text("\(index + 1).")
-              .font(.custom("Switzer", size: 13))
-              .foregroundColor(SettingsStyle.secondary)
-              .frame(width: 18, alignment: .leading)
+              .font(TBDTokens.Typography.hint)
+              .foregroundStyle(TBDColor.muted)
+              .frame(width: 22, alignment: .leading)
             Text(bullet)
-              .font(.custom("Switzer", size: 13))
-              .foregroundColor(SettingsStyle.text)
+              .font(TBDTokens.Typography.hint)
+              .foregroundStyle(TBDColor.ink)
           }
         }
       }
@@ -846,12 +819,11 @@ struct LocalModelUpgradeSheet: View {
 
       if let note = instruction.note {
         Text(note)
-          .font(.custom("Switzer", size: 12))
-          .foregroundColor(SettingsStyle.secondary)
+          .font(TBDTokens.Typography.hint)
+          .foregroundStyle(TBDColor.muted)
       }
     }
-    .padding(20)
-    .background(Color.white)
-    .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.base).strokeBorder(Color.black.opacity(0.1), lineWidth: 1))
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .tbdCard()
   }
 }

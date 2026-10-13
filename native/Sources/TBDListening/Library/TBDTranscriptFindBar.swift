@@ -16,10 +16,9 @@ struct TBDTranscriptFindBar: View {
 
     var body: some View {
         HStack(spacing: TBDTokens.Space.sm) {
-            Image(systemName: "magnifyingglass").font(.system(size: 12, weight: .medium)).foregroundStyle(TBDTokens.muted)
+            Image(systemName: "magnifyingglass").font(TBDFonts.symbol(12, TBDKit.weightNav)).foregroundStyle(TBDColor.muted)
                 .accessibilityHidden(true)
             TextField("Find in transcript", text: $query)
-                .textFieldStyle(.plain).font(TBDTokens.Typography.body)
                 .focused($isFocused)
                 .frame(minWidth: 130, maxWidth: 200)
                 .onKeyPress(.return, phases: .down) { press in
@@ -32,23 +31,20 @@ struct TBDTranscriptFindBar: View {
                     if !query.isEmpty { query = "" } else { onClose() }
                     return .handled
                 }
+                .tbdField(focused: isFocused)
             counter
-            Divider().frame(height: 16)
+            Rectangle().fill(TBDColor.line).frame(width: TBDKit.hair, height: 16)
             navButton("chevron.up", label: "Previous match", help: "Previous match (⇧⌘G)", action: onPrev)
             navButton("chevron.down", label: "Next match", help: "Next match (⌘G)", action: onNext)
             Button(action: onClose) {
-                Image(systemName: "xmark.circle.fill").font(.system(size: 12)).foregroundStyle(TBDTokens.muted)
+                Image(systemName: "xmark.circle.fill").font(TBDFonts.symbol(12, TBDKit.weightBody))
             }
-            .buttonStyle(.plain).help("Close find (Esc)").accessibilityLabel("Close find")
+            .buttonStyle(TBDButtonStyle(.icon)).help("Close find (Esc)").accessibilityLabel("Close find")
         }
-        .padding(.horizontal, TBDTokens.Space.md)
-        .padding(.vertical, 8)
+        .padding(.horizontal, TBDTokens.Space.sm)
+        .padding(.vertical, TBDTokens.Space.sm)
         .tbdFloating()
-        .overlay(
-            RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-                .strokeBorder(isFocused ? TBDTokens.accent : TBDTokens.border, lineWidth: isFocused ? TBDTokens.Stroke.bar : TBDTokens.Stroke.hairline)
-        )
-        .contentShape(Rectangle())
+        .contentShape(TBDBrickShape())
         .onTapGesture { isFocused = true }
     }
 
@@ -61,21 +57,19 @@ struct TBDTranscriptFindBar: View {
                 Text("No results")
             }
         }
-        .font(.system(size: 12).monospacedDigit()).foregroundStyle(TBDTokens.muted).fixedSize()
+        .font(TBDTokens.Typography.hint.monospacedDigit()).foregroundStyle(TBDColor.muted).fixedSize()
     }
 
     private func navButton(_ icon: String, label: String, help: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: icon).font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(position != nil ? TBDTokens.ink : TBDTokens.muted.opacity(0.5))
-                .frame(width: 20, height: 20).contentShape(Rectangle())
+            Image(systemName: icon).font(TBDFonts.symbol(12, TBDKit.weightNav))
         }
-        .buttonStyle(.plain).disabled(position == nil).help(help).accessibilityLabel(label)
+        .buttonStyle(TBDButtonStyle(.icon)).disabled(position == nil).help(help).accessibilityLabel(label)
     }
 }
 
-/// Highlighted text for find matches (v1 `TranscriptFindHighlight`): a quiet wash on each match, a stronger one and
-/// bold on the current match. Ranges are UTF-16 offsets into `text`.
+/// Highlighted text for find matches (v1 `TranscriptFindHighlight`): the selection colour on each match; the current
+/// match is a teal wash, bold, with a tealInk edge. Ranges are UTF-16 offsets into `text`.
 enum TBDTranscriptFindHighlight {
     static func attributed(_ text: String, ranges: [NSRange], current: NSRange?, baseFont: Font) -> AttributedString {
         var attributed = AttributedString(text)
@@ -85,8 +79,13 @@ enum TBDTranscriptFindHighlight {
                   let lower = AttributedString.Index(range.lowerBound, within: attributed),
                   let upper = AttributedString.Index(range.upperBound, within: attributed) else { continue }
             let isCurrent = nsRange == current
-            attributed[lower..<upper].backgroundColor = TBDTokens.accent.opacity(isCurrent ? 0.55 : 0.22)
-            if isCurrent { attributed[lower..<upper].font = baseFont.bold() }
+            // Matches sit on the kit selection colour. The current match is a teal wash, bold, with a tealInk edge
+            // (a text run can only take an underline, so the edge is the underline).
+            attributed[lower..<upper].backgroundColor = isCurrent ? TBDColor.tealWash : TBDColor.selection
+            if isCurrent {
+                attributed[lower..<upper].font = baseFont.bold()
+                attributed[lower..<upper].underlineStyle = Text.LineStyle(pattern: .solid, color: TBDColor.tealInk)
+            }
         }
         return attributed
     }

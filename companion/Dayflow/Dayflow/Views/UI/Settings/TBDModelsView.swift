@@ -5,8 +5,12 @@ import SwiftUI
 
 struct TBDModelsView: View {
   let screenSettings: () -> AnyView
+  init(screenSettings: @escaping () -> AnyView, initialPage: String = "Tasks") {
+    self.screenSettings = screenSettings
+    _page = State(initialValue: initialPage)
+  }
   @State private var state = TBDModelRegistryState()
-  @State private var page = "Tasks"
+  @State private var page: String
   @State private var name = ""
   @State private var endpoint = ""
   @State private var secret = ""
@@ -21,11 +25,11 @@ struct TBDModelsView: View {
       TBDSegmented(selection: $page, options: ["Tasks", "Connections", "Transcription", "Advanced"].map { ($0, $0) })
       switch page {
       case "Transcription":
-        Text("Speech recognition runs locally. Select engines and downloads below.").foregroundStyle(.secondary)
+        Text("Speech recognition runs locally. Select engines and downloads below.").font(TBDTokens.Typography.body).foregroundStyle(TBDColor.inkSoft)
         TBDListeningRuntime.shared.settingsContent(section: "engine")
       case "Advanced":
-        Text("Existing provider-specific settings remain available. Shared task routes take precedence when assigned.").foregroundStyle(.secondary)
-        DisclosureGroup("Screen analysis providers") { screenSettings() }
+        Text("Existing provider-specific settings remain available. Shared task routes take precedence when assigned.").font(TBDTokens.Typography.body).foregroundStyle(TBDColor.inkSoft)
+        DisclosureGroup { screenSettings() } label: { Text("Screen analysis providers").font(TBDTokens.Typography.control).foregroundStyle(TBDColor.ink) }
         TBDListeningRuntime.shared.settingsContent(section: "ai")
       default:
         ScrollView(.vertical, showsIndicators: false) {
@@ -37,14 +41,14 @@ struct TBDModelsView: View {
                 .font(TBDTokens.Typography.body).foregroundStyle(TBDColor.inkSoft)
               TBDAgentModelForm { reload() }
               route("Cleanup", task: "cleanup", detail: "Optional transcript correction; shared model, independent switches.")
-              Toggle("Clean up Chat voice input", isOn: $chatCleanup)
-              Toggle("Clean up voice notes", isOn: $noteCleanup)
-              Text("Both are off by default. Raw text is retained; a cleanup failure returns raw text. Voice notes are saved to history. Chat follows your dictation-history preference. Cleanup may send text to the selected network provider.").font(.callout).foregroundStyle(.secondary)
+              Toggle("Clean up Chat voice input", isOn: $chatCleanup).toggleStyle(TBDSwitchStyle()).frame(maxWidth: 420)
+              Toggle("Clean up voice notes", isOn: $noteCleanup).toggleStyle(TBDSwitchStyle()).frame(maxWidth: 420)
+              Text("Both are off by default. Raw text is retained; a cleanup failure returns raw text. Voice notes are saved to history. Chat follows your dictation-history preference. Cleanup may send text to the selected network provider.").font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
               route("Summaries", task: "analysis", detail: "Meeting and transcript analysis.")
               route("Transforms", task: "general", detail: "Text transformations and the default Listening AI route.")
               route("Screen analysis", task: "screen", detail: "Companion activity analysis. Choose a vision-capable model; screenshots may leave this Mac.")
             }
-            if !error.isEmpty { Text(error).foregroundStyle(.red).textSelection(.enabled) }
+            if !error.isEmpty { TBDNotice(error, tone: .needsYou) }
           }.padding(.bottom, 24)
         }
       }
@@ -53,19 +57,16 @@ struct TBDModelsView: View {
   }
   private var connections: some View {
     VStack(alignment: .leading, spacing: 16) {
-      Text("Connections").font(.title2)
-      Text("OpenAI-compatible or Anthropic endpoints. Keys are held in Keychain and reused only by routes assigned to that connection. Existing provider configurations remain unchanged until you assign a shared route.").foregroundStyle(.secondary)
+      Text("Connections").font(TBDTokens.Typography.display).tracking(TBDTokens.Typography.displayTracking).foregroundStyle(TBDColor.ink)
+      Text("OpenAI-compatible or Anthropic endpoints. Keys are held in Keychain and reused only by routes assigned to that connection. Existing provider configurations remain unchanged until you assign a shared route.").font(TBDTokens.Typography.body).foregroundStyle(TBDColor.inkSoft)
       ForEach(state.connections) { connection in
         VStack(alignment: .leading) {
-          Text(connection.name).fontWeight(.medium)
-          Text("\(connection.kind == .anthropic ? "Anthropic" : "OpenAI-compatible") · \(connection.endpoint)").font(.callout).textSelection(.enabled)
+          Text(connection.name).font(TBDTokens.Typography.control).foregroundStyle(TBDColor.ink)
+          Text("\(connection.kind == .anthropic ? "Anthropic" : "OpenAI-compatible") · \(connection.endpoint)").font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted).textSelection(.enabled)
         }
         Divider()
       }
-      Picker("API", selection: $kind) {
-        Text("OpenAI-compatible").tag(TBDModelKind.openAICompatible)
-        Text("Anthropic").tag(TBDModelKind.anthropic)
-      }.pickerStyle(.segmented)
+      TBDSegmented(selection: $kind, options: [(TBDModelKind.openAICompatible, "OpenAI-compatible"), (TBDModelKind.anthropic, "Anthropic")])
       .onChange(of: kind) { _, k in if k == .anthropic && endpoint.isEmpty { endpoint = "https://api.anthropic.com" } }
       TextField("Connection name", text: $name).tbdField()
       TextField("https://host.example/v1", text: $endpoint).tbdField()
@@ -102,16 +103,14 @@ private struct TBDModelRouteCard: View {
   @State private var model = ""
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
-      Text(title).font(.headline)
-      Text(detail).font(.callout).foregroundStyle(.secondary)
-      Picker("Connection", selection: $connectionID) {
-        Text("Existing configuration").tag("")
-        ForEach(connections) { Text($0.name).tag($0.id) }
-      }
+      Text(title).font(TBDTokens.Typography.control).foregroundStyle(TBDColor.ink)
+      Text(detail).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
+      TBDSelect("Connection", selection: $connectionID, options: [("", "Existing configuration")] + connections.map { ($0.id, $0.name) })
+        .frame(maxWidth: 360)
       if !connectionID.isEmpty {
         TextField("Model ID", text: $model).tbdField()
         if let c = connections.first(where: { $0.id == connectionID }) {
-          Text(c.endpoint).font(.caption).foregroundStyle(.secondary)
+          Text(c.endpoint).font(TBDFonts.mono()).foregroundStyle(TBDColor.muted)
         }
       }
       Button("Apply") { save(connectionID.isEmpty ? nil : TBDModelRoute(connectionID: connectionID, model: model.trimmingCharacters(in: .whitespacesAndNewlines))) }

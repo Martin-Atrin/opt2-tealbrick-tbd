@@ -27,4 +27,14 @@ public enum TBDFonts {
         register()
         return .custom(family, size: size, relativeTo: .body).weight(weight)
     }
+
+    /// SF Symbols beside text: the system symbol font at a kit size (icons are not text; Nunito has no symbols).
+    public static func symbol(_ size: CGFloat, _ weight: Font.Weight = TBDKit.weightNav) -> Font {
+        .system(size: size, weight: weight)
+    }
+
+    /// The kit's mono (--tb-font-mono = system monospace) for code, ids, timestamps and model names only.
+    public static func mono(_ size: CGFloat = TBDKit.textHint, _ weight: Font.Weight = TBDKit.weightBody) -> Font {
+        .system(size: size, weight: weight, design: .monospaced)
+    }
 }

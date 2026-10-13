@@ -32,7 +32,7 @@ final class TBDChatRuntime: NSObject, ObservableObject, WKScriptMessageHandler, 
   private var appearanceName = "light"
 
   /// Chat reads every colour from its generated kit tokens (tbd-tokens.css); the host only says light or dark.
-  func updateAppearance(dark: Bool, palette: String) {
+  func updateAppearance(dark: Bool) {
     appearanceName = dark ? "dark" : "light"
     webView.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
     applyAppearance()
@@ -434,14 +434,13 @@ private final class TBDLineReader: @unchecked Sendable {
 }
 
 struct TBDChatView: NSViewRepresentable {
-  var palette: String
   @Environment(\.colorScheme) private var colorScheme
   func makeNSView(context: Context) -> WKWebView {
-    TBDChatRuntime.shared.updateAppearance(dark: colorScheme == .dark, palette: palette)
+    TBDChatRuntime.shared.updateAppearance(dark: colorScheme == .dark)
     TBDChatRuntime.shared.start()
     return TBDChatRuntime.shared.webView
   }
   func updateNSView(_ nsView: WKWebView, context: Context) {
-    TBDChatRuntime.shared.updateAppearance(dark: colorScheme == .dark, palette: palette)
+    TBDChatRuntime.shared.updateAppearance(dark: colorScheme == .dark)
   }
 }

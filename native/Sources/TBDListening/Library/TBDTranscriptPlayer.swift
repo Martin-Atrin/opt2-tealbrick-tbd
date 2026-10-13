@@ -234,22 +234,22 @@ struct TBDPlayerBar: View {
         HStack(spacing: TBDTokens.Space.md) {
             Button { player.togglePlayPause() } label: {
                 Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
-                    .font(.system(size: 14, weight: .semibold)).frame(width: 28, height: 28).contentShape(Rectangle())
+                    .font(TBDFonts.symbol(14, TBDKit.weightNav))
             }
-            .buttonStyle(.plain).foregroundStyle(TBDTokens.ink)
+            .buttonStyle(TBDButtonStyle(.icon))
             .help(player.isPlaying ? "Pause" : "Play").accessibilityLabel(player.isPlaying ? "Pause" : "Play")
-            Text(TBDExport.clock(clock.currentTimeMs)).font(.system(size: 11, weight: .medium).monospacedDigit())
-                .foregroundStyle(TBDTokens.muted).frame(width: 48, alignment: .trailing)
+            Text(TBDExport.clock(clock.currentTimeMs)).font(TBDFonts.mono(12))
+                .foregroundStyle(TBDColor.muted).frame(width: 48, alignment: .trailing)
             scrubber
-            Text(TBDExport.clock(player.durationMs)).font(.system(size: 11, weight: .medium).monospacedDigit())
-                .foregroundStyle(TBDTokens.muted).frame(width: 48, alignment: .leading)
+            Text(TBDExport.clock(player.durationMs)).font(TBDFonts.mono(12))
+                .foregroundStyle(TBDColor.muted).frame(width: 48, alignment: .leading)
             speedMenu
             if showsAudioMenu { audioMenu }
         }
         .padding(.horizontal, TBDTokens.Space.lg)
         .frame(height: 44)
-        .background(TBDTokens.paper)
-        .overlay(Rectangle().fill(TBDTokens.border).frame(height: TBDTokens.Stroke.hairline), alignment: .top)
+        .background(TBDColor.tile)
+        .overlay(Rectangle().fill(TBDColor.line).frame(height: TBDKit.hair), alignment: .top)
     }
 
     private var progress: Double {
@@ -260,9 +260,9 @@ struct TBDPlayerBar: View {
         GeometryReader { geo in
             let shown = dragging ? dragProgress : progress
             ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 3).fill(TBDTokens.border).frame(height: 6)
-                RoundedRectangle(cornerRadius: 3).fill(TBDTokens.accent).frame(width: max(0, geo.size.width * shown), height: 6)
-                Circle().fill(TBDTokens.accent).frame(width: 12, height: 12).offset(x: max(0, geo.size.width * shown - 6))
+                Capsule().fill(TBDColor.plate).frame(height: 6)
+                Capsule().fill(TBDColor.tealInk).frame(width: max(0, geo.size.width * shown), height: 6)
+                Circle().fill(TBDColor.tealInk).frame(width: 12, height: 12).offset(x: max(0, geo.size.width * shown - 6))
             }
             .frame(height: 12).frame(maxHeight: .infinity, alignment: .center)
             .contentShape(Rectangle())
@@ -298,7 +298,7 @@ struct TBDPlayerBar: View {
                 }
             }
         } label: {
-            Label(player.rateLabel, systemImage: "speedometer").font(.system(size: 12, weight: .semibold).monospacedDigit())
+            Label(player.rateLabel, systemImage: "speedometer").font(TBDFonts.mono(12, TBDKit.weightNav))
         }
         .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
         .help("Playback speed").accessibilityLabel("Playback speed").accessibilityValue(player.rateLabel)

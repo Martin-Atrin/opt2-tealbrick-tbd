@@ -8,7 +8,6 @@ struct TBDWorkspaceView<Companion: View>: View {
   @Environment(\.dayflowTheme) private var theme
   @Environment(\.colorScheme) private var colorScheme
   @AppStorage(DayflowAppearance.storageKey) private var appearance: DayflowAppearance = .system
-  @AppStorage(TealbrickPalette.key) private var palette: TealbrickPalette = .teal
   @AppStorage("tbd.portalInvitationDismissed") private var invitationDismissed = false
   @ObservedObject private var account = TBDAccountCoordinator.shared
   @State private var settingsSection: String?
@@ -107,7 +106,7 @@ struct TBDWorkspaceView<Companion: View>: View {
 
         if account.signedIn {
         ZStack {
-          TBDChatView(palette: palette.rawValue)
+          TBDChatView()
           if !chat.status.isEmpty { pending("Chat", detail: chat.status) }
           if !chat.notice.isEmpty {
             Text(chat.notice)
@@ -141,7 +140,7 @@ struct TBDWorkspaceView<Companion: View>: View {
     }
     .ignoresSafeArea(.container, edges: .top)
     .font(.custom("Switzer", size: 14))
-    .tint(Color(hex: palette.hex))
+    .tint(TBDColor.tealInk)
     .onReceive(NotificationCenter.default.publisher(for: Notification.Name("tbdOpenSettings"))) { note in
       settingsSection = note.object as? String ?? "account"
     }

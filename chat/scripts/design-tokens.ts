@@ -138,6 +138,11 @@ ${colourNames.map((k) => `    /// --tb-${kebab(k)}\n    public static let ${k} =
     public static let overlayFill = dynamic(${hex(parseColour(kit.resolved.ink)!)}, 1, ${hex(parseColour(kit.resolved.ink)!)}, 1)
     public static let overlayOn = dynamic(${hex(parseColour(kit.resolved.paper)!)}, 1, ${hex(parseColour(kit.resolved.paper)!)}, 1)
 
+    /// Every colour by its kit name (rendered audits classify drawn pixels by token).
+    public static let all: [(name: String, color: Color)] = [
+${colourNames.map((k) => `        ("${k}", ${k}),`).join("\n")}
+    ]
+
     static func dynamic(_ light: UInt32, _ lightAlpha: CGFloat, _ dark: UInt32, _ darkAlpha: CGFloat) -> Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? rgb(dark, darkAlpha) : rgb(light, lightAlpha)
@@ -162,10 +167,6 @@ ${easeNames.map((k) => `    public static let ${k}: (Double, Double, Double, Dou
 
 /// TBD's established token names. They keep their call sites; their values now come from the kit.
 public enum TBDTokens {
-    /// Kept for source compatibility. The kit has one brand, so TBDDesign colours no longer follow it (TBD-MAPPING.md).
-    public enum Palette: String { case teal, burgundy }
-    public static var palette: Palette { Palette(rawValue: UserDefaults.standard.string(forKey: "tealbrickPalette") ?? "") ?? .teal }
-
 ${legacy.map(([from, to, why]) => `    /// ${why} → TBDColor.${to}\n    public static var ${from}: Color { TBDColor.${to} }`).join("\n")}
 
     /// Categories and charts (never chrome): the kit's group tones, plum → ink-soft.

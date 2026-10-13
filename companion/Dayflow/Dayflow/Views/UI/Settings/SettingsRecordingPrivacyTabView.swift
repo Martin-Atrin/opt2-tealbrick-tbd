@@ -14,7 +14,8 @@ struct SettingsRecordingPrivacyTabView: View {
   var body: some View {
     SettingsSection(
       title: String(localized: "Recording privacy"),
-      subtitle: String(localized: "Choose apps Tealbrick should hide from screenshots.")
+      subtitle: String(localized: "Choose apps Tealbrick should hide from screenshots."),
+      isFirst: true
     ) {
       VStack(alignment: .leading, spacing: 18) {
         searchField
@@ -38,9 +39,8 @@ struct SettingsRecordingPrivacyTabView: View {
     VStack(alignment: .leading, spacing: 12) {
       HStack(alignment: .firstTextBaseline) {
         Text("Installed apps")
-          .font(.custom("Switzer", size: 13))
-          .fontWeight(.semibold)
-          .foregroundColor(SettingsStyle.text)
+          .font(TBDTokens.Typography.control)
+          .foregroundStyle(TBDColor.ink)
 
         Spacer()
 
@@ -58,8 +58,8 @@ struct SettingsRecordingPrivacyTabView: View {
           .frame(maxWidth: .infinity, alignment: .center)
       } else if viewModel.filteredApplications.isEmpty {
         Text("No apps match your search.")
-          .font(.custom("Switzer", size: 13))
-          .foregroundColor(SettingsStyle.secondary)
+          .font(TBDTokens.Typography.hint)
+          .foregroundStyle(TBDColor.muted)
           .padding(.vertical, 20)
           .frame(maxWidth: .infinity, alignment: .center)
       } else {
@@ -80,8 +80,8 @@ struct SettingsRecordingPrivacyTabView: View {
           .padding(8)
         }
         .frame(maxHeight: .infinity)
-        .background(Color.black.opacity(0.025))
-        .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.base).strokeBorder(SettingsStyle.divider, lineWidth: 1))
+        .background(TBDColor.tile, in: TBDBrickShape())
+        .overlay(TBDBrickShape().strokeBorder(TBDColor.line, lineWidth: TBDKit.hair))
       }
     }
     .frame(maxHeight: .infinity, alignment: .top)
@@ -90,14 +90,13 @@ struct SettingsRecordingPrivacyTabView: View {
   private var blockedAppsTray: some View {
     VStack(alignment: .leading, spacing: 10) {
       Rectangle()
-        .fill(SettingsStyle.divider)
-        .frame(height: 1)
+        .fill(TBDColor.line)
+        .frame(height: TBDKit.hair)
 
       HStack(alignment: .firstTextBaseline, spacing: 10) {
         Text("Blocked apps")
-          .font(.custom("Switzer", size: 13))
-          .fontWeight(.semibold)
-          .foregroundColor(SettingsStyle.text)
+          .font(TBDTokens.Typography.control)
+          .foregroundStyle(TBDColor.ink)
 
         SettingsMetadata(text: String(localized: "\(viewModel.blockedApplications.count) blocked"))
 
@@ -114,8 +113,8 @@ struct SettingsRecordingPrivacyTabView: View {
         HStack(spacing: 12) {
           if viewModel.blockedApplications.isEmpty {
             Text("Drag apps here to hide them from recording")
-              .font(.custom("Switzer", size: 13))
-              .foregroundColor(SettingsStyle.meta)
+              .font(TBDTokens.Typography.hint)
+              .foregroundStyle(TBDColor.muted)
               .frame(height: 58)
               .padding(.horizontal, 12)
           } else {
@@ -133,11 +132,11 @@ struct SettingsRecordingPrivacyTabView: View {
       }
       .frame(maxWidth: .infinity)
       .padding(8)
-      .background(Color.black.opacity(isBlockedTrayTargeted ? 0.08 : 0.035))
+      .background(isBlockedTrayTargeted ? TBDColor.tealWash : TBDColor.tile, in: TBDBrickShape())
       .overlay(
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base).strokeBorder(
-          isBlockedTrayTargeted ? SettingsStyle.ink.opacity(0.35) : SettingsStyle.divider,
-          lineWidth: isBlockedTrayTargeted ? TBDTokens.Stroke.bar : TBDTokens.Stroke.hairline
+        TBDBrickShape().strokeBorder(
+          isBlockedTrayTargeted ? TBDColor.tealInk : TBDColor.line,
+          lineWidth: isBlockedTrayTargeted ? TBDTokens.Stroke.bar : TBDKit.hair
         )
       )
       .onDrop(
@@ -162,26 +161,25 @@ private struct RecordingPrivacyGridAppButton: View {
 
           if isBlocked {
             Image(systemName: "lock.fill")
-              .font(.system(size: 9, weight: .bold))
-              .foregroundColor(.white)
+              .font(TBDFonts.symbol(9, .heavy))
+              .foregroundStyle(TBDColor.primaryOn)
               .frame(width: 18, height: 18)
-              .background(Circle().fill(SettingsStyle.ink))
-              .overlay(Circle().stroke(Color.white, lineWidth: 1.5))
+              .background(Circle().fill(TBDColor.tealInk))
+              .overlay(Circle().stroke(TBDColor.paper, lineWidth: TBDKit.hair))
               .offset(x: 4, y: 4)
           }
         }
 
         Text(app.name)
-          .font(.custom("Switzer", size: 11))
-          .fontWeight(.semibold)
-          .foregroundColor(isBlocked ? SettingsStyle.ink : SettingsStyle.text)
+          .font(TBDTokens.Typography.label)
+          .foregroundStyle(isBlocked ? TBDColor.tealInk : TBDColor.ink)
           .lineLimit(2)
           .multilineTextAlignment(.center)
-          .frame(width: 76, height: 30, alignment: .top)
+          .frame(width: 76, height: 36, alignment: .top)
       }
-      .frame(width: 82, height: 88, alignment: .top)
-      .contentShape(Rectangle())
-      .background(isBlocked ? SettingsStyle.ink.opacity(0.08) : Color.clear)
+      .frame(width: 82, height: 94, alignment: .top)
+      .contentShape(TBDBrickShape())
+      .background(isBlocked ? TBDColor.tealWash : Color.clear, in: TBDBrickShape())
     }
     .buttonStyle(.plain)
     .pointingHandCursor()

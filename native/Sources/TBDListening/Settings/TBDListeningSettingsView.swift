@@ -69,22 +69,16 @@ struct TBDCaptureSettings: View {
         let prefs = env.preferences
         VStack(alignment: .leading, spacing: 0) {
             TBDSettingsRow("Microphone", help: "System Default follows the input chosen in macOS Sound settings.") {
-                Picker("", selection: tbdBinding({ prefs.microphoneUID ?? "" }, { uid in
+                TBDSelect(selection: tbdBinding({ prefs.microphoneUID ?? "" }, { uid in
                     prefs.microphoneUID = uid.isEmpty ? nil : uid
                     env.microphone.setPreferredDevice(uid: prefs.microphoneUID)
-                }, refresh: { tick += 1 })) {
-                    Text("System Default").tag("")
-                    ForEach(devices) { Text($0.name).tag($0.uid) }
-                }
-                .labelsHidden().frame(width: 240)
+                }, refresh: { tick += 1 }), options: [("", "System Default")] + devices.map { ($0.uid, $0.name) })
+                    .frame(width: 240)
             }
             .id(tick)
             TBDLabel("Capture workflow").padding(.top, TBDTokens.Space.lg).padding(.bottom, TBDTokens.Space.xs)
-            Picker("", selection: $workflow) {
-                ForEach(TBDCaptureWorkflow.allCases) { Text($0.title).tag($0) }
-            }
-            .pickerStyle(.segmented).labelsHidden().fixedSize()
-            .padding(.bottom, TBDTokens.Space.sm)
+            TBDSegmented(selection: $workflow, options: TBDCaptureWorkflow.allCases.map { ($0, $0.title) })
+                .padding(.bottom, TBDTokens.Space.sm)
             .onChange(of: workflow) { _, value in UserDefaults.standard.set(value.rawValue, forKey: TBDCaptureWorkflow.defaultsKey) }
             switch workflow {
             case .dictation: TBDDictationSettings(context: context)
@@ -154,11 +148,11 @@ struct TBDEngineCapabilityChips: View {
     var body: some View {
         let capabilities = kind.capabilities
         HStack(spacing: TBDTokens.Space.xs) {
-            TBDChip(languageText(capabilities), color: TBDTokens.muted)
-            TBDChip(capabilities.wordTimestamps ? "Timestamps" : "Plain text", color: capabilities.wordTimestamps ? TBDTokens.accent : TBDTokens.alert)
+            TBDChip(languageText(capabilities), color: TBDColor.muted)
+            TBDChip(capabilities.wordTimestamps ? "Timestamps" : "Plain text", color: capabilities.wordTimestamps ? TBDColor.teal : TBDColor.brick)
             if capabilities.streaming { TBDChip("Streaming") } else if capabilities.tailPreview { TBDChip("Live preview") }
             if capabilities.diarizationCompatible { TBDChip("Speakers") }
-            if !capabilities.satisfiesMemory() { TBDChip("Needs 16 GB", color: TBDTokens.alert) }
+            if !capabilities.satisfiesMemory() { TBDChip("Needs 16 GB", color: TBDColor.brick) }
         }
     }
 
@@ -186,10 +180,9 @@ struct TBDEngineSettings: View {
                 .foregroundStyle(TBDTokens.muted).fixedSize(horizontal: false, vertical: true).padding(.bottom, TBDTokens.Space.md)
             TBDSettingsRow("Live engine", help: "Dictation and meeting live transcript. Streaming engines show text while you speak.") {
                 VStack(alignment: .trailing, spacing: TBDTokens.Space.xs) {
-                    Picker("", selection: tbdBinding({ prefs.liveEngine }, { prefs.liveEngine = $0 }, refresh: changed)) {
-                        ForEach(TBDSpeechEngineKind.allCases) { Text(label($0)).tag($0) }
-                    }
-                    .labelsHidden().frame(width: 260)
+                    TBDSelect(selection: tbdBinding({ prefs.liveEngine }, { prefs.liveEngine = $0 }, refresh: changed),
+                              options: TBDSpeechEngineKind.allCases.map { ($0, label($0)) })
+                        .frame(width: 260)
                     TBDEngineCapabilityChips(kind: prefs.liveEngine)
                 }
             }
@@ -207,7 +200,7 @@ struct TBDEngineSettings: View {
             }
             if !prefs.finalEngine.capabilities.wordTimestamps {
                 Text("\(prefs.finalEngine.displayName) returns plain text: no subtitles (SRT, VTT), no speaker labels and no word timing for final transcripts.")
-                    .font(.system(size: 12)).foregroundStyle(TBDTokens.alert).fixedSize(horizontal: false, vertical: true)
+                    .font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.brickInk).fixedSize(horizontal: false, vertical: true)
                     .padding(.vertical, TBDTokens.Space.xs)
             }
             ForEach(languageEngines(prefs)) { kind in languageRow(kind, prefs: prefs) }
@@ -215,23 +208,23 @@ struct TBDEngineSettings: View {
                            ? "Live preview in the dictation pill. The pasted text still comes from the full recording."
                            : "\(prefs.liveEngine.displayName) has no live preview. Choose Parakeet or a streaming engine.") {
                 Toggle("", isOn: tbdBinding({ prefs.dictationLivePreview }, { prefs.dictationLivePreview = $0 }, refresh: changed))
-                    .labelsHidden().toggleStyle(.switch).disabled(!prefs.liveEngine.capabilities.livePreview)
+                    .labelsHidden().toggleStyle(TBDSwitchStyle()).fixedSize().disabled(!prefs.liveEngine.capabilities.livePreview)
             }
             TBDSettingsRow("Meeting live transcript", help: prefs.liveEngine.capabilities.meetingLivePreview
                            ? "Transcribe meetings while recording, cut at pauses (voice activity model) when it is downloaded."
                            : "\(prefs.liveEngine.displayName) has no timestamps, so meetings show no live transcript.") {
                 Toggle("", isOn: tbdBinding({ prefs.meetingLivePreview }, { prefs.meetingLivePreview = $0 }, refresh: changed))
-                    .labelsHidden().toggleStyle(.switch).disabled(!prefs.liveEngine.capabilities.meetingLivePreview)
+                    .labelsHidden().toggleStyle(TBDSwitchStyle()).fixedSize().disabled(!prefs.liveEngine.capabilities.meetingLivePreview)
             }
             TBDLinkDownloadSettings(preferences: prefs)
             TBDSettingsRow("Speaker detection", help: "Label speakers in meetings and files (needs the speaker model and an engine with timestamps).") {
-                Toggle("", isOn: tbdBinding({ prefs.diarize }, { prefs.diarize = $0 }, refresh: { tick += 1 })).labelsHidden().toggleStyle(.switch)
+                Toggle("", isOn: tbdBinding({ prefs.diarize }, { prefs.diarize = $0 }, refresh: { tick += 1 })).labelsHidden().toggleStyle(TBDSwitchStyle()).fixedSize()
             }
             TBDLabel("Models").padding(.top, TBDTokens.Space.xl).padding(.bottom, TBDTokens.Space.xs)
             ForEach(models.statuses) { status in modelRow(status, prefs: prefs) }
-            if let error = models.error { Text(error).foregroundStyle(TBDTokens.alert).padding(.top, TBDTokens.Space.sm) }
+            if let error = models.error { TBDNotice(error, tone: .needsYou).padding(.top, TBDTokens.Space.sm) }
             Text("Models download only when you click Download (from Hugging Face). Podcast links and searches use the Apple Podcasts directory (itunes.apple.com) and the show's RSS feed to find the episode audio. Video links use yt-dlp (downloaded once from github.com/yt-dlp and checked weekly), which contacts the linked site. Nothing else leaves this Mac. Models are stored in \(TBDListeningPaths.models.path) · \(models.manager.totalBytes.tbdByteString) used.")
-                .font(.system(size: 11)).foregroundStyle(TBDTokens.muted).fixedSize(horizontal: false, vertical: true)
+                .font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted).fixedSize(horizontal: false, vertical: true)
                 .padding(.top, TBDTokens.Space.md).textSelection(.enabled)
         }
         .id(tick)
@@ -265,13 +258,12 @@ struct TBDEngineSettings: View {
             : "ISO code such as en, de, ko. Leave empty to detect automatically."
         TBDSettingsRow("\(capabilities.displayName) language", help: help) {
             if let languages = capabilities.languages {
-                Picker("", selection: tbdBinding({ prefs.language(for: kind) ?? capabilities.defaultLanguage ?? "" },
-                                                 { prefs.setLanguage($0, for: kind) }, refresh: changed)) {
-                    ForEach(languages, id: \.self) { code in
-                        Text(Locale.current.localizedString(forLanguageCode: code).map { "\($0) (\(code))" } ?? code).tag(code)
-                    }
-                }
-                .labelsHidden().frame(width: 200)
+                TBDSelect(selection: tbdBinding({ prefs.language(for: kind) ?? capabilities.defaultLanguage ?? "" },
+                                                { prefs.setLanguage($0, for: kind) }, refresh: changed),
+                          options: languages.map { code in
+                              (code, Locale.current.localizedString(forLanguageCode: code).map { "\($0) (\(code))" } ?? code)
+                          })
+                    .frame(width: 200)
             } else {
                 TextField("auto", text: tbdBinding({ prefs.language(for: kind) ?? "" }, { prefs.setLanguage($0, for: kind) }, refresh: { models.refresh() }))
                     .tbdField().frame(width: 80)
@@ -311,17 +303,17 @@ struct TBDAISettings: View {
             Text("Listening uses your model routes: “cleanup” for transcript cleanup, “analysis” for summaries and questions, “general” for transforms. Assign them in Settings → Models. Raw transcripts are always kept.")
                 .foregroundStyle(TBDTokens.muted).fixedSize(horizontal: false, vertical: true).padding(.bottom, TBDTokens.Space.md)
             TBDSettingsRow("Clean up hotkey dictation", help: "Send dictated text to the cleanup model before pasting.") {
-                Toggle("", isOn: tbdBinding({ prefs.dictationCleanup }, { prefs.dictationCleanup = $0 }, refresh: { tick += 1 })).labelsHidden().toggleStyle(.switch)
+                Toggle("", isOn: tbdBinding({ prefs.dictationCleanup }, { prefs.dictationCleanup = $0 }, refresh: { tick += 1 })).labelsHidden().toggleStyle(TBDSwitchStyle()).fixedSize()
             }
             TBDSettingsRow("Clean up chat dictation") {
                 Toggle("", isOn: tbdBinding({ UserDefaults.standard.bool(forKey: TBDCleanupPolicy.chatKey) },
                                             { UserDefaults.standard.set($0, forKey: TBDCleanupPolicy.chatKey) }, refresh: { tick += 1 }))
-                    .labelsHidden().toggleStyle(.switch)
+                    .labelsHidden().toggleStyle(TBDSwitchStyle()).fixedSize()
             }
             TBDSettingsRow("Clean up voice notes") {
                 Toggle("", isOn: tbdBinding({ UserDefaults.standard.bool(forKey: TBDCleanupPolicy.voiceNoteKey) },
                                             { UserDefaults.standard.set($0, forKey: TBDCleanupPolicy.voiceNoteKey) }, refresh: { tick += 1 }))
-                    .labelsHidden().toggleStyle(.switch)
+                    .labelsHidden().toggleStyle(TBDSwitchStyle()).fixedSize()
             }
             promptEditor("Cleanup prompt", text: tbdBinding({ prefs.cleanupPrompt }, { prefs.cleanupPrompt = $0 }),
                          reset: { prefs.cleanupPrompt = TBDListeningPreferences.defaultCleanupPrompt; tick += 1 })
@@ -335,9 +327,9 @@ struct TBDAISettings: View {
     private func promptEditor(_ title: String, text: Binding<String>, reset: @escaping () -> Void) -> some View {
         VStack(alignment: .leading, spacing: TBDTokens.Space.xs) {
             HStack { TBDLabel(title); Spacer(); Button("Reset", action: reset).buttonStyle(TBDButtonStyle(.quiet)) }
-            TextEditor(text: text).font(TBDTokens.Typography.body).frame(height: 70).scrollContentBackground(.hidden)
-                .padding(6).background(TBDTokens.paper)
-                .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.base).strokeBorder(TBDTokens.border))
+            TextEditor(text: text).font(TBDTokens.Typography.body).foregroundStyle(TBDColor.fieldOn).frame(height: 70).scrollContentBackground(.hidden)
+                .padding(6).background(TBDColor.fieldFill, in: TBDBrickShape())
+                .overlay(TBDBrickShape().strokeBorder(TBDColor.fieldEdge, lineWidth: TBDKit.hair))
         }
         .padding(.top, TBDTokens.Space.lg)
     }
@@ -357,45 +349,44 @@ struct TBDMeetingSettings: View {
                          surface: .meeting, context: context) { tick += 1 }
             TBDSettingsRow("Meeting reminders", help: "A minute before a calendar meeting, offer to record it. Uses your calendars on this Mac.") {
                 Toggle("", isOn: tbdBinding({ prefs.calendarReminders }, { prefs.calendarReminders = $0 },
-                                            refresh: { tick += 1; context.meetings.configureCalendar() })).labelsHidden().toggleStyle(.switch)
+                                            refresh: { tick += 1; context.meetings.configureCalendar() })).labelsHidden().toggleStyle(TBDSwitchStyle()).fixedSize()
             }
             TBDSettingsRow("Start recording automatically", help: "Record calendar meetings when they begin. Off by default; tell participants you record.") {
                 Toggle("", isOn: tbdBinding({ prefs.calendarAutoStart }, { prefs.calendarAutoStart = $0 },
-                                            refresh: { tick += 1; context.meetings.configureCalendar() })).labelsHidden().toggleStyle(.switch)
+                                            refresh: { tick += 1; context.meetings.configureCalendar() })).labelsHidden().toggleStyle(TBDSwitchStyle()).fixedSize()
             }
             TBDSettingsRow("Summarise each meeting", help: "When a meeting transcript is saved, summarise it with the summary prompt. Needs a model on the Analysis route.") {
                 Toggle("", isOn: tbdBinding({ prefs.autoSummarizeMeetings }, { prefs.autoSummarizeMeetings = $0 }, refresh: { tick += 1 }))
-                    .labelsHidden().toggleStyle(.switch)
+                    .labelsHidden().toggleStyle(TBDSwitchStyle()).fixedSize()
             }
             TBDSettingsRow("Auto-title meetings", help: "When a meeting transcript is saved, name it from what was said. Only replaces the automatic \"Meeting <date>\" title, never one you set. Needs a model on the Analysis route.") {
                 Toggle("", isOn: tbdBinding({ prefs.autoGenerateMeetingTitles }, { prefs.autoGenerateMeetingTitles = $0 }, refresh: { tick += 1 }))
-                    .labelsHidden().toggleStyle(.switch)
+                    .labelsHidden().toggleStyle(TBDSwitchStyle()).fixedSize()
             }
             TBDSettingsRow("Show floating meeting controls", help: "Shows the small recording pill while a meeting is active. Turn this off to control recording from the menu bar, hotkey, or Meetings tab.") {
                 Toggle("", isOn: tbdBinding({ prefs.showMeetingRecordingPill }, { prefs.showMeetingRecordingPill = $0 },
-                                            refresh: { tick += 1; context.meetings.refreshPill() })).labelsHidden().toggleStyle(.switch)
+                                            refresh: { tick += 1; context.meetings.refreshPill() })).labelsHidden().toggleStyle(TBDSwitchStyle()).fixedSize()
             }
             TBDSettingsRow("Open app when meeting ends", help: "Brings TBD forward showing the transcript when a recording finishes. Turn this off to keep working. The meeting saves to your library in the background.") {
                 Toggle("", isOn: tbdBinding({ prefs.openAppAfterMeetingEnd }, { prefs.openAppAfterMeetingEnd = $0 }, refresh: { tick += 1 }))
-                    .labelsHidden().toggleStyle(.switch)
+                    .labelsHidden().toggleStyle(TBDSwitchStyle()).fixedSize()
             }
             TBDSettingsRow("Notify when transcript is ready", help: "Plays a chime and shows a notification when a meeting finishes transcribing in the background. Applies when the app isn't set to open automatically.") {
                 Toggle("", isOn: tbdBinding({ prefs.notifyOnMeetingEnd }, { prefs.notifyOnMeetingEnd = $0 }, refresh: { tick += 1 }))
-                    .labelsHidden().toggleStyle(.switch).disabled(prefs.openAppAfterMeetingEnd)
+                    .labelsHidden().toggleStyle(TBDSwitchStyle()).fixedSize().disabled(prefs.openAppAfterMeetingEnd)
             }
             TBDSettingsRow("Audio sources", help: prefs.meetingAudioSourceMode.detail) {
-                Picker("", selection: tbdBinding({ prefs.meetingAudioSourceMode }, { prefs.meetingAudioSourceMode = $0 }, refresh: { tick += 1 })) {
-                    ForEach(TBDMeetingAudioSource.allCases, id: \.self) { Text($0.title).tag($0) }
-                }
-                .labelsHidden().frame(width: 260)
+                TBDSelect(selection: tbdBinding({ prefs.meetingAudioSourceMode }, { prefs.meetingAudioSourceMode = $0 }, refresh: { tick += 1 }),
+                          options: TBDMeetingAudioSource.allCases.map { ($0, $0.title) })
+                    .frame(width: 260)
             }
             TBDSettingsRow("Start meetings muted", help: "Begin recording with your microphone off. Unmute from the meeting panel when you want to speak. System-audio-only capture ignores this. Changes apply to your next recording.") {
                 Toggle("", isOn: tbdBinding({ prefs.startMeetingsMuted }, { prefs.startMeetingsMuted = $0 }, refresh: { tick += 1 }))
-                    .labelsHidden().toggleStyle(.switch).disabled(!prefs.meetingAudioSourceMode.capturesMicrophone)
+                    .labelsHidden().toggleStyle(TBDSwitchStyle()).fixedSize().disabled(!prefs.meetingAudioSourceMode.capturesMicrophone)
             }
             TBDSettingsRow("Stop recording automatically", help: "Stop after a meeting app quits, or both channels stay quiet for a few minutes. A countdown lets you keep recording first.") {
                 Toggle("", isOn: tbdBinding({ prefs.meetingAutoStopEnabled }, { prefs.meetingAutoStopEnabled = $0 }, refresh: { tick += 1 }))
-                    .labelsHidden().toggleStyle(.switch)
+                    .labelsHidden().toggleStyle(TBDSwitchStyle()).fixedSize()
             }
             TBDAutoSaveSettings(scope: .meeting)
             TBDSettingsRow("Other participants", help: "Recording system audio needs Screen & System Audio Recording permission for TBD. Without it, only your microphone is recorded.") {
@@ -422,17 +413,14 @@ struct TBDSystemSettings: View {
         let prefs = env.preferences
         VStack(alignment: .leading, spacing: 0) {
             TBDSettingsRow("Microphone", help: "System Default follows the input chosen in macOS Sound settings.") {
-                Picker("", selection: tbdBinding({ prefs.microphoneUID ?? "" }, { uid in
+                TBDSelect(selection: tbdBinding({ prefs.microphoneUID ?? "" }, { uid in
                     prefs.microphoneUID = uid.isEmpty ? nil : uid
                     env.microphone.setPreferredDevice(uid: prefs.microphoneUID)
-                }, refresh: { tick += 1 })) {
-                    Text("System Default").tag("")
-                    ForEach(devices) { Text($0.name).tag($0.uid) }
-                }
-                .labelsHidden().frame(width: 240)
+                }, refresh: { tick += 1 }), options: [("", "System Default")] + devices.map { ($0.uid, $0.name) })
+                    .frame(width: 240)
             }
             TBDSettingsRow("Save dictation history", help: "Voice notes are always saved.") {
-                Toggle("", isOn: tbdBinding({ prefs.keepHistory }, { prefs.keepHistory = $0 }, refresh: { tick += 1 })).labelsHidden().toggleStyle(.switch)
+                Toggle("", isOn: tbdBinding({ prefs.keepHistory }, { prefs.keepHistory = $0 }, refresh: { tick += 1 })).labelsHidden().toggleStyle(TBDSwitchStyle()).fixedSize()
             }
             TBDRetentionSettingsView(retention: context.retention)
             TBDLabel("Storage").padding(.top, TBDTokens.Space.xl).padding(.bottom, TBDTokens.Space.xs)
@@ -475,12 +463,10 @@ struct TBDRetentionSettingsView: View {
                 let policy = settings[kind]
                 TBDSettingsRow(kind.title, help: kind.help) {
                     HStack(spacing: TBDTokens.Space.sm) {
-                        Picker("", selection: Binding(get: { policy.mode }, set: { mode in
+                        TBDSelect(selection: Binding(get: { policy.mode }, set: { mode in
                             retention.set(TBDRetentionPolicy(mode: mode, days: policy.days), for: kind)
-                        })) {
-                            ForEach(kind.modes, id: \.self) { Text($0.title(for: kind)).tag($0) }
-                        }
-                        .labelsHidden().frame(width: 240)
+                        }), options: kind.modes.map { ($0, $0.title(for: kind)) })
+                            .frame(width: 240)
                         if policy.mode == .deleteAfterDays {
                             TBDRetentionDays(days: policy.days) { retention.set(TBDRetentionPolicy(mode: .deleteAfterDays, days: $0), for: kind) }
                         }
@@ -488,10 +474,10 @@ struct TBDRetentionSettingsView: View {
                 }
             }
             Text("Only “Delete after” removes existing items; it runs at launch and daily. Your original files are never removed.")
-                .font(.system(size: 11)).foregroundStyle(TBDTokens.muted).padding(.top, TBDTokens.Space.xs)
+                .font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted).padding(.top, TBDTokens.Space.xs)
             if let result = retention.lastResult, result.changed {
                 Text("Last cleanup removed \(result.deletedDictations + result.deletedTranscriptions) item(s) and audio from \(result.detachedAudio) meeting(s).")
-                    .font(.system(size: 11)).foregroundStyle(TBDTokens.muted)
+                    .font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
             }
         }
     }
@@ -508,7 +494,7 @@ struct TBDRetentionDays: View {
             TextField("30", text: $text).tbdField().frame(width: 48)
                 .onSubmit { apply(Int(text) ?? days) }
             Stepper("", value: Binding(get: { days }, set: { apply($0) }), in: TBDRetentionPolicy.dayRange).labelsHidden()
-            Text(days == 1 ? "day" : "days").foregroundStyle(TBDTokens.muted)
+            Text(days == 1 ? "day" : "days").font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
         }
         .onAppear { text = "\(days)" }
         .onChange(of: days) { _, value in text = "\(value)" }

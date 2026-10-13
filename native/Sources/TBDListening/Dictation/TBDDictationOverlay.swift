@@ -135,6 +135,7 @@ final class TBDDictationOverlay {
 /// preview text in a bubble above it while recording.
 struct TBDRecordingPill: View {
     @ObservedObject var model: TBDOverlayModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var showsPartial: Bool {
         if case .recording = model.phase { return !model.partial.isEmpty }
@@ -154,49 +155,53 @@ struct TBDRecordingPill: View {
             if top { Spacer(minLength: 0) }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: top ? .top : .bottom)
-        .animation(TBDMotion.quick, value: showsPartial)
+        .animation(TBDMotion.animation(TBDMotion.quick, reduce: reduceMotion), value: showsPartial)
     }
 
     private var pill: some View {
         HStack(spacing: TBDTokens.Space.md) {
             switch model.phase {
             case .recording(let handsFree):
-                Circle().fill(Color.white.opacity(0.9)).frame(width: 8, height: 8)
+                Circle().fill(TBDColor.brick).frame(width: 8, height: 8)
                 TBDLevelBars(levels: model.levels).frame(width: 120, height: 24)
-                Text(TBDPillClock.text(model.elapsedMs)).font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.8))
+                Text(TBDPillClock.text(model.elapsedMs)).font(TBDFonts.mono(12))
+                    .foregroundStyle(TBDColor.overlayOn.opacity(0.8))
                 if handsFree {
                     pillButton("stop.fill", help: "Stop and paste") { model.onStop?() }
                 }
                 pillButton("xmark", help: "Cancel (Esc)") { model.onCancel?() }
             case .processing(let text):
-                ProgressView().controlSize(.small).tint(.white)
-                Text(text).font(TBDTokens.Typography.control).foregroundStyle(.white)
+                ProgressView().controlSize(.small).tint(TBDColor.overlayOn)
+                Text(text).font(TBDTokens.Typography.control).foregroundStyle(TBDColor.overlayOn)
             case .message(let text):
-                Text(text).font(TBDTokens.Typography.control).foregroundStyle(.white).lineLimit(2)
+                Text(text).font(TBDTokens.Typography.control).foregroundStyle(TBDColor.overlayOn).lineLimit(2)
             case .prompt(let text, let action):
-                Image(systemName: "calendar").foregroundStyle(.white)
-                Text(text).font(TBDTokens.Typography.control).foregroundStyle(.white).lineLimit(1)
+                Image(systemName: "calendar").foregroundStyle(TBDColor.overlayOn)
+                Text(text).font(TBDTokens.Typography.control).foregroundStyle(TBDColor.overlayOn).lineLimit(1)
+                // The main action is the inverted brick: light ground, dark ink (the overlay pair turned over).
                 Button(action) { model.onAccept?() }
-                    .buttonStyle(.plain).font(TBDTokens.Typography.control).foregroundStyle(.white)
-                    .padding(.horizontal, 10).padding(.vertical, 4).background(.white.opacity(0.18), in: Capsule())
+                    .buttonStyle(.plain).font(TBDTokens.Typography.control).foregroundStyle(TBDColor.overlayFill)
+                    .padding(.horizontal, TBDKit.s3).frame(minHeight: 32).background(TBDColor.overlayOn, in: TBDBrickShape())
+                    .contentShape(TBDBrickShape())
                 pillButton("xmark", help: "Dismiss") { model.onDismissPrompt?() }
             case .undo(let remaining, let total):
                 Button { model.onCancel?() } label: {
                     ZStack {
-                        Circle().stroke(.white.opacity(0.2), lineWidth: 2)
+                        Circle().stroke(TBDColor.overlayOn.opacity(0.2), lineWidth: 2)
                         Circle().trim(from: 0, to: CGFloat(remaining) / CGFloat(max(1, total)))
-                            .stroke(.white, style: StrokeStyle(lineWidth: 2, lineCap: .round)).rotationEffect(.degrees(-90))
-                        Text("\(remaining)").font(.system(size: 10, weight: .semibold, design: .monospaced)).foregroundStyle(.white)
+                            .stroke(TBDColor.overlayOn, style: StrokeStyle(lineWidth: 2, lineCap: .round)).rotationEffect(.degrees(-90))
+                        Text("\(remaining)").font(TBDFonts.mono(11, TBDKit.weightNav)).foregroundStyle(TBDColor.overlayOn)
                     }
                     .frame(width: 24, height: 24)
-                    .animation(TBDMotion.standard, value: remaining)
+                    .frame(minWidth: 36, minHeight: 36).contentShape(Rectangle())
+                    .animation(TBDMotion.animation(TBDMotion.standard, reduce: reduceMotion), value: remaining)
                 }
                 .buttonStyle(.plain).help("Discard now").accessibilityLabel("Discard cancelled dictation")
-                Text("Dictation cancelled").font(TBDTokens.Typography.control).foregroundStyle(.white)
+                Text("Dictation cancelled").font(TBDTokens.Typography.control).foregroundStyle(TBDColor.overlayOn)
                 Button("Undo") { model.onUndo?() }
-                    .buttonStyle(.plain).font(TBDTokens.Typography.control).foregroundStyle(.white)
-                    .padding(.horizontal, 10).padding(.vertical, 4).background(.white.opacity(0.12), in: Capsule())
+                    .buttonStyle(.plain).font(TBDTokens.Typography.control).foregroundStyle(TBDColor.overlayOn)
+                    .padding(.horizontal, TBDKit.s3).frame(minHeight: 32).background(TBDColor.overlayOn.opacity(0.14), in: TBDBrickShape())
+                    .contentShape(TBDBrickShape())
                     .accessibilityLabel("Undo cancel and paste")
             case .hidden:
                 EmptyView()
@@ -204,16 +209,19 @@ struct TBDRecordingPill: View {
         }
         .padding(.horizontal, TBDTokens.Space.lg)
         .frame(height: 44)
-        .background(TBDDesign.recordingSurface, in: RoundedRectangle(cornerRadius: TBDTokens.Radius.sm + 18, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.sm + 18, style: .continuous).strokeBorder(.white.opacity(0.12)))
-        .padding(.bottom, 6)
-        .animation(TBDMotion.instant, value: model.phase)
+        // The floating status pill: fixed dark ground in both appearances, the one float shadow.
+        .background(TBDColor.overlayFill, in: Capsule())
+        .tbdPillEdge(TBDColor.overlayOn.opacity(0.14))
+        .shadow(color: TBDColor.shadowInk, radius: TBDKit.floatShadowRadius, y: TBDKit.floatShadowY)
+        .padding(.bottom, TBDKit.s4)
+        .animation(TBDMotion.animation(TBDMotion.instant, reduce: reduceMotion), value: model.phase)
     }
 
     private func pillButton(_ symbol: String, help: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: symbol).font(.system(size: 10, weight: .bold)).foregroundStyle(.white)
-                .frame(width: 22, height: 22).background(.white.opacity(0.14), in: Circle())
+            Image(systemName: symbol).font(TBDFonts.symbol(10, TBDKit.weightHead)).foregroundStyle(TBDColor.overlayOn)
+                .frame(width: 28, height: 28).background(TBDColor.overlayOn.opacity(0.14), in: TBDBrickShape())
+                .frame(minWidth: 36, minHeight: 36).contentShape(Rectangle())
         }
         .buttonStyle(.plain).help(help).accessibilityLabel(help)
     }
@@ -224,20 +232,21 @@ struct TBDRecordingPill: View {
 struct TBDLivePartialBubble: View {
     let text: String
     var size = TBDPreviewTextSize.medium
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         Text(text)
-            .font(.system(size: size.fontSize, weight: .medium))
+            .font(TBDFonts.nunito(size.fontSize, TBDKit.weightBody))
             .lineSpacing(size.lineSpacing)
-            .foregroundStyle(.white.opacity(0.92))
+            .foregroundStyle(TBDColor.overlayOn.opacity(0.92))
             .lineLimit(2)
             .truncationMode(.head)
             .multilineTextAlignment(.center)
             .padding(.horizontal, TBDTokens.Space.md)
             .padding(.vertical, TBDTokens.Space.sm)
             .frame(maxWidth: 420)
-            .background(TBDDesign.recordingSurface.opacity(0.92), in: RoundedRectangle(cornerRadius: TBDTokens.Radius.sm + 10, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.sm + 10, style: .continuous).strokeBorder(.white.opacity(0.10)))
-            .animation(TBDMotion.instant, value: text)
+            .background(TBDColor.overlayFill.opacity(0.92), in: TBDBrickShape())
+            .overlay(TBDBrickShape().strokeBorder(TBDColor.overlayOn.opacity(0.14), lineWidth: TBDKit.hair))
+            .animation(TBDMotion.animation(TBDMotion.instant, reduce: reduceMotion), value: text)
             .accessibilityLabel("Live transcript: \(text)")
     }
 }
@@ -245,7 +254,8 @@ struct TBDLivePartialBubble: View {
 /// Level bars that ease towards the latest values; the single animation style for all recording UI.
 struct TBDLevelBars: View {
     let levels: [Float]
-    var color: Color = .white
+    var color: Color = TBDColor.teal
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         GeometryReader { geometry in
             HStack(alignment: .center, spacing: 2) {
@@ -255,7 +265,7 @@ struct TBDLevelBars: View {
                 }
             }
             .frame(maxHeight: .infinity)
-            .animation(.easeOut(duration: 0.08), value: levels)
+            .animation(TBDMotion.animation(TBDMotion.instant, reduce: reduceMotion), value: levels)
         }
     }
 }

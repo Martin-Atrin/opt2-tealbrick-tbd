@@ -11,6 +11,7 @@ struct TBDTranscribeView: View {
     @ObservedObject private var queue: TBDFileQueue
     @State private var link = ""
     @State private var dragging = false
+    @FocusState private var linkFocused: Bool
 
     init(context: TBDListeningContext) {
         self.context = context
@@ -39,30 +40,29 @@ struct TBDTranscribeView: View {
     private var linkCard: some View {
         VStack(alignment: .leading, spacing: TBDTokens.Space.md) {
             TBDLabel("From a link")
-            Text(input.title).font(TBDTokens.Typography.display).tracking(TBDTokens.Typography.displayTracking).foregroundStyle(TBDTokens.ink)
+            Text(input.title).font(TBDTokens.Typography.display).tracking(TBDTokens.Typography.displayTracking).foregroundStyle(TBDColor.ink)
             HStack(spacing: TBDTokens.Space.sm) {
                 HStack(spacing: TBDTokens.Space.sm) {
-                    Image(systemName: input.canSubmit ? "checkmark.circle.fill" : "link").foregroundStyle(input.canSubmit ? TBDTokens.accent : TBDTokens.muted)
-                    TextField("Paste a video or podcast link, or a podcast name", text: $link).textFieldStyle(.plain).onSubmit(submit)
+                    Image(systemName: input.canSubmit ? "checkmark.circle.fill" : "link").font(TBDFonts.symbol(14))
+                        .foregroundStyle(input.canSubmit ? TBDColor.tealInk : TBDColor.muted)
+                    TextField("Paste a video or podcast link, or a podcast name", text: $link).textFieldStyle(.plain)
+                        .focused($linkFocused).onSubmit(submit)
                     Button("Paste") {
                         if let clip = NSPasteboard.general.string(forType: .string) { link = clip.trimmingCharacters(in: .whitespacesAndNewlines) }
                     }
                     .buttonStyle(TBDButtonStyle(.quiet)).help("Paste from clipboard")
                 }
-                .padding(.horizontal, TBDTokens.Space.md).frame(minHeight: TBDTokens.Control.minHeight)
-                .background(TBDTokens.paper)
-                .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-                    .strokeBorder(input == .invalid ? TBDTokens.alert : TBDTokens.border, lineWidth: TBDTokens.Stroke.hairline))
+                .tbdField(focused: linkFocused, invalid: input == .invalid)
                 Button(action: submit) { Label("Transcribe", systemImage: "arrow.right") }
                     .buttonStyle(TBDButtonStyle(.primary)).disabled(!input.canSubmit)
             }
-            Text(input.caption).font(.system(size: 12)).foregroundStyle(input == .invalid ? TBDTokens.alert : TBDTokens.muted)
+            Text(input.caption).font(TBDTokens.Typography.hint).foregroundStyle(input == .invalid ? TBDColor.brickInk : TBDColor.muted)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(TBDTokens.Space.lg)
         .frame(maxWidth: .infinity, minHeight: 230, alignment: .topLeading)
-        .background(TBDTokens.paper)
-        .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.base).strokeBorder(TBDTokens.border, lineWidth: TBDTokens.Stroke.hairline))
+        .background(TBDColor.tile, in: TBDBrickShape())
+        .overlay(TBDBrickShape().strokeBorder(TBDColor.line, lineWidth: TBDKit.hair))
     }
 
     private func submit() {
@@ -76,13 +76,13 @@ struct TBDTranscribeView: View {
     private var dropZone: some View {
         VStack(alignment: .leading, spacing: TBDTokens.Space.md) {
             TBDLabel("From a file")
-            Text("Drop a file to transcribe").font(TBDTokens.Typography.display).tracking(TBDTokens.Typography.displayTracking).foregroundStyle(TBDTokens.ink)
+            Text("Drop a file to transcribe").font(TBDTokens.Typography.display).tracking(TBDTokens.Typography.displayTracking).foregroundStyle(TBDColor.ink)
             HStack(spacing: TBDTokens.Space.md) {
-                Image(systemName: dragging ? "arrow.down.doc.fill" : "arrow.down.doc").font(.system(size: 20))
-                    .foregroundStyle(dragging ? TBDTokens.accent : TBDTokens.muted).frame(width: 28)
+                Image(systemName: dragging ? "arrow.down.doc.fill" : "arrow.down.doc").font(TBDFonts.symbol(20))
+                    .foregroundStyle(dragging ? TBDColor.tealInk : TBDColor.muted).frame(width: 28)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(dragging ? "Release to transcribe" : "Drag audio, video or a folder here").font(TBDTokens.Typography.control).foregroundStyle(TBDTokens.ink)
-                    Text("MP3, WAV, M4A, MP4, MOV, FLAC and more").font(.system(size: 11)).foregroundStyle(TBDTokens.muted)
+                    Text(dragging ? "Release to transcribe" : "Drag audio, video or a folder here").font(TBDTokens.Typography.control).foregroundStyle(TBDColor.ink)
+                    Text("MP3, WAV, M4A, MP4, MOV, FLAC and more").font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
                 }
                 Spacer(minLength: TBDTokens.Space.md)
                 Button { queue.pickFiles() } label: { Label("Browse files", systemImage: "folder") }
@@ -91,15 +91,15 @@ struct TBDTranscribeView: View {
             }
             .padding(TBDTokens.Space.md)
             .frame(maxWidth: .infinity, minHeight: 64)
-            .background(dragging ? TBDTokens.selected.opacity(0.7) : TBDTokens.canvas)
-            .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-                .strokeBorder(dragging ? TBDTokens.accent : TBDTokens.border, style: StrokeStyle(lineWidth: dragging ? 2 : 1, dash: dragging ? [] : [5, 4])))
-            Text("Files never leave this Mac.").font(.system(size: 12)).foregroundStyle(TBDTokens.muted)
+            .background(dragging ? TBDColor.tealWash : TBDColor.paper, in: TBDBrickShape())
+            .overlay(TBDBrickShape()
+                .strokeBorder(dragging ? TBDColor.tealInk : TBDColor.lineStrong, style: StrokeStyle(lineWidth: dragging ? 2 : TBDKit.hair, dash: dragging ? [] : [5, 4])))
+            Text("Files never leave this Mac.").font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
         }
         .padding(TBDTokens.Space.lg)
         .frame(maxWidth: .infinity, minHeight: 230, alignment: .topLeading)
-        .background(TBDTokens.paper)
-        .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.base).strokeBorder(TBDTokens.border, lineWidth: TBDTokens.Stroke.hairline))
+        .background(TBDColor.tile, in: TBDBrickShape())
+        .overlay(TBDBrickShape().strokeBorder(TBDColor.line, lineWidth: TBDKit.hair))
         .onDrop(of: [.fileURL], isTargeted: $dragging) { providers in
             Task { @MainActor in queue.enqueue(files: await TBDDropCollector.urls(from: providers)) }
             return true
@@ -117,9 +117,9 @@ struct TBDMeetingTile: View {
             VStack(alignment: .leading, spacing: 2) {
                 TBDLabel("Meeting")
                 Text(meetings.phase == .idle ? "Record a meeting" : meetings.statusText)
-                    .font(TBDTokens.Typography.title).foregroundStyle(TBDTokens.ink)
+                    .font(TBDTokens.Typography.title).foregroundStyle(TBDColor.ink)
                 Text(meetings.warning ?? "Captures your microphone and the sound from other apps. Notes and transcript stay on this Mac.")
-                    .font(.system(size: 12)).foregroundStyle(meetings.warning == nil ? TBDTokens.muted : TBDTokens.alert)
+                    .font(TBDTokens.Typography.hint).foregroundStyle(meetings.warning == nil ? TBDColor.muted : TBDColor.brickInk)
             }
             Spacer()
             if meetings.phase == .recording || meetings.phase == .paused {

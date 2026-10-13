@@ -78,27 +78,27 @@ struct TBDMeetingPanelView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: TBDTokens.Space.md) {
             HStack(spacing: TBDTokens.Space.md) {
-                TBDChip(meetings.statusText, color: meetings.phase == .recording ? TBDTokens.alert : TBDTokens.muted)
+                TBDChip(meetings.statusText, color: meetings.phase == .recording ? TBDColor.brick : TBDColor.muted)
                 TBDMeetingLevels(meetings: meetings)
                 Spacer()
                 TBDMeetingIconControls(meetings: meetings, onDark: false)
             }
             if let notice = meetings.captureNotice {
-                Label(notice, systemImage: "exclamationmark.triangle.fill").font(.system(size: 12)).foregroundStyle(TBDTokens.alert)
+                Label(notice, systemImage: "exclamationmark.triangle.fill").font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.brickInk)
             }
             if let warning = meetings.warning {
-                Text(warning).font(.system(size: 12)).foregroundStyle(TBDTokens.alert)
+                Text(warning).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.brickInk)
             }
             if meetings.isRecording {
                 TBDMeetingLivePanes(meetings: meetings, database: database, height: nil)
             } else {
-                Text(meetings.statusText).foregroundStyle(TBDTokens.muted)
+                Text(meetings.statusText).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
                 Spacer()
             }
         }
         .padding(.horizontal, TBDTokens.Space.lg).padding(.bottom, TBDTokens.Space.lg).padding(.top, TBDTokens.Space.xxl)
         .frame(minWidth: 360, minHeight: 320)
-        .background(TBDTokens.canvas)
+        .background(TBDColor.paper)
     }
 }
 
@@ -111,12 +111,8 @@ struct TBDMeetingLivePanes: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: TBDTokens.Space.md) {
-            Picker("", selection: $meetings.liveTab) {
-                ForEach(TBDMeetingController.LiveTab.allCases) { tab in
-                    Text(tab == .ask && meetings.liveAsk.streaming ? "Ask •" : tab.title).tag(tab)
-                }
-            }
-            .pickerStyle(.segmented).labelsHidden().fixedSize()
+            TBDSegmented(selection: $meetings.liveTab,
+                         options: TBDMeetingController.LiveTab.allCases.map { ($0, $0 == .ask && meetings.liveAsk.streaming ? "Ask •" : $0.title) })
             Group {
                 switch meetings.liveTab {
                 case .notes:
@@ -138,13 +134,13 @@ struct TBDMeetingLivePanes: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: TBDTokens.Space.xs) {
                     if meetings.preview.isEmpty {
-                        Text("Live preview appears here as people speak.").foregroundStyle(TBDTokens.muted)
+                        Text("Live preview appears here as people speak.").font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
                     }
                     ForEach(meetings.preview) { line in
                         HStack(alignment: .firstTextBaseline, spacing: TBDTokens.Space.sm) {
-                            Text(TBDExport.clock(line.startMs)).font(.system(size: 11, design: .monospaced)).foregroundStyle(TBDTokens.muted)
-                            Text(line.source == .me ? "Me" : "Others").font(TBDTokens.Typography.label).foregroundStyle(TBDTokens.accent)
-                            Text(line.text).font(TBDTokens.Typography.body).foregroundStyle(TBDTokens.ink).textSelection(.enabled)
+                            Text(TBDExport.clock(line.startMs)).font(TBDFonts.mono(12)).foregroundStyle(TBDColor.muted)
+                            Text(line.source == .me ? "Me" : "Others").font(TBDTokens.Typography.control).foregroundStyle(TBDColor.tealInk)
+                            Text(line.text).font(TBDTokens.Typography.body).foregroundStyle(TBDColor.ink).textSelection(.enabled)
                         }
                         .id(line.id)
                     }
@@ -176,8 +172,8 @@ struct TBDMeetingLevels: View {
 
     private func bars(_ title: String, level: Float) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            if onDark { Text(title).font(.system(size: 9, weight: .medium)).foregroundStyle(.white.opacity(0.6)) } else { TBDLabel(title) }
-            TBDLevelBars(levels: [level], color: onDark ? .white : TBDTokens.accent).frame(width: 46, height: 10)
+            if onDark { Text(title).font(TBDTokens.Typography.label).foregroundStyle(TBDColor.overlayOn.opacity(0.75)) } else { TBDLabel(title) }
+            TBDLevelBars(levels: [level], color: onDark ? TBDColor.teal : TBDColor.tealInk).frame(width: 46, height: 10)
         }
     }
 }
@@ -188,9 +184,9 @@ struct TBDMeetingIconControls: View {
     var onDark: Bool
 
     var body: some View {
-        HStack(spacing: TBDTokens.Space.xs) {
+        HStack(spacing: onDark ? 0 : TBDKit.s1) {
             if meetings.canMuteMic {
-                iconButton(meetings.isMicMuted ? "mic.slash.fill" : "mic.fill", tint: meetings.isMicMuted ? Color.red : nil,
+                iconButton(meetings.isMicMuted ? "mic.slash.fill" : "mic.fill", tint: meetings.isMicMuted ? (onDark ? TBDColor.brick : TBDColor.brickInk) : nil,
                            help: meetings.isMicMuted ? "Unmute your microphone" : "Mute your microphone in this recording. System audio keeps recording.",
                            label: meetings.isMicMuted ? "Unmute microphone" : "Mute microphone") { meetings.toggleMute() }
             }
@@ -209,13 +205,29 @@ struct TBDMeetingIconControls: View {
 
     private func iconButton(_ symbol: String, tint: Color? = nil, help: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: symbol).font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(tint ?? (onDark ? .white : TBDTokens.ink))
-                .frame(width: 26, height: 26)
-                .background((onDark ? Color.white : TBDTokens.ink).opacity(0.1), in: RoundedRectangle(cornerRadius: TBDTokens.Radius.sm))
-                .contentShape(Rectangle())
+            let glyph = Image(systemName: symbol).font(TBDFonts.symbol(12, TBDKit.weightNav))
+            if onDark {
+                // Over the dark floating pill: light glyph on a faint light brick. The pill is 40pt high and fixed in width,
+                // so the hit area is 30 x 36 around a 28pt brick.
+                glyph.foregroundStyle(tint ?? TBDColor.overlayOn)
+                    .frame(width: 28, height: 28)
+                    .background(TBDColor.overlayOn.opacity(0.1), in: TBDBrickShape())
+                    .frame(width: 30, height: 36)
+                    .contentShape(Rectangle())
+            } else if let tint {
+                glyph.foregroundStyle(tint)
+            } else {
+                glyph
+            }
         }
-        .buttonStyle(.plain).help(help).accessibilityLabel(label)
+        .modifier(IconStyle(onDark: onDark)).help(help).accessibilityLabel(label)
+    }
+
+    private struct IconStyle: ViewModifier {
+        let onDark: Bool
+        @ViewBuilder func body(content: Content) -> some View {
+            if onDark { content.buttonStyle(.plain) } else { content.buttonStyle(TBDButtonStyle(.icon)) }
+        }
     }
 }
 
@@ -232,19 +244,27 @@ struct TBDStopConfirmButton: View {
     var body: some View {
         Button(action: press) {
             if armed {
-                Text("End now").font(.system(size: 11, weight: .semibold)).foregroundStyle(.white)
-                    .padding(.horizontal, 10).frame(height: 26)
-                    .background(Color.red.opacity(0.85), in: RoundedRectangle(cornerRadius: TBDTokens.Radius.sm))
+                // The confirm step is its own filled pair, so it reads the same on the dark pill and on the paper panel.
+                Text("End now").font(TBDTokens.Typography.control).foregroundStyle(TBDColor.dangerConfirmOn)
+                    .padding(.horizontal, 10).frame(height: 28)
+                    .background(TBDColor.dangerConfirmFill, in: TBDBrickShape())
+                    .frame(minHeight: 36)
+                    .contentShape(Rectangle())
             } else if labeled {
                 Label("Stop", systemImage: "stop.fill")
+            } else if onDark {
+                Image(systemName: "stop.fill").font(TBDFonts.symbol(11, TBDKit.weightNav))
+                    .foregroundStyle(TBDColor.overlayOn)
+                    .frame(width: 28, height: 28)
+                    .background(TBDColor.overlayOn.opacity(0.1), in: TBDBrickShape())
+                    .frame(width: 30, height: 36)
+                    .contentShape(Rectangle())
             } else {
-                Image(systemName: "stop.fill").font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(onDark ? Color.white : Color.red)
-                    .frame(width: 26, height: 26)
-                    .background((onDark ? Color.white : TBDTokens.ink).opacity(0.1), in: RoundedRectangle(cornerRadius: TBDTokens.Radius.sm))
+                Image(systemName: "stop.fill").font(TBDFonts.symbol(11, TBDKit.weightNav))
+                    .foregroundStyle(TBDColor.brickInk)
             }
         }
-        .modifier(StopStyle(labeled: labeled && !armed))
+        .modifier(StopStyle(labeled: labeled && !armed, plain: armed || onDark))
         .help(armed ? "End the recording now" : "End recording")
         .accessibilityLabel(armed ? "Confirm ending recording" : "End recording")
         .onDisappear { revert?.cancel() }
@@ -269,8 +289,11 @@ struct TBDStopConfirmButton: View {
 
     private struct StopStyle: ViewModifier {
         let labeled: Bool
-        func body(content: Content) -> some View {
-            if labeled { content.buttonStyle(TBDButtonStyle(.destructive)) } else { content.buttonStyle(.plain) }
+        let plain: Bool
+        @ViewBuilder func body(content: Content) -> some View {
+            if labeled { content.buttonStyle(TBDButtonStyle(.destructive)) }
+            else if plain { content.buttonStyle(.plain) }
+            else { content.buttonStyle(TBDButtonStyle(.icon)) }
         }
     }
 }

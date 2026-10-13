@@ -213,6 +213,7 @@ public struct TBDFilterChip: View {
         let on = isOn ? (hover ? TBDColor.tabCurrentHoverOn : TBDColor.tabCurrentOn) : (hover ? TBDColor.tabHoverOn : TBDColor.tabOn)
         Button { isOn.toggle() } label: {
             Text(text).font(TBDTokens.Typography.tag).foregroundStyle(on)
+                .lineLimit(1).fixedSize()
                 .padding(.horizontal, 14).frame(minHeight: 36)
                 .background(fill, in: Capsule())
                 .tbdPillEdge(isOn ? Color.clear : TBDColor.tabEdge)
@@ -248,9 +249,9 @@ private struct TBDSwitchBody: View {
                 .opacity(enabled ? 1 : 0.45)
             }
             .buttonStyle(TBDPillPress())
-            .accessibilityLabel(Text("Switch"))
-            .accessibilityValue(on ? "On" : "Off")
         }
+        // VoiceOver and keyboard users get a real toggle with its own label, not "Switch".
+        .accessibilityRepresentation { Toggle(isOn: configuration.$isOn) { configuration.label } }
     }
 }
 
@@ -409,14 +410,15 @@ public struct TBDStepFlow: View {
         HStack(spacing: TBDKit.s4) {
             ForEach(steps.indices, id: \.self) { i in
                 let done = i < shown
-                Button { if done { go(i) } } label: {
-                    Text("\(i + 1)-\(steps[i].name)\(done ? " ✓" : "")")
-                        .font(TBDFonts.nunito(TBDKit.textTag, i == shown ? TBDKit.weightLabel : TBDKit.weightNav))
-                        .foregroundStyle(i == shown ? TBDColor.ink : done ? TBDColor.tealInk : TBDColor.ink.opacity(0.62))
+                let label = Text("\(i + 1)-\(steps[i].name)\(done ? " ✓" : "")")
+                    .font(TBDFonts.nunito(TBDKit.textTag, i == shown ? TBDKit.weightLabel : TBDKit.weightNav))
+                    .foregroundStyle(i == shown ? TBDColor.ink : done ? TBDColor.tealInk : TBDColor.ink.opacity(0.62))
+                // Done steps are buttons (go back). The others are plain text: a disabled button would dim them below AA.
+                if done {
+                    Button { go(i) } label: { label }.buttonStyle(.plain)
+                } else {
+                    label.accessibilityAddTraits(i == shown ? .isSelected : [])
                 }
-                .buttonStyle(.plain)
-                .disabled(!done)
-                .accessibilityAddTraits(i == shown ? .isSelected : [])
             }
         }
     }

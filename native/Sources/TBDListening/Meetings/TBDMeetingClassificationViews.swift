@@ -6,15 +6,18 @@ import TBDSpeech
 // filter for the Meetings list, the manage-labels sheet, and aiming a prompt at labels.
 
 enum TBDLabelTint {
+    /// Kit tones for the marks (dots) of a label. Fills only; label names are always set in ink.
+    private static let palette: [Color] = [TBDColor.toneTeal, TBDColor.toneMoss, TBDColor.toneWood, TBDColor.toneBrick, TBDColor.toneStone, TBDColor.inkSoft]
+
     static func color(for label: TBDMeetingLabel) -> Color {
         switch TBDLabelColor(token: label.colorToken) {
-        case .coral: TBDTokens.accent
-        case .green: TBDTokens.data[1]
-        case .amber: TBDTokens.data[2]
-        case .red: TBDTokens.alert
-        case .purple: TBDTokens.data[5]
-        case .blue: TBDTokens.data[4]
-        case .automatic: TBDTokens.data[TBDLabelColor.automaticSlot(for: label.id, paletteCount: TBDTokens.data.count)]
+        case .coral: TBDColor.toneTeal
+        case .green: TBDColor.toneMoss
+        case .amber: TBDColor.toneWood
+        case .red: TBDColor.toneBrick
+        case .purple: TBDColor.inkSoft
+        case .blue: TBDColor.toneStone
+        case .automatic: palette[TBDLabelColor.automaticSlot(for: label.id, paletteCount: palette.count)]
         }
     }
 
@@ -36,11 +39,8 @@ private func tbdLabelChange(_ env: TBDListeningEnvironment, _ body: (TBDListenin
 struct TBDLabelTag: View {
     let label: TBDMeetingLabel
     var body: some View {
-        let tint = TBDLabelTint.color(for: label)
-        Text(label.name).font(.system(size: 10, weight: .medium)).lineLimit(1).foregroundStyle(tint)
-            .padding(.horizontal, 6).padding(.vertical, 2)
-            .background(RoundedRectangle(cornerRadius: TBDTokens.Radius.xs).fill(tint.opacity(0.11)))
-            .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.xs).strokeBorder(tint.opacity(0.25), lineWidth: 0.5))
+        // A pill chip: the label colour is the dot, the name stays ink (readable in light and dark).
+        TBDChip(label.name, color: TBDLabelTint.color(for: label)).lineLimit(1)
     }
 }
 
@@ -54,7 +54,7 @@ struct TBDLabelBadges: View {
     var body: some View {
         HStack(spacing: 4) {
             ForEach(labels.prefix(maximum)) { TBDLabelTag(label: $0) }
-            if labels.count > maximum { Text("+\(labels.count - maximum)").font(.system(size: 10)).foregroundStyle(TBDTokens.muted) }
+            if labels.count > maximum { Text("+\(labels.count - maximum)").font(TBDTokens.Typography.label).foregroundStyle(TBDColor.muted) }
         }
         .task(id: env.revision) { labels = (try? env.database?.labels(for: transcriptionID)) ?? [] }
     }
@@ -108,9 +108,9 @@ struct TBDLabelEditor: View {
                                 Circle().fill(TBDLabelTint.color(for: label)).frame(width: 8, height: 8)
                                 Text(label.name).lineLimit(1)
                                 Spacer(minLength: 0)
-                                if assigned.contains(label.id) { Image(systemName: "checkmark").font(.system(size: 10, weight: .semibold)) }
+                                if assigned.contains(label.id) { Image(systemName: "checkmark").font(TBDFonts.symbol(10, TBDKit.weightNav)) }
                             }
-                            .font(TBDTokens.Typography.body).foregroundStyle(TBDTokens.ink)
+                            .font(TBDTokens.Typography.body).foregroundStyle(TBDColor.ink)
                             .padding(.horizontal, 7).padding(.vertical, 5).contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
@@ -118,12 +118,12 @@ struct TBDLabelEditor: View {
                     if !typed.isEmpty, exact == nil {
                         Button { commit() } label: { Label("Create “\(typed)”", systemImage: "plus") }.buttonStyle(TBDButtonStyle(.quiet))
                     }
-                    if shown.isEmpty, typed.isEmpty { Text("No labels yet. Type a name to create one.").font(.system(size: 12)).foregroundStyle(TBDTokens.muted) }
+                    if shown.isEmpty, typed.isEmpty { Text("No labels yet. Type a name to create one.").font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted) }
                 }
             }
             .frame(maxHeight: 220)
             Button("Manage labels…", action: onManage).buttonStyle(TBDButtonStyle(.quiet))
-            if let error { Text(error).font(.system(size: 12)).foregroundStyle(TBDTokens.alert) }
+            if let error { Text(error).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.brickInk) }
         }
         .padding(TBDTokens.Space.md).frame(width: 300)
         .task(id: env.revision) { reload() }
@@ -180,10 +180,10 @@ struct TBDLabelFilterBar: View {
     private var popover: some View {
         VStack(alignment: .leading, spacing: TBDTokens.Space.sm) {
             if labels.isEmpty {
-                Text("No labels yet").font(TBDTokens.Typography.control).foregroundStyle(TBDTokens.ink)
-                Text("Create labels to group meetings and filter your library.").font(.system(size: 12)).foregroundStyle(TBDTokens.muted)
+                Text("No labels yet").font(TBDTokens.Typography.control).foregroundStyle(TBDColor.ink)
+                Text("Create labels to group meetings and filter your library.").font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
             } else {
-                Text("Match any selected label").font(.system(size: 11)).foregroundStyle(TBDTokens.muted)
+                Text("Match any selected label").font(TBDTokens.Typography.label).foregroundStyle(TBDColor.muted)
                 ScrollView {
                     VStack(alignment: .leading, spacing: 2) {
                         ForEach(labels) { label in
@@ -194,9 +194,9 @@ struct TBDLabelFilterBar: View {
                                     Circle().fill(TBDLabelTint.color(for: label)).frame(width: 8, height: 8)
                                     Text(label.name).lineLimit(1)
                                     Spacer(minLength: 0)
-                                    Image(systemName: selection.contains(label.id) ? "checkmark" : "circle").font(.system(size: 10, weight: .semibold))
+                                    Image(systemName: selection.contains(label.id) ? "checkmark" : "circle").font(TBDFonts.symbol(10, TBDKit.weightNav))
                                 }
-                                .font(TBDTokens.Typography.body).foregroundStyle(TBDTokens.ink)
+                                .font(TBDTokens.Typography.body).foregroundStyle(TBDColor.ink)
                                 .padding(.horizontal, 7).padding(.vertical, 5).contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
@@ -227,8 +227,8 @@ struct TBDLabelManagementSheet: View {
         VStack(alignment: .leading, spacing: TBDTokens.Space.md) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Manage labels").font(TBDTokens.Typography.title).foregroundStyle(TBDTokens.ink)
-                    Text("Rename and color labels across your library.").font(.system(size: 12)).foregroundStyle(TBDTokens.muted)
+                    Text("Manage labels").font(TBDTokens.Typography.title).foregroundStyle(TBDColor.ink)
+                    Text("Rename and color labels across your library.").font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
                 }
                 Spacer()
                 Button("Done") { dismiss() }.buttonStyle(TBDButtonStyle(.secondary))
@@ -238,19 +238,19 @@ struct TBDLabelManagementSheet: View {
                 Button("Add") { create() }.buttonStyle(TBDButtonStyle(.primary)).disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
             }
             TextField("Search labels", text: $query).tbdField()
-            if let error { Text(error).font(.system(size: 12)).foregroundStyle(TBDTokens.alert) }
+            if let error { Text(error).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.brickInk) }
             ScrollView {
                 LazyVStack(spacing: 0) {
                     let shown = TBDLabelRules.matching(query, in: labels)
                     if shown.isEmpty {
-                        Text(query.isEmpty ? "No labels yet." : "No labels match “\(query)”.").foregroundStyle(TBDTokens.muted)
+                        Text(query.isEmpty ? "No labels yet." : "No labels match “\(query)”.").foregroundStyle(TBDColor.muted)
                             .frame(maxWidth: .infinity, minHeight: 160)
                     }
                     ForEach(shown) { label in row(label); Divider() }
                 }
             }
         }
-        .padding(TBDTokens.Space.xl).background(TBDTokens.canvas)
+        .padding(TBDTokens.Space.xl).background(TBDColor.paper)
         .task(id: env.revision) { reload() }
         .sheet(item: $renaming) { label in
             VStack(alignment: .leading, spacing: TBDTokens.Space.md) {
@@ -263,7 +263,7 @@ struct TBDLabelManagementSheet: View {
                         .disabled(renameText.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
-            .padding(TBDTokens.Space.xl).frame(width: 360).background(TBDTokens.canvas)
+            .padding(TBDTokens.Space.xl).frame(width: 360).background(TBDColor.paper)
         }
     }
 
@@ -272,9 +272,9 @@ struct TBDLabelManagementSheet: View {
         return HStack(spacing: TBDTokens.Space.sm) {
             Circle().fill(TBDLabelTint.color(for: label)).frame(width: 9, height: 9)
             VStack(alignment: .leading, spacing: 2) {
-                Text(label.name).font(TBDTokens.Typography.control).foregroundStyle(TBDTokens.ink).lineLimit(1)
+                Text(label.name).font(TBDTokens.Typography.control).foregroundStyle(TBDColor.ink).lineLimit(1)
                 Text((label.isArchived ? "Archived · " : "") + "\(uses) transcript\(uses == 1 ? "" : "s")")
-                    .font(.system(size: 11)).foregroundStyle(TBDTokens.muted)
+                    .font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
             }
             Spacer()
             Menu {
@@ -328,7 +328,7 @@ struct TBDPromptLabelTargets: View {
         TBDSettingsRow("Offer for labels", help: targets.isEmpty ? "Offered for every transcript. Tick labels to offer it only for transcripts with one of them."
                        : "Offered only for transcripts that carry one of the ticked labels (and auto-run only for those).") {
             VStack(alignment: .trailing, spacing: TBDTokens.Space.xs) {
-                if labels.isEmpty { Text("No labels yet").font(.system(size: 12)).foregroundStyle(TBDTokens.muted) }
+                if labels.isEmpty { Text("No labels yet").font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted) }
                 TBDFlowRow(spacing: 4) {
                     ForEach(labels) { label in
                         Toggle(label.name, isOn: Binding(get: { targets.contains(label.id) }, set: { on in
@@ -339,7 +339,7 @@ struct TBDPromptLabelTargets: View {
                         .toggleStyle(.checkbox)
                     }
                 }
-                if let error { Text(error).font(.system(size: 12)).foregroundStyle(TBDTokens.alert) }
+                if let error { Text(error).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.brickInk) }
             }
             .frame(maxWidth: 360, alignment: .trailing)
         }

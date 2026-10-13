@@ -25,14 +25,11 @@ struct TBDListeningView: View {
                 }
             }
             if let error = env.databaseError {
-                Text("The Listening library could not be opened: \(error)").foregroundStyle(TBDTokens.alert)
+                TBDNotice("The Listening library could not be opened: \(error)", tone: .needsYou)
             }
             TBDModelBanner()
             if showPractice { TBDPracticeDictation(context: context) }
-            Picker("", selection: $env.selectedTab) {
-                ForEach(TBDListeningTab.allCases) { Text($0.title).tag($0) }
-            }
-            .pickerStyle(.segmented).labelsHidden().fixedSize()
+            TBDSegmented(selection: $env.selectedTab, options: TBDListeningTab.allCases.map { ($0, $0.title) })
             if env.selectedTab != .transcribe { TBDQueueStrip(queue: context.files) }
             Group {
                 switch env.selectedTab {
@@ -48,14 +45,14 @@ struct TBDListeningView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .padding(TBDTokens.Space.xxl)
-        .background(TBDTokens.canvas)
+        .background(TBDColor.paper)
         .task(id: env.revision) {
             showPractice = !env.preferences.practiceCompleted && ((try? env.database?.dictations(limit: 1))?.isEmpty ?? false)
                 || (showPractice && !env.preferences.practiceCompleted)
         }
         .overlay {
             if dropTargeted {
-                RoundedRectangle(cornerRadius: TBDTokens.Radius.sm).strokeBorder(TBDTokens.accent, style: StrokeStyle(lineWidth: 2, dash: [6]))
+                TBDBrickShape().strokeBorder(TBDColor.tealInk, style: StrokeStyle(lineWidth: 2, dash: [6]))
                     .overlay(TBDLabel("Drop audio or video to transcribe")).padding(TBDTokens.Space.sm)
             }
         }
@@ -83,7 +80,8 @@ struct TBDQueueStrip: View {
                 }
                 ForEach(queue.items) { item in
                     HStack(spacing: TBDTokens.Space.md) {
-                        Text(item.title).lineLimit(1).truncationMode(.middle).frame(maxWidth: 280, alignment: .leading)
+                        Text(item.title).font(TBDTokens.Typography.control).foregroundStyle(TBDColor.ink)
+                            .lineLimit(1).truncationMode(.middle).frame(maxWidth: 280, alignment: .leading)
                         status(item)
                         Spacer()
                         if !item.isFinished {
@@ -91,7 +89,6 @@ struct TBDQueueStrip: View {
                                 .buttonStyle(TBDButtonStyle(.icon)).help("Cancel").accessibilityLabel("Cancel \(item.title)")
                         }
                     }
-                    .font(TBDTokens.Typography.body)
                 }
             }
             .tbdCard(padding: TBDTokens.Space.md)
@@ -100,13 +97,15 @@ struct TBDQueueStrip: View {
 
     @ViewBuilder private func status(_ item: TBDFileQueue.Item) -> some View {
         switch item.state {
-        case .queued: TBDChip("Queued", color: TBDTokens.muted)
+        case .queued: TBDTag("Queued", status: .idle)
         case .running(let stage, let fraction):
             ProgressView(value: fraction).frame(width: 140)
-            Text(stage).foregroundStyle(TBDTokens.muted)
-        case .done: TBDChip("Done")
-        case .failed(let message): TBDChip("Failed", color: TBDTokens.alert); Text(message).foregroundStyle(TBDTokens.muted).lineLimit(1)
-        case .cancelled: TBDChip("Cancelled", color: TBDTokens.muted)
+            Text(stage).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
+        case .done: TBDTag("Done", status: .live)
+        case .failed(let message):
+            TBDTag("Failed", status: .needsYou)
+            Text(message).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted).lineLimit(1)
+        case .cancelled: TBDTag("Cancelled", status: .idle)
         }
     }
 }
@@ -124,9 +123,9 @@ struct TBDModelBanner: View {
         if !models.manager.isDownloaded(model) {
             HStack(spacing: TBDTokens.Space.md) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Download the speech model to start").font(TBDTokens.Typography.control).foregroundStyle(TBDTokens.ink)
-                    Text("\(model.title): \(model.detail) Speech stays on this Mac.").font(.system(size: 12)).foregroundStyle(TBDTokens.muted)
-                    if let error = models.error { Text(error).font(.system(size: 12)).foregroundStyle(TBDTokens.alert) }
+                    Text("Download the speech model to start").font(TBDTokens.Typography.control).foregroundStyle(TBDColor.ink)
+                    Text("\(model.title): \(model.detail) Speech stays on this Mac.").font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
+                    if let error = models.error { Text(error).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.brickInk) }
                 }
                 Spacer()
                 if let value = models.progress[model] {

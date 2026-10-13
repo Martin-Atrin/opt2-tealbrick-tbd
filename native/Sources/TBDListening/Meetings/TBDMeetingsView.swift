@@ -34,13 +34,13 @@ struct TBDMeetingsView: View {
         VStack(alignment: .leading, spacing: TBDTokens.Space.lg) {
             if meetings.phase != .idle { livePanel } else if !meetings.upcoming.isEmpty { upcomingPanel }
             if let stage = meetings.finalizingStage {
-                HStack(spacing: TBDTokens.Space.sm) { ProgressView().controlSize(.small); Text(stage).foregroundStyle(TBDTokens.muted) }
+                HStack(spacing: TBDTokens.Space.sm) { ProgressView().controlSize(.small); Text(stage).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted) }
             }
             if let notice = meetings.captureNotice {
-                Label(notice, systemImage: "exclamationmark.triangle.fill").font(TBDTokens.Typography.body).foregroundStyle(TBDTokens.alert)
+                Label(notice, systemImage: "exclamationmark.triangle.fill").font(TBDTokens.Typography.body).foregroundStyle(TBDColor.brickInk)
             }
             if let warning = meetings.warning {
-                Text(warning).font(TBDTokens.Typography.body).foregroundStyle(TBDTokens.alert)
+                Text(warning).font(TBDTokens.Typography.body).foregroundStyle(TBDColor.brickInk)
             }
             HStack {
                 TBDLabelFilterBar(selection: $labelFilter)
@@ -55,7 +55,7 @@ struct TBDMeetingsView: View {
     private var livePanel: some View {
         VStack(alignment: .leading, spacing: TBDTokens.Space.md) {
             HStack(spacing: TBDTokens.Space.md) {
-                TBDChip(meetings.statusText, color: meetings.phase == .recording ? TBDTokens.alert : TBDTokens.muted)
+                TBDChip(meetings.statusText, color: meetings.phase == .recording ? TBDColor.brick : TBDColor.muted)
                 TBDMeetingLevels(meetings: meetings)
                 Spacer()
                 switch meetings.phase {
@@ -77,7 +77,7 @@ struct TBDMeetingsView: View {
                     TBDStopConfirmButton(labeled: true) { meetings.stop() }
                 case .processing(let stage):
                     ProgressView().controlSize(.small)
-                    Text(stage).foregroundStyle(TBDTokens.muted)
+                    Text(stage).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
                 default: EmptyView()
                 }
             }
@@ -91,11 +91,11 @@ struct TBDMeetingsView: View {
             TBDLabel("Upcoming")
             ForEach(meetings.upcoming.prefix(3)) { meeting in
                 HStack {
-                    Text(meeting.start.formatted(date: .omitted, time: .shortened)).font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(TBDTokens.muted)
-                    Text(meeting.title).font(TBDTokens.Typography.body)
+                    Text(meeting.start.formatted(date: .omitted, time: .shortened)).font(TBDFonts.mono(12))
+                        .foregroundStyle(TBDColor.muted)
+                    Text(meeting.title).font(TBDTokens.Typography.body).foregroundStyle(TBDColor.ink)
                     if context.env.preferences.calendarAutoStart, meetings.isSkipped(meeting) {
-                        Text("Won't auto-record").font(.system(size: 11)).foregroundStyle(TBDTokens.muted)
+                        Text("Won't auto-record").font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
                     }
                     Spacer()
                     Button("Record") { meetings.begin(title: meeting.title) }.buttonStyle(TBDButtonStyle(.quiet))

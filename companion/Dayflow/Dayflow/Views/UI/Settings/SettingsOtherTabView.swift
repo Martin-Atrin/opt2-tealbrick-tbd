@@ -10,7 +10,6 @@ struct SettingsOtherTabView: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: SettingsStyle.sectionSpacing) {
-      TealbrickCompanionSettings()
       appPreferencesSection
       outputLanguageSection
     }
@@ -21,7 +20,8 @@ struct SettingsOtherTabView: View {
   private var appPreferencesSection: some View {
     SettingsSection(
       title: String(localized: "App preferences"),
-      subtitle: String(localized: "General toggles and telemetry settings.")
+      subtitle: String(localized: "General toggles and telemetry settings."),
+      isFirst: true
     ) {
       VStack(alignment: .leading, spacing: 0) {
         SettingsRow(
@@ -47,14 +47,12 @@ struct SettingsOtherTabView: View {
           label: String(localized: "Light/Dark mode"),
           subtitle: String(localized: "Follow the system setting or pick light or dark.")
         ) {
-          Picker("", selection: $appearance) {
-            ForEach(DayflowAppearance.allCases) { option in
-              Text(option.title).tag(option)
-            }
-          }
-          .pickerStyle(.segmented)
-          .labelsHidden()
-          .frame(width: 210)
+          TBDSegmented(
+            selection: $appearance,
+            options: DayflowAppearance.allCases.map { ($0, $0.title) }
+          )
+          .accessibilityElement(children: .contain)
+          .accessibilityLabel(Text("Light/Dark mode"))
           .onChange(of: appearance) { _, newValue in
           }
         }
@@ -76,7 +74,7 @@ struct SettingsOtherTabView: View {
         }
 
         SettingsRow(label: String(localized: "Telemetry and crash uploads")) {
-          Text("Disabled").foregroundStyle(.secondary)
+          Text("Disabled").font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
         }
 
         SettingsRow(

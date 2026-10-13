@@ -28,10 +28,10 @@ struct TBDHotkeyRecorderView: View {
             if recorder != nil { recordingView } else { normalView }
             if let message {
                 HStack(spacing: TBDTokens.Space.xs) {
-                    Image(systemName: messageBlocks ? "xmark.circle.fill" : "exclamationmark.triangle.fill").font(.system(size: 10))
-                    Text(message).font(.system(size: 11)).fixedSize(horizontal: false, vertical: true)
+                    Image(systemName: messageBlocks ? "xmark.circle.fill" : "exclamationmark.triangle.fill").font(TBDFonts.symbol(10, TBDKit.weightNav))
+                    Text(message).font(TBDTokens.Typography.hint).fixedSize(horizontal: false, vertical: true)
                 }
-                .foregroundStyle(messageBlocks ? TBDTokens.alert : TBDTokens.muted)
+                .foregroundStyle(messageBlocks ? TBDColor.brickInk : TBDColor.muted)
                 .frame(maxWidth: 280, alignment: .trailing)
             }
         }
@@ -40,8 +40,11 @@ struct TBDHotkeyRecorderView: View {
 
     private var normalView: some View {
         HStack(spacing: TBDTokens.Space.sm) {
+            // The current key as a field-like key cap: mono, brick, line-strong edge.
             Text(value.map { displayOverride ?? $0.formattedLabel } ?? "Disabled")
-                .foregroundStyle(value == nil ? TBDTokens.muted : TBDTokens.ink)
+                .font(value == nil ? TBDTokens.Typography.hint : TBDFonts.mono(13, TBDKit.weightNav))
+                .foregroundStyle(value == nil ? TBDColor.muted : TBDColor.fieldOn)
+                .tbdField()
             Button(value == nil ? "Set Hotkey..." : "Change...") { startRecording(.standard) }
                 .buttonStyle(TBDButtonStyle(.secondary))
             Menu {
@@ -55,7 +58,7 @@ struct TBDHotkeyRecorderView: View {
                 Button("Record Either-Side Modifier") { startRecording(.generic) }
                 Button("Record Specific-Side Modifier Chord") { startRecording(.sideSpecific) }
             } label: {
-                Image(systemName: "ellipsis.circle").font(.system(size: 14))
+                Image(systemName: "ellipsis.circle").font(TBDFonts.symbol(14, TBDKit.weightBody))
             }
             .menuStyle(.borderlessButton).fixedSize()
             .help("Hotkey options: disable, reset to default, or record a modifier-only shortcut.")
@@ -66,12 +69,15 @@ struct TBDHotkeyRecorderView: View {
     private var recordingView: some View {
         HStack(spacing: TBDTokens.Space.sm) {
             Text(pendingLabel ?? "Press a key or shortcut...")
-                .foregroundStyle(pendingLabel == nil ? TBDTokens.muted : TBDTokens.ink)
+                .font(pendingLabel == nil ? TBDTokens.Typography.hint : TBDFonts.mono(13, TBDKit.weightNav))
+                .foregroundStyle(pendingLabel == nil ? TBDColor.muted : TBDColor.fieldOn)
             Button("Cancel") { stopRecording() }.buttonStyle(TBDButtonStyle(.secondary))
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(RoundedRectangle(cornerRadius: TBDTokens.Radius.base).strokeBorder(TBDTokens.accent, lineWidth: TBDTokens.Stroke.bar))
+        .padding(.leading, TBDKit.s3)
+        .padding(.trailing, TBDKit.s1)
+        .padding(.vertical, TBDKit.s1)
+        .background(TBDColor.fieldFill, in: TBDBrickShape())
+        .overlay(TBDBrickShape().strokeBorder(TBDColor.focus, lineWidth: 2))
     }
 
     static func resetLabel(_ hotkey: TBDHotkey?) -> String {
@@ -169,10 +175,10 @@ struct TBDHotkeyRow: View {
                     })
                 if let conflict = TBDHotkeyConflictPolicy.conflictMessage(for: value, surface: surface, snapshot: snapshot) {
                     HStack(spacing: TBDTokens.Space.xs) {
-                        Image(systemName: "xmark.circle.fill").font(.system(size: 10))
-                        Text(conflict).font(.system(size: 11))
+                        Image(systemName: "xmark.circle.fill").font(TBDFonts.symbol(10, TBDKit.weightNav))
+                        Text(conflict).font(TBDTokens.Typography.hint)
                     }
-                    .foregroundStyle(TBDTokens.alert)
+                    .foregroundStyle(TBDColor.brickInk)
                 }
             }
         }
@@ -192,5 +198,19 @@ struct TBDTranscriptionHotkeySettings: View {
                          surface: .urlTranscription, context: context) { tick += 1 }
         }
         .id(tick)
+    }
+}
+
+/// A key as a cap: mono, plate brick with a line edge (hotkey guides).
+struct TBDKeyCap: View {
+    let text: String
+    init(_ text: String) { self.text = text }
+    var body: some View {
+        Text(text)
+            .font(TBDFonts.mono(13, TBDKit.weightNav))
+            .foregroundStyle(TBDColor.ink)
+            .padding(.horizontal, TBDKit.s2).frame(minHeight: 24)
+            .background(TBDColor.plate, in: TBDBrickShape())
+            .overlay(TBDBrickShape().strokeBorder(TBDColor.lineStrong, lineWidth: TBDKit.hair))
     }
 }

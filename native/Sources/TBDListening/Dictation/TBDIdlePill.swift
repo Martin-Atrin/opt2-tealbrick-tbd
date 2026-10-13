@@ -106,6 +106,7 @@ final class TBDIdleTrackingView: NSView {
 
 struct TBDIdlePillView: View {
     @ObservedObject var model: TBDIdlePillModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 6) {
@@ -117,26 +118,26 @@ struct TBDIdlePillView: View {
     }
 
     private var pill: some View {
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-            .fill(TBDDesign.recordingSurface.opacity(model.isHovered ? 1 : 0.9))
-            .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.base).strokeBorder(.white.opacity(model.isHovered ? 0.3 : 0.15), lineWidth: 0.5))
+        Capsule()
+            .fill(TBDColor.overlayFill.opacity(model.isHovered ? 1 : 0.9))
+            .tbdPillEdge(TBDColor.overlayOn.opacity(model.isHovered ? 0.3 : 0.15))
             .frame(width: model.isHovered ? 148 : 48, height: model.isHovered ? 30 : 10)
             .overlay {
                 if model.isHovered {
-                    HStack(spacing: 4) { ForEach(0..<12, id: \.self) { _ in Circle().fill(.white.opacity(0.25)).frame(width: 3, height: 3) } }
+                    HStack(spacing: 4) { ForEach(0..<12, id: \.self) { _ in Circle().fill(TBDColor.overlayOn.opacity(0.25)).frame(width: 3, height: 3) } }
                 }
             }
-            .animation(.spring(response: 0.35, dampingFraction: 0.8), value: model.isHovered)
+            .animation(TBDMotion.animation(TBDMotion.spring, reduce: reduceMotion), value: model.isHovered)
     }
 
     private var tip: some View {
         Text(model.hotkeyName.map { "Click, or hold \($0) to dictate" } ?? "Click to start dictating")
-            .font(.system(size: 13, weight: .medium))
-            .foregroundStyle(.white.opacity(0.9))
-            .padding(.horizontal, 16).padding(.vertical, 8)
-            .background(TBDDesign.recordingSurface, in: RoundedRectangle(cornerRadius: TBDTokens.Radius.base))
+            .font(TBDTokens.Typography.label)
+            .foregroundStyle(TBDColor.overlayOn.opacity(0.9))
+            .padding(.horizontal, TBDKit.s4).padding(.vertical, TBDKit.s2)
+            .background(TBDColor.overlayFill, in: TBDBrickShape())
             .opacity(model.isHovered ? 1 : 0)
             .scaleEffect(model.isHovered ? 1 : 0.9)
-            .animation(.easeOut(duration: 0.2), value: model.isHovered)
+            .animation(TBDMotion.animation(TBDMotion.quick, reduce: reduceMotion), value: model.isHovered)
     }
 }

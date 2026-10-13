@@ -17,20 +17,16 @@ struct TBDDictationPillSettings: View {
         let changed = { tick += 1; context.dictation.settingsChanged() }
         VStack(alignment: .leading, spacing: 0) {
             TBDSettingsRow("Show dictation pill at all times", help: "When off, the pill hides until you use a dictation shortcut.") {
-                Toggle("", isOn: tbdBinding({ prefs.showIdlePill }, { prefs.showIdlePill = $0 }, refresh: changed)).labelsHidden().toggleStyle(.switch)
+                Toggle("", isOn: tbdBinding({ prefs.showIdlePill }, { prefs.showIdlePill = $0 }, refresh: changed)).labelsHidden().toggleStyle(TBDSwitchStyle()).fixedSize()
             }
             TBDSettingsRow("Pill position", help: "Screen edge for the dictation pill and live preview.") {
-                Picker("", selection: tbdBinding({ prefs.dictationOverlayPlacement }, { prefs.dictationOverlayPlacement = $0 }, refresh: changed)) {
-                    ForEach(TBDOverlayPlacement.allCases, id: \.self) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented).labelsHidden().frame(width: 200)
+                TBDSegmented(selection: tbdBinding({ prefs.dictationOverlayPlacement }, { prefs.dictationOverlayPlacement = $0 }, refresh: changed),
+                             options: TBDOverlayPlacement.allCases.map { ($0, $0.title) })
             }
             if prefs.dictationLivePreview {
                 TBDSettingsRow("Preview text size", help: "Text size for the live transcript preview.") {
-                    Picker("", selection: tbdBinding({ prefs.dictationPreviewTextSize }, { prefs.dictationPreviewTextSize = $0 }, refresh: changed)) {
-                        ForEach(TBDPreviewTextSize.allCases, id: \.self) { Text($0.title).tag($0) }
-                    }
-                    .pickerStyle(.segmented).labelsHidden().frame(width: 200)
+                    TBDSegmented(selection: tbdBinding({ prefs.dictationPreviewTextSize }, { prefs.dictationPreviewTextSize = $0 }, refresh: changed),
+                                 options: TBDPreviewTextSize.allCases.map { ($0, $0.title) })
                 }
             }
         }
@@ -56,10 +52,9 @@ struct TBDDictationBehaviorSettings: View {
                    { prefs.silenceAutoStop }, { prefs.silenceAutoStop = $0 }, changed)
             if prefs.silenceAutoStop {
                 TBDSettingsRow("Silence delay", help: "How long silence must persist before dictation stops.") {
-                    Picker("", selection: tbdBinding({ prefs.silenceDelay }, { prefs.silenceDelay = $0 }, refresh: changed)) {
-                        ForEach(TBDSilenceAutoStop.delays, id: \.self) { Text(Self.delayTitle($0)).tag($0) }
-                    }
-                    .labelsHidden().frame(width: 140)
+                    TBDSelect(selection: tbdBinding({ prefs.silenceDelay }, { prefs.silenceDelay = $0 }, refresh: changed),
+                              options: TBDSilenceAutoStop.delays.map { ($0, Self.delayTitle($0)) })
+                        .frame(width: 140)
                 }
             }
             toggle("Instant dictation", "Keeps the mic ready so dictation starts faster and catches your first words; macOS shows the mic indicator while it's on. Pauses for Bluetooth mics like AirPods to protect playback quality.",
@@ -85,7 +80,7 @@ struct TBDDictationBehaviorSettings: View {
 
     private func toggle(_ title: String, _ help: String, _ get: @escaping () -> Bool, _ set: @escaping (Bool) -> Void, _ refresh: @escaping () -> Void) -> some View {
         TBDSettingsRow(title, help: help) {
-            Toggle("", isOn: tbdBinding(get, set, refresh: refresh)).labelsHidden().toggleStyle(.switch)
+            Toggle("", isOn: tbdBinding(get, set, refresh: refresh)).labelsHidden().toggleStyle(TBDSwitchStyle()).fixedSize()
         }
     }
 }
@@ -102,15 +97,13 @@ struct TBDDictationTextSettings: View {
         VStack(alignment: .leading, spacing: 0) {
             TBDSettingsRow("Insertion style", help: prefs.dictationInsertionStyle.detail) {
                 HStack(spacing: TBDTokens.Space.sm) {
-                    Text(prefs.dictationInsertionStyle.previewText).font(.system(size: 11, design: .monospaced)).foregroundStyle(TBDTokens.muted)
-                    Picker("", selection: tbdBinding({ prefs.dictationInsertionStyle }, { prefs.dictationInsertionStyle = $0 }, refresh: { tick += 1 })) {
-                        ForEach(TBDInsertionStyle.allCases, id: \.self) { Text($0.title).tag($0) }
-                    }
-                    .pickerStyle(.segmented).labelsHidden().frame(width: 210)
+                    Text(prefs.dictationInsertionStyle.previewText).font(TBDFonts.mono(12)).foregroundStyle(TBDColor.muted)
+                    TBDSegmented(selection: tbdBinding({ prefs.dictationInsertionStyle }, { prefs.dictationInsertionStyle = $0 }, refresh: { tick += 1 }),
+                                 options: TBDInsertionStyle.allCases.map { ($0, $0.title) })
                 }
             }
             TBDSettingsRow("Voice Return", help: "Submit commands, send messages, or confirm prompts, hands-free. Say a trigger phrase at the end of a dictation to press Return. A phrase in the middle is pasted as text.") {
-                Toggle("", isOn: tbdBinding({ prefs.voiceReturnEnabled }, { prefs.voiceReturnEnabled = $0 }, refresh: { tick += 1 })).labelsHidden().toggleStyle(.switch)
+                Toggle("", isOn: tbdBinding({ prefs.voiceReturnEnabled }, { prefs.voiceReturnEnabled = $0 }, refresh: { tick += 1 })).labelsHidden().toggleStyle(TBDSwitchStyle()).fixedSize()
             }
             if prefs.voiceReturnEnabled {
                 TBDLabel("Trigger phrases").padding(.top, TBDTokens.Space.sm)
@@ -128,7 +121,7 @@ struct TBDDictationTextSettings: View {
                     Button("Add", action: add).buttonStyle(TBDButtonStyle(.secondary))
                 }
                 .padding(.top, TBDTokens.Space.xs)
-                if let triggerError { Text(triggerError).font(.system(size: 12)).foregroundStyle(TBDTokens.alert) }
+                if let triggerError { Text(triggerError).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.brickInk) }
             }
         }
         .id(tick)
@@ -169,7 +162,7 @@ struct TBDAutoSaveSettings: View {
                 Toggle("", isOn: tbdBinding({ config.enabled }, { on in
                     config.enabled = on
                     if on { config.ensureFolderConfigured() }
-                }, refresh: { tick += 1 })).labelsHidden().toggleStyle(.switch)
+                }, refresh: { tick += 1 })).labelsHidden().toggleStyle(TBDSwitchStyle()).fixedSize()
             }
             if config.enabled { options(config) }
         }
@@ -179,10 +172,9 @@ struct TBDAutoSaveSettings: View {
     @ViewBuilder
     private func options(_ config: TBDAutoSaveConfig) -> some View {
         TBDSettingsRow("Format", help: "File format for saved \(scope.noun)s.") {
-            Picker("", selection: tbdBinding({ config.format }, { config.format = $0 }, refresh: { tick += 1 })) {
-                ForEach(TBDAutoSaveConfig.formats, id: \.self) { Text($0.title + " (." + $0.fileExtension + ")").tag($0) }
-            }
-            .labelsHidden().frame(width: 220)
+            TBDSelect(selection: tbdBinding({ config.format }, { config.format = $0 }, refresh: { tick += 1 }),
+                      options: TBDAutoSaveConfig.formats.map { ($0, $0.title + " (." + $0.fileExtension + ")") })
+                .frame(width: 220)
         }
         let folder = config.resolvedFolder()
         TBDSettingsRow("Folder", help: folder?.path ?? (config.hasFolder ? "This folder is unavailable. Choose another folder before the next \(scope.noun)." : "No folder selected")) {
@@ -206,7 +198,7 @@ struct TBDAutoSaveSettings: View {
 
     private func option(_ title: String, _ help: String, _ value: Bool, _ set: @escaping (Bool) -> Void) -> some View {
         TBDSettingsRow(title, help: help) {
-            Toggle("", isOn: tbdBinding({ value }, set, refresh: { tick += 1 })).labelsHidden().toggleStyle(.switch)
+            Toggle("", isOn: tbdBinding({ value }, set, refresh: { tick += 1 })).labelsHidden().toggleStyle(TBDSwitchStyle()).fixedSize()
         }
     }
 
@@ -235,7 +227,7 @@ struct TBDTranscriptionSettings: View {
         VStack(alignment: .leading, spacing: 0) {
             TBDSettingsRow("Notify when transcription finishes", help: "Play a sound when a file, link or batch transcription completes, plus a notification banner when TBD is in the background.") {
                 Toggle("", isOn: tbdBinding({ prefs.notifyOnTranscriptionComplete }, { prefs.notifyOnTranscriptionComplete = $0 }, refresh: { tick += 1 }))
-                    .labelsHidden().toggleStyle(.switch)
+                    .labelsHidden().toggleStyle(TBDSwitchStyle()).fixedSize()
             }
             TBDAutoSaveSettings(scope: .transcription)
         }

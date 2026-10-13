@@ -51,7 +51,7 @@ struct TBDExportPanel: View {
                 Button(action: onClose) { Image(systemName: "xmark") }
                     .buttonStyle(TBDButtonStyle(.icon)).accessibilityLabel("Close export options")
             }
-            if let subtitle { Text(subtitle).font(.system(size: 11)).foregroundStyle(TBDTokens.muted) }
+            if let subtitle { Text(subtitle).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted) }
 
             VStack(alignment: .leading, spacing: TBDTokens.Space.xs) {
                 TBDLabel("Format")
@@ -59,18 +59,19 @@ struct TBDExportPanel: View {
                     ForEach(TBDExportFormat.pickerOrder, id: \.self) { candidate in
                         Button { format = candidate } label: {
                             HStack(spacing: 6) {
-                                Image(systemName: Self.icon(candidate)).frame(width: 16)
+                                Image(systemName: Self.icon(candidate)).font(TBDFonts.symbol(13)).frame(width: 16)
                                 Text(candidate.shortName).lineLimit(1)
                                 Spacer(minLength: 0)
                             }
-                            .font(.system(size: 12))
-                            .foregroundStyle(TBDTokens.ink)
+                            .font(TBDTokens.Typography.control)
+                            .foregroundStyle(TBDColor.ink)
                             .padding(.horizontal, 9).padding(.vertical, 7)
                             .frame(maxWidth: .infinity)
-                            .background(format == candidate ? TBDTokens.selected : TBDTokens.paper)
-                            .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.base)
-                                .strokeBorder(format == candidate ? TBDTokens.accent : TBDTokens.border,
+                            .background(format == candidate ? TBDColor.tealWash : TBDColor.tile, in: TBDBrickShape())
+                            .overlay(TBDBrickShape()
+                                .strokeBorder(format == candidate ? TBDColor.tealInk : TBDColor.line,
                                               lineWidth: format == candidate ? TBDTokens.Stroke.bar : TBDTokens.Stroke.hairline))
+                            .contentShape(TBDBrickShape())
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel(candidate.title)
@@ -84,11 +85,11 @@ struct TBDExportPanel: View {
                     TBDLabel("Options")
                     toggle(forBatch ? "Include timestamps when available" : "Include timestamps", $options.includeTimestamps, reason: timestampsReason)
                     toggle(forBatch ? "Include speaker labels when available" : "Include speaker labels", $options.includeSpeakerLabels, reason: speakerLabelsReason)
-                    Toggle("Include metadata", isOn: $options.includeMetadata)
+                    Toggle("Include metadata", isOn: $options.includeMetadata).toggleStyle(TBDSwitchStyle())
                 }
             }
 
-            Divider()
+            Rectangle().fill(TBDColor.line).frame(height: TBDKit.hair)
             HStack {
                 Spacer()
                 Button(action: onAction) { Label(actionTitle, systemImage: actionIcon) }
@@ -98,7 +99,7 @@ struct TBDExportPanel: View {
             }
             if let status {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(status.text).font(.system(size: 12)).foregroundStyle(status.isError ? TBDTokens.alert : TBDTokens.ink)
+                    Text(status.text).font(TBDTokens.Typography.hint).foregroundStyle(status.isError ? TBDColor.brickInk : TBDColor.ink)
                         .fixedSize(horizontal: false, vertical: true)
                     if !status.reveal.isEmpty {
                         Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting(status.reveal) }
@@ -115,8 +116,9 @@ struct TBDExportPanel: View {
     private func toggle(_ label: String, _ value: Binding<Bool>, reason: String?) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Toggle(label, isOn: Binding(get: { reason == nil && value.wrappedValue }, set: { value.wrappedValue = $0 }))
+                .toggleStyle(TBDSwitchStyle())
                 .disabled(reason != nil)
-            if let reason { Text(reason).font(.system(size: 11)).foregroundStyle(TBDTokens.muted) }
+            if let reason { Text(reason).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted) }
         }
     }
 }

@@ -83,32 +83,36 @@ struct TBDMeetingCountdownView: View {
     var body: some View {
         HStack(spacing: TBDTokens.Space.md) {
             ZStack {
-                Circle().stroke(.white.opacity(0.2), lineWidth: 3)
+                Circle().stroke(TBDColor.overlayOn.opacity(0.2), lineWidth: 3)
                 Circle().trim(from: 0, to: model.progress)
-                    .stroke(.white, style: StrokeStyle(lineWidth: 3, lineCap: .round)).rotationEffect(.degrees(-90))
-                Text("\(model.remaining)").font(.system(size: 13, weight: .semibold, design: .monospaced)).foregroundStyle(.white)
+                    .stroke(TBDColor.teal, style: StrokeStyle(lineWidth: 3, lineCap: .round)).rotationEffect(.degrees(-90))
+                Text("\(model.remaining)").font(TBDFonts.mono(13, TBDKit.weightNav)).foregroundStyle(TBDColor.overlayOn)
             }
             .frame(width: 36, height: 36)
             VStack(alignment: .leading, spacing: 2) {
-                Text(model.title).font(TBDTokens.Typography.control).foregroundStyle(.white).lineLimit(1)
-                Text("Auto-recording").font(.system(size: 11)).foregroundStyle(.white.opacity(0.75))
+                Text(model.title).font(TBDTokens.Typography.control).foregroundStyle(TBDColor.overlayOn).lineLimit(1)
+                Text("Auto-recording").font(TBDTokens.Typography.label).foregroundStyle(TBDColor.overlayOn.opacity(0.75))
             }
             Spacer(minLength: 0)
+            // The main action is the inverted brick: light ground, dark ink (the overlay pair turned over).
             Button("Start now") { model.startNow() }
-                .buttonStyle(.plain).font(TBDTokens.Typography.control).foregroundStyle(.white)
-                .padding(.horizontal, 10).padding(.vertical, 4).background(.white.opacity(0.18), in: Capsule())
+                .buttonStyle(.plain).font(TBDTokens.Typography.control).foregroundStyle(TBDColor.overlayFill)
+                .padding(.horizontal, TBDKit.s3).frame(minHeight: 36).background(TBDColor.overlayOn, in: TBDBrickShape())
+                .contentShape(TBDBrickShape())
                 .keyboardShortcut(.return, modifiers: [])
             Button { model.dismiss() } label: {
-                Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).foregroundStyle(.white)
-                    .frame(width: 22, height: 22).background(.white.opacity(0.14), in: Circle())
+                Image(systemName: "xmark").font(TBDFonts.symbol(10, TBDKit.weightHead)).foregroundStyle(TBDColor.overlayOn)
+                    .frame(width: 28, height: 28).background(TBDColor.overlayOn.opacity(0.14), in: TBDBrickShape())
+                    .frame(minWidth: 36, minHeight: 36).contentShape(Rectangle())
             }
             .buttonStyle(.plain).keyboardShortcut(.escape, modifiers: []).help("Don't record this meeting")
             .accessibilityLabel("Cancel auto-start")
         }
         .padding(.horizontal, TBDTokens.Space.lg)
         .frame(width: 320, height: 64)
-        .background(TBDDesign.recordingSurface, in: RoundedRectangle(cornerRadius: TBDTokens.Radius.sm + 10, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.sm + 10, style: .continuous).strokeBorder(.white.opacity(0.12)))
+        // Fixed dark ground in both appearances (floats over arbitrary desktop content); the panel's window shadow is the float shadow.
+        .background(TBDColor.overlayFill, in: TBDBrickShape())
+        .overlay(TBDBrickShape().strokeBorder(TBDColor.overlayOn.opacity(0.14), lineWidth: TBDKit.hair))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

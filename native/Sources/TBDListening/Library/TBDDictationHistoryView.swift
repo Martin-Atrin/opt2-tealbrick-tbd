@@ -15,10 +15,9 @@ struct TBDDictationHistoryView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: TBDTokens.Space.md) {
             HStack(spacing: TBDTokens.Space.md) {
-                Picker("", selection: $tab) { ForEach(SubTab.allCases, id: \.self) { Text($0.rawValue).tag($0) } }
-                    .pickerStyle(.segmented).labelsHidden().fixedSize()
+                TBDSegmented(selection: $tab, options: SubTab.allCases.map { ($0, $0.rawValue) })
                 HStack(spacing: TBDTokens.Space.sm) {
-                    Image(systemName: "magnifyingglass").foregroundStyle(TBDTokens.muted)
+                    Image(systemName: "magnifyingglass").font(TBDFonts.symbol(14)).foregroundStyle(TBDColor.muted)
                     TextField("Search dictations", text: $env.dictationQuery).textFieldStyle(.plain)
                 }
                 .tbdField().frame(maxWidth: 320)
@@ -36,17 +35,25 @@ struct TBDDictationHistoryView: View {
                     stat("Streak", insights.currentStreak == 1 ? "1 day" : "\(insights.currentStreak) days")
                 }
                 if !env.preferences.keepHistory {
-                    Text("History is off. Turn it on in Settings → Listening → System.").foregroundStyle(TBDTokens.muted)
+                    TBDNotice("History is off. Turn it on in Settings → Listening → System.")
                 }
                 if items.isEmpty {
-                    Text(env.dictationQuery.isEmpty ? "Your voice, captured. Hold your dictation hotkey (\(env.preferences.pushToTalkHotkeyLabel)) to dictate into any app."
-                         : "No matching records. Try different words or clear your search.")
-                        .foregroundStyle(TBDTokens.muted).font(TBDTokens.Typography.body)
+                    VStack(alignment: .leading, spacing: TBDKit.s1) {
+                        Text(env.dictationQuery.isEmpty ? "Your voice, captured." : "No matching records.")
+                            .font(TBDTokens.Typography.title).foregroundStyle(TBDColor.ink)
+                        Text(env.dictationQuery.isEmpty ? "Hold your dictation hotkey (\(env.preferences.pushToTalkHotkeyLabel)) to dictate into any app."
+                             : "Try different words or clear your search.")
+                            .font(TBDTokens.Typography.body).foregroundStyle(TBDColor.inkSoft)
+                    }
                     Spacer()
                 } else {
                     List {
                         ForEach(Self.days(items), id: \.0) { day, entries in
-                            Section(Self.dayTitle(day)) { ForEach(entries) { row($0) } }
+                            Section {
+                                ForEach(entries) { row($0) }
+                            } header: {
+                                Text(Self.dayTitle(day)).font(TBDTokens.Typography.label).foregroundStyle(TBDColor.muted)
+                            }
                         }
                     }
                     .listStyle(.inset).scrollContentBackground(.hidden)
@@ -79,22 +86,22 @@ struct TBDDictationHistoryView: View {
     private func stat(_ label: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             TBDLabel(label)
-            Text(value).font(TBDTokens.Typography.title).foregroundStyle(TBDTokens.ink)
+            Text(value).font(TBDFonts.nunito(TBDKit.textH2, TBDKit.weightHead)).foregroundStyle(TBDColor.ink)
         }
     }
 
     private func row(_ item: TBDDictation) -> some View {
         HStack(alignment: .top, spacing: TBDTokens.Space.md) {
             VStack(alignment: .leading, spacing: 3) {
-                Text(item.text).font(TBDTokens.Typography.body).foregroundStyle(TBDTokens.ink).textSelection(.enabled).lineLimit(4)
+                Text(item.text).font(TBDTokens.Typography.body).foregroundStyle(TBDColor.ink).textSelection(.enabled).lineLimit(4)
                 HStack(spacing: TBDTokens.Space.sm) {
-                    Text(item.createdAt.formatted(date: .omitted, time: .shortened))
+                    Text(item.createdAt.formatted(date: .omitted, time: .shortened)).font(TBDFonts.mono())
                     if let app = item.targetApp { Text(app) }
                     Text("\(item.wordCount) words")
                     if item.cleanText != nil { Text("Cleaned") }
                     if item.status == .cancelled { Text("Cancelled, not pasted") }
                 }
-                .font(.system(size: 11)).foregroundStyle(TBDTokens.muted)
+                .font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
             }
             Spacer()
             Button { TBDPasteService.copy(item.text) } label: { Image(systemName: "doc.on.doc") }
@@ -107,6 +114,7 @@ struct TBDDictationHistoryView: View {
                 .buttonStyle(TBDButtonStyle(.icon)).help("Delete").accessibilityLabel("Delete dictation")
         }
         .padding(.vertical, 4)
+        .listRowSeparatorTint(TBDColor.line)
     }
 
     private func delete(_ item: TBDDictation) {

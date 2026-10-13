@@ -136,12 +136,9 @@ struct TBDPromptsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: TBDTokens.Space.md) {
             HStack {
-                Picker("", selection: $model.section) {
-                    ForEach(TBDPromptsModel.Section.allCases) { Text($0.rawValue).tag($0) }
-                }
-                .pickerStyle(.segmented).labelsHidden().fixedSize()
+                TBDSegmented(selection: $model.section, options: TBDPromptsModel.Section.allCases.map { ($0, $0.rawValue) })
                 Spacer()
-                if let error = model.error { Text(error).font(.system(size: 12)).foregroundStyle(TBDTokens.alert).lineLimit(2) }
+                if let error = model.error { Text(error).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.brickInk).lineLimit(2) }
             }
             switch model.section {
             case .transcriptPrompts: library
@@ -170,21 +167,26 @@ struct TBDPromptsView: View {
                         Button("Trash (\(model.deleted.count))…") { showTrash = true }
                         Divider()
                         Button("Reset to defaults") { model.restoreDefaults() }
-                    } label: { Image(systemName: "ellipsis.circle") }
+                    } label: { Image(systemName: "ellipsis.circle").font(TBDFonts.symbol(16)) }
                         .menuStyle(.borderlessButton).fixedSize().help("Manage collections and restore deleted prompts")
                 }
                 Button { model.newPrompt() } label: { Label("New prompt", systemImage: "plus") }.buttonStyle(TBDButtonStyle(.secondary))
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: 0) {
                         ForEach(model.shown) { prompt in row(prompt) }
-                        if model.shown.isEmpty { Text("No prompts match.").foregroundStyle(TBDTokens.muted).padding(.top, TBDTokens.Space.sm) }
+                        if model.shown.isEmpty {
+                            Text("No prompts match.").font(TBDTokens.Typography.body).foregroundStyle(TBDColor.inkSoft).padding(.top, TBDTokens.Space.sm)
+                        }
                     }
                 }
             }
             .frame(width: 260)
             ScrollView {
                 if model.draft != nil { TBDPromptEditor(model: model) } else {
-                    Text("Choose a prompt or create one. Prompts run on a transcript from its Summarise menu.").foregroundStyle(TBDTokens.muted)
+                    VStack(alignment: .leading, spacing: TBDKit.s1) {
+                        Text("Choose a prompt or create one.").font(TBDTokens.Typography.title).foregroundStyle(TBDColor.ink)
+                        Text("Prompts run on a transcript from its Summarise menu.").font(TBDTokens.Typography.body).foregroundStyle(TBDColor.inkSoft)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -194,15 +196,16 @@ struct TBDPromptsView: View {
     private func row(_ prompt: TBDPrompt) -> some View {
         Button { model.select(prompt) } label: {
             HStack(spacing: TBDTokens.Space.sm) {
-                Text(prompt.name).foregroundStyle(prompt.isVisible ? TBDTokens.ink : TBDTokens.muted).lineLimit(1)
+                Text(prompt.name).font(TBDTokens.Typography.control)
+                    .foregroundStyle(prompt.isVisible || model.selectedID == prompt.id ? TBDColor.ink : TBDColor.muted).lineLimit(1)
                 Spacer()
-                if prompt.isAutoRun { TBDChip("Auto") }
-                if prompt.isBuiltIn { TBDChip("Built-in", color: TBDTokens.muted) }
-                if !prompt.isVisible { Image(systemName: "eye.slash").foregroundStyle(TBDTokens.muted) }
+                if prompt.isAutoRun { TBDTag("Auto", status: .live) }
+                if prompt.isBuiltIn { TBDTag("Built-in", status: .idle) }
+                if !prompt.isVisible { Image(systemName: "eye.slash").font(TBDFonts.symbol(13)).foregroundStyle(TBDColor.muted) }
             }
-            .font(TBDTokens.Typography.body)
-            .padding(.horizontal, TBDTokens.Space.sm).padding(.vertical, 6)
-            .background(model.selectedID == prompt.id ? TBDTokens.selected : .clear)
+            .padding(.horizontal, TBDTokens.Space.sm).padding(.vertical, TBDKit.s2)
+            .background(model.selectedID == prompt.id ? TBDColor.tealWash : .clear, in: TBDBrickShape())
+            .overlay(alignment: .bottom) { Rectangle().fill(TBDColor.line).frame(height: TBDKit.hair) }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -221,9 +224,9 @@ struct TBDPromptEditor: View {
                 TextField("Name", text: draft.name).tbdField()
                 TBDLabel("Instructions")
                 TextEditor(text: draft.content).font(TBDTokens.Typography.body).frame(minHeight: 200).scrollContentBackground(.hidden)
-                    .padding(6).background(TBDTokens.paper)
-                    .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.base).strokeBorder(TBDTokens.border))
-                Text("Markdown supported. Sent as the system prompt with the transcript.").font(.system(size: 12)).foregroundStyle(TBDTokens.muted)
+                    .padding(6).background(TBDColor.fieldFill, in: TBDBrickShape()).foregroundStyle(TBDColor.fieldOn)
+                    .overlay(TBDBrickShape().strokeBorder(TBDColor.fieldEdge, lineWidth: TBDKit.hair))
+                Text("Markdown supported. Sent as the system prompt with the transcript.").font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
                 TBDInferenceFields(inference: draft.inference, modelOverride: draft.modelOverride)
                 HStack(spacing: TBDTokens.Space.sm) {
                     Button(stored == nil ? "Create" : "Save Changes") { model.save() }.buttonStyle(TBDButtonStyle(.primary))
@@ -249,23 +252,24 @@ struct TBDPromptEditor: View {
             .labelsHidden().frame(width: 180)
         }
         TBDSettingsRow("Show in the summary menu") {
-            Toggle("", isOn: Binding(get: { prompt.isVisible }, set: { _ in model.toggleVisible(prompt) })).labelsHidden().toggleStyle(.switch)
+            Toggle("", isOn: Binding(get: { prompt.isVisible }, set: { _ in model.toggleVisible(prompt) })).labelsHidden().toggleStyle(TBDSwitchStyle()).fixedSize()
         }
         TBDSettingsRow("Auto-Run", help: "Run automatically after a transcription finishes (meetings use it when meeting auto-summary is on).") {
-            Toggle("", isOn: Binding(get: { prompt.isAutoRun }, set: { model.setAutoRun(prompt, $0) })).labelsHidden().toggleStyle(.switch)
+            Toggle("", isOn: Binding(get: { prompt.isAutoRun }, set: { model.setAutoRun(prompt, $0) })).labelsHidden().toggleStyle(TBDSwitchStyle()).fixedSize()
         }
         if prompt.isAutoRun {
             TBDSettingsRow("Run automatically after") {
                 HStack(spacing: TBDTokens.Space.sm) {
                     ForEach(TBDSourceKind.allCases, id: \.self) { source in
                         Toggle(source.label, isOn: Binding(get: { prompt.autoRuns(for: source) }, set: { model.setAutoRun(prompt, source: source, $0) }))
-                            .toggleStyle(.checkbox)
+                            .toggleStyle(.checkbox) // design-guard: allow (native checkbox, no kit equivalent)
+                            .font(TBDTokens.Typography.hint)
                     }
                 }
             }
         }
         TBDSettingsRow("Include meeting notes as context") {
-            Toggle("", isOn: Binding(get: { prompt.includeMeetingNotes }, set: { model.setNotes(prompt, $0) })).labelsHidden().toggleStyle(.switch)
+            Toggle("", isOn: Binding(get: { prompt.includeMeetingNotes }, set: { model.setNotes(prompt, $0) })).labelsHidden().toggleStyle(TBDSwitchStyle()).fixedSize()
         }
         TBDPromptLabelTargets(promptID: prompt.id)
     }
@@ -275,16 +279,16 @@ struct TBDPromptEditor: View {
         ForEach(model.versions) { version in
             VStack(alignment: .leading, spacing: TBDTokens.Space.xs) {
                 HStack(spacing: TBDTokens.Space.sm) {
-                    Text("Version \(version.versionNumber)").font(TBDTokens.Typography.control)
-                    TBDChip(version.origin.title, color: TBDTokens.muted)
-                    Text(version.createdAt.formatted(date: .abbreviated, time: .shortened)).foregroundStyle(TBDTokens.muted)
+                    Text("Version \(version.versionNumber)").font(TBDTokens.Typography.control).foregroundStyle(TBDColor.ink)
+                    TBDTag(version.origin.title, status: .idle)
+                    Text(version.createdAt.formatted(date: .abbreviated, time: .shortened)).font(TBDFonts.mono()).foregroundStyle(TBDColor.muted)
                     Spacer()
-                    if version.id == prompt.activeVersionId { TBDChip("Current") } else {
+                    if version.id == prompt.activeVersionId { TBDTag("Current", status: .live) } else {
                         Button("Use this version") { model.use(version) }.buttonStyle(TBDButtonStyle(.quiet))
                     }
                 }
-                if let note = version.changeNote { Text(note).font(.system(size: 12)).foregroundStyle(TBDTokens.muted) }
-                Text(version.content).font(.system(size: 12)).foregroundStyle(TBDTokens.muted).lineLimit(3)
+                if let note = version.changeNote { Text(note).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted) }
+                Text(version.content).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted).lineLimit(3)
             }
             .tbdCard(padding: TBDTokens.Space.sm)
         }
@@ -320,11 +324,11 @@ struct TBDInferenceFields: View {
                 }
                 field("Custom model ID", Binding(get: { modelOverride ?? "" }, set: { modelOverride = $0.isEmpty ? nil : $0 }))
                 Text("Sent today: temperature, max tokens and model. The others are kept with the prompt.")
-                    .font(.system(size: 12)).foregroundStyle(TBDTokens.muted)
+                    .font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
             }
             .padding(.top, TBDTokens.Space.xs)
         }
-        .font(TBDTokens.Typography.body)
+        .font(TBDTokens.Typography.body).foregroundStyle(TBDColor.ink)
     }
 
     private func field(_ title: String, _ text: Binding<String>) -> some View {
@@ -348,16 +352,16 @@ struct TBDPromptCollectionsSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: TBDTokens.Space.md) {
-            Text("Collections").font(TBDTokens.Typography.title)
+            Text("Collections").font(TBDTokens.Typography.title).foregroundStyle(TBDColor.ink)
             Text("Collections organise prompts. They are never sent to the model; deleting one leaves its prompts unfiled.")
-                .foregroundStyle(TBDTokens.muted).fixedSize(horizontal: false, vertical: true)
+                .font(TBDTokens.Typography.body).foregroundStyle(TBDColor.inkSoft).fixedSize(horizontal: false, vertical: true)
             HStack {
                 TextField("New collection", text: $newName).tbdField().onSubmit(add)
                 Button("Create", action: add).buttonStyle(TBDButtonStyle(.secondary)).disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
             }
             ForEach(model.collections) { collection in
                 HStack {
-                    Text(collection.name).font(TBDTokens.Typography.body)
+                    Text(collection.name).font(TBDTokens.Typography.control).foregroundStyle(TBDColor.ink)
                     Spacer()
                     Button { if let name = TBDTextPrompt.ask("Rename collection", message: "", initial: collection.name, action: "Rename") { model.rename(collection, name) } }
                         label: { Image(systemName: "pencil") }.buttonStyle(TBDButtonStyle(.icon)).help("Rename collection")
@@ -367,10 +371,10 @@ struct TBDPromptCollectionsSheet: View {
                         .buttonStyle(TBDButtonStyle(.icon)).help("Delete collection")
                 }
             }
-            if let error = model.error { Text(error).foregroundStyle(TBDTokens.alert) }
+            if let error = model.error { Text(error).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.brickInk) }
             HStack { Spacer(); Button("Done") { dismiss() }.buttonStyle(TBDButtonStyle(.primary)) }
         }
-        .padding(TBDTokens.Space.xl).frame(width: 460)
+        .padding(TBDTokens.Space.xl).frame(width: 460).background(TBDColor.tile)
     }
 
     private func add() {
@@ -385,21 +389,22 @@ struct TBDPromptTrashSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: TBDTokens.Space.md) {
-            Text("Trash").font(TBDTokens.Typography.title)
+            Text("Trash").font(TBDTokens.Typography.title).foregroundStyle(TBDColor.ink)
             if model.deleted.isEmpty {
-                Text("No deleted prompts. Removed prompts can be restored here with their version history.").foregroundStyle(TBDTokens.muted)
+                Text("No deleted prompts. Removed prompts can be restored here with their version history.")
+                    .font(TBDTokens.Typography.body).foregroundStyle(TBDColor.inkSoft)
             }
             ForEach(model.deleted) { prompt in
                 HStack {
-                    Text(prompt.name)
-                    if prompt.isBuiltIn { TBDChip("Built-in", color: TBDTokens.muted) }
+                    Text(prompt.name).font(TBDTokens.Typography.control).foregroundStyle(TBDColor.ink)
+                    if prompt.isBuiltIn { TBDTag("Built-in", status: .idle) }
                     Spacer()
                     Button("Restore") { model.restore(prompt) }.buttonStyle(TBDButtonStyle(.secondary))
                 }
             }
             HStack { Spacer(); Button("Done") { dismiss() }.buttonStyle(TBDButtonStyle(.primary)) }
         }
-        .padding(TBDTokens.Space.xl).frame(width: 420)
+        .padding(TBDTokens.Space.xl).frame(width: 420).background(TBDColor.tile)
     }
 }
 
@@ -412,7 +417,7 @@ struct TBDQuickPromptsEditor: View {
         ScrollView {
             VStack(alignment: .leading, spacing: TBDTokens.Space.md) {
                 Text("Quick prompts appear in a meeting's Ask tab. Visible prompts fill the empty Ask state; pinned prompts form the strip after each answer.")
-                    .foregroundStyle(TBDTokens.muted).fixedSize(horizontal: false, vertical: true)
+                    .font(TBDTokens.Typography.body).foregroundStyle(TBDColor.inkSoft).fixedSize(horizontal: false, vertical: true)
                 HStack {
                     Button { editing = TBDQuickPromptItem(label: "", prompt: "") } label: { Label("New quick prompt", systemImage: "plus") }
                         .buttonStyle(TBDButtonStyle(.secondary))
@@ -434,10 +439,10 @@ struct TBDQuickPromptsEditor: View {
                 HStack(spacing: TBDTokens.Space.sm) {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: TBDTokens.Space.xs) {
-                            Text(item.label).font(TBDTokens.Typography.control).foregroundStyle(item.isVisible ? TBDTokens.ink : TBDTokens.muted)
-                            if let group = item.groupLabel { TBDChip(group, color: TBDTokens.muted) }
+                            Text(item.label).font(TBDTokens.Typography.control).foregroundStyle(item.isVisible ? TBDColor.ink : TBDColor.muted)
+                            if let group = item.groupLabel { TBDTag(group, status: .idle) }
                         }
-                        Text(item.prompt).font(.system(size: 12)).foregroundStyle(TBDTokens.muted).lineLimit(2)
+                        Text(item.prompt).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted).lineLimit(2)
                     }
                     Spacer()
                     Button { model.pin(item, !item.isPinned) } label: { Image(systemName: item.isPinned ? "pin.fill" : "pin") }
@@ -454,7 +459,8 @@ struct TBDQuickPromptsEditor: View {
                         Button { model.deleteQuick(item) } label: { Image(systemName: "trash") }.buttonStyle(TBDButtonStyle(.icon)).help("Delete")
                     }
                 }
-                .tbdCard(padding: TBDTokens.Space.sm)
+                .padding(.vertical, TBDKit.s2)
+                .overlay(alignment: .bottom) { Rectangle().fill(TBDColor.line).frame(height: TBDKit.hair) }
             }
         }
     }
@@ -467,16 +473,16 @@ struct TBDQuickPromptSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: TBDTokens.Space.sm) {
-            Text(item.label.isEmpty ? "New quick prompt" : "Edit quick prompt").font(TBDTokens.Typography.title)
+            Text(item.label.isEmpty ? "New quick prompt" : "Edit quick prompt").font(TBDTokens.Typography.title).foregroundStyle(TBDColor.ink)
             TBDLabel("Label (shown on the chip)")
             TextField("Label", text: $item.label).tbdField()
             TBDLabel("Prompt (sent to the model)")
             TextEditor(text: $item.prompt).font(TBDTokens.Typography.body).frame(height: 120).scrollContentBackground(.hidden)
-                .padding(6).background(TBDTokens.paper)
-                .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.base).strokeBorder(TBDTokens.border))
+                .padding(6).background(TBDColor.fieldFill, in: TBDBrickShape()).foregroundStyle(TBDColor.fieldOn)
+                .overlay(TBDBrickShape().strokeBorder(TBDColor.fieldEdge, lineWidth: TBDKit.hair))
             TBDLabel("Group (optional)")
             TextField("For example CAPTURE", text: Binding(get: { item.groupLabel ?? "" }, set: { item.groupLabel = $0 })).tbdField()
-            Toggle("Pinned to the after-answer strip", isOn: $item.isPinned)
+            Toggle("Pinned to the after-answer strip", isOn: $item.isPinned).toggleStyle(TBDSwitchStyle())
             HStack {
                 Spacer()
                 Button("Cancel") { dismiss() }.buttonStyle(TBDButtonStyle(.quiet))
@@ -484,6 +490,6 @@ struct TBDQuickPromptSheet: View {
                     .disabled(item.label.trimmingCharacters(in: .whitespaces).isEmpty || item.prompt.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }
-        .padding(TBDTokens.Space.xl).frame(width: 460)
+        .padding(TBDTokens.Space.xl).frame(width: 460).background(TBDColor.tile)
     }
 }

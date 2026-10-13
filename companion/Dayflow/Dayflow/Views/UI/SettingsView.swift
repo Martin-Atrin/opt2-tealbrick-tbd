@@ -12,7 +12,6 @@ import TBDListening
 import TBDModels
 
 struct SettingsView: View {
-  @Environment(\.dayflowTheme) private var theme
 
   private enum SettingsTab: String, CaseIterable, Identifiable {
     case account, about
@@ -51,18 +50,26 @@ struct SettingsView: View {
       case .account: return "Account"
       case .permissions: return "Access"
       case .storage: return String(localized: "Storage")
-      case .privacy: return String(localized: "Privacy")
+      case .privacy: return "Screen capture"
       case .providers: return String(localized: "Providers")
       case .aiTools: return String(localized: "Tools")
       case .data: return String(localized: "Export")
       case .other: return "General"
       case .capture: return "Capture"
-      case .engine: return "Models"
+      case .engine: return "Agent model"
       case .audioAI: return "Speech"
       case .audioSystem: return "System"
       }
     }
   }
+
+  /// Settings grouped by TBD's three aspects plus the app (TBD-PRODUCT.md §a, C142).
+  private static let groups: [(title: String, tabs: [SettingsTab])] = [
+    ("Chat", [.engine]),
+    ("Companion", [.privacy, .providers, .storage, .aiTools, .data]),
+    ("Listen", [.capture, .audioAI, .audioSystem]),
+    ("App", [.account, .permissions, .other, .about]),
+  ]
 
   @State private var selectedTab: SettingsTab
   init(initialSection: String = "account") {
@@ -180,18 +187,24 @@ struct SettingsView: View {
       settingsContent
         .padding(.horizontal, 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(theme.panelSolid)
-        .clipShape(RoundedRectangle(cornerRadius: TBDTokens.Radius.base))
-        .padding(.trailing, 15)
-        .padding(.bottom, 15)
+        .background(TBDColor.tile, in: TBDBrickShape())
+        .overlay(TBDBrickShape().strokeBorder(TBDColor.line, lineWidth: TBDKit.hair))
+        .padding(.trailing, TBDKit.s4)
+        .padding(.bottom, TBDKit.s4)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .background(TBDColor.paper)
   }
 
   @ViewBuilder
   private var settingsContent: some View {
     if selectedTab == .engine || selectedTab == .providers || selectedTab == .audioAI {
-      TBDModelsView(screenSettings: { AnyView(SettingsProvidersTabView(viewModel: providersViewModel)) })
+      // One Models screen; each entry opens the page it belongs to (agent, screen analysis, speech).
+      TBDModelsView(
+        screenSettings: { AnyView(SettingsProvidersTabView(viewModel: providersViewModel)) },
+        initialPage: selectedTab == .providers ? "Advanced" : selectedTab == .audioAI ? "Transcription" : "Tasks"
+      )
+        .id(selectedTab)
         .frame(maxWidth: 760, maxHeight: .infinity, alignment: .topLeading)
     } else if let section = listeningSection {
       TBDListeningRuntime.shared.settingsContent(section: section)
@@ -222,55 +235,27 @@ struct SettingsView: View {
 
   private var sidebar: some View {
     ScrollView(.vertical, showsIndicators: false) {
-      VStack(spacing: TBDRailMetrics.gap) {
-        ForEach(SettingsTab.allCases.filter { $0 != .providers && $0 != .audioAI }) { tab in
-          sidebarButton(for: tab)
+      VStack(alignment: .leading, spacing: TBDKit.s5) {
+        ForEach(Self.groups, id: \.title) { group in
+          TBDNavSection(group.title) {
+            ForEach(group.tabs) { tab in
+              TBDNavItem(tab.title, symbol: tab.symbol, current: selectedTab == tab) {
+                withAnimation(TBDMotion.quick) { selectedTab = tab }
+              }
+              .pointingHandCursor()
+            }
+            if group.title == "App" {
+              TBDNavItem("Updates", symbol: "sparkles", current: false) { selectedTab = .about }
+                .help("Release notes")
+            }
+          }
         }
-        Button {
-          selectedTab = .about
-        } label: {
-          railLabel("Updates", symbol: "sparkles", selected: false)
-        }
-        .buttonStyle(SettingsSidebarButtonStyle())
-        .help("Release notes")
       }
-      .padding(.top, TBDRailMetrics.topInset)
-      .padding(.bottom, 15)
-      .frame(width: TBDRailMetrics.width)
+      .padding(.top, TBDKit.s5)
+      .padding(.horizontal, TBDKit.s3)
+      .padding(.bottom, TBDKit.s4)
     }
-    .frame(width: TBDRailMetrics.width)
-  }
-
-  private func railLabel(_ title: String, symbol: String, selected: Bool) -> some View {
-    VStack(spacing: 3) {
-      Image(systemName: symbol)
-        .resizable().scaledToFit()
-        .frame(width: TBDRailMetrics.icon, height: TBDRailMetrics.icon)
-        .frame(width: TBDRailMetrics.iconBox, height: TBDRailMetrics.iconBox)
-        .background {
-          // Soft rail selection (docs/design-language.md — see SidebarView.iconBox).
-          if selected { TBDRailSelection() }
-        }
-      Text(title)
-        .font(.custom("Switzer", size: TBDRailMetrics.label))
-        .lineLimit(1)
-        .minimumScaleFactor(0.85)
-    }
-    .foregroundStyle(selected ? theme.sidebarLabelActive : theme.sidebarLabel)
-    .frame(width: TBDRailMetrics.row, height: TBDRailMetrics.row)
-    .contentShape(Rectangle())
-  }
-
-  private func sidebarButton(for tab: SettingsTab) -> some View {
-    Button {
-      withAnimation(TBDMotion.quick) { selectedTab = tab }
-    } label: {
-      railLabel(tab.title, symbol: tab.symbol, selected: selectedTab == tab)
-    }
-    .buttonStyle(SettingsSidebarButtonStyle())
-    .accessibilityLabel(tab.title)
-    .help(tab.title)
-    .pointingHandCursor()
+    .frame(width: 208)
   }
 
   @ViewBuilder
@@ -318,16 +303,5 @@ struct SettingsView_Previews: PreviewProvider {
   static var previews: some View {
     SettingsView()
       .frame(width: 1400, height: 860)
-  }
-}
-
-// Brick rail item: square hit target, no rounded background or
-// scale/spring bounce — selection reads through `railLabel`'s left bar,
-// not through this style (docs/design-language.md, Rail item).
-private struct SettingsSidebarButtonStyle: ButtonStyle {
-  func makeBody(configuration: Configuration) -> some View {
-    configuration.label
-      .contentShape(Rectangle())
-      .opacity(configuration.isPressed ? 0.85 : 1)
   }
 }

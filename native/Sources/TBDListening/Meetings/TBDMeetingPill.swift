@@ -77,10 +77,11 @@ struct TBDMeetingPillView: View {
 
     var body: some View {
         content
-            .padding(.horizontal, TBDTokens.Space.md)
+            .padding(.horizontal, TBDKit.s3)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-            .background(TBDDesign.recordingSurface, in: RoundedRectangle(cornerRadius: TBDTokens.Radius.base + 6, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.base + 6, style: .continuous).strokeBorder(.white.opacity(0.12), lineWidth: 0.5))
+            // The small floating status pill: fixed dark ground in both appearances. The panel's own window shadow is the float shadow.
+            .background(TBDColor.overlayFill, in: Capsule())
+            .tbdPillEdge(TBDColor.overlayOn.opacity(0.14))
             .contextMenu { menu }
     }
 
@@ -89,19 +90,19 @@ struct TBDMeetingPillView: View {
         case .hidden: EmptyView()
         case .starting:
             HStack(spacing: TBDTokens.Space.sm) {
-                ProgressView().controlSize(.small).tint(.white)
-                Text("Starting…").font(.system(size: 12, weight: .medium)).foregroundStyle(.white)
+                ProgressView().controlSize(.small).tint(TBDColor.overlayOn)
+                Text("Starting…").font(TBDTokens.Typography.control).foregroundStyle(TBDColor.overlayOn)
             }
         case .recording, .paused: running
         case .saving:
             HStack(spacing: TBDTokens.Space.sm) {
-                ProgressView().controlSize(.small).tint(.white)
-                Text("Saving…").font(.system(size: 12, weight: .medium)).foregroundStyle(.white)
+                ProgressView().controlSize(.small).tint(TBDColor.overlayOn)
+                Text("Saving…").font(TBDTokens.Typography.control).foregroundStyle(TBDColor.overlayOn)
             }
         case .saved:
             HStack(spacing: TBDTokens.Space.sm) {
-                Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                Text("Saved").font(.system(size: 12, weight: .medium)).foregroundStyle(.white)
+                Image(systemName: "checkmark.circle.fill").foregroundStyle(TBDColor.teal)
+                Text("Saved").font(TBDTokens.Typography.control).foregroundStyle(TBDColor.overlayOn)
             }
         }
     }
@@ -110,28 +111,32 @@ struct TBDMeetingPillView: View {
         VStack(alignment: .leading, spacing: 2) {
             controls
             if let notice = meetings.captureNotice {
-                Label(notice, systemImage: "exclamationmark.triangle.fill").font(.system(size: 11)).foregroundStyle(.orange)
-                    .lineLimit(1).minimumScaleFactor(0.8)
+                Label { Text(notice).foregroundStyle(TBDColor.overlayOn) } icon: {
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(TBDColor.brick)
+                }
+                .font(TBDTokens.Typography.label).lineLimit(1).minimumScaleFactor(0.8)
             }
         }
     }
 
     private var controls: some View {
         HStack(spacing: TBDTokens.Space.sm) {
-            Circle().fill(meetings.pillFace == .paused ? Color.orange : Color.red).frame(width: 8, height: 8)
+            Circle().fill(meetings.pillFace == .paused ? TBDColor.overlayOn.opacity(0.55) : TBDColor.brick).frame(width: 8, height: 8)
             Text(TBDPillClock.text(meetings.elapsedMs))
-                .font(.system(size: 13, weight: .semibold, design: .monospaced)).foregroundStyle(.white)
+                .font(TBDFonts.mono(13, TBDKit.weightNav)).foregroundStyle(TBDColor.overlayOn)
             if meetings.warning != nil {
-                Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 11)).foregroundStyle(.orange)
+                Image(systemName: "exclamationmark.triangle.fill").font(TBDFonts.symbol(11, TBDKit.weightNav)).foregroundStyle(TBDColor.brick)
                     .help(meetings.warning ?? "")
             }
             TBDMeetingLevels(meetings: meetings, onDark: true)
             Spacer(minLength: 0)
             TBDMeetingIconControls(meetings: meetings, onDark: true)
             Button { meetings.showPanel() } label: {
-                Image(systemName: "arrow.up.left.and.arrow.down.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(.white)
-                    .frame(width: 26, height: 26)
-                    .background(.white.opacity(0.1), in: RoundedRectangle(cornerRadius: TBDTokens.Radius.sm))
+                Image(systemName: "arrow.up.left.and.arrow.down.right").font(TBDFonts.symbol(11, TBDKit.weightNav)).foregroundStyle(TBDColor.overlayOn)
+                    .frame(width: 28, height: 28)
+                    .background(TBDColor.overlayOn.opacity(0.1), in: TBDBrickShape())
+                    .frame(width: 30, height: 36)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain).help("Open the live meeting panel").accessibilityLabel("Open live meeting panel")
         }

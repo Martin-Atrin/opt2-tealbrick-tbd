@@ -3,116 +3,107 @@ import TBDDesign
 
 // MARK: - Settings design system
 //
-// One visual language, enforced here. If you find yourself reaching outside
-// these tokens / components while building a settings screen, stop and ask
-// whether what you're about to build needs its own grammar or whether an
-// existing primitive can carry the weight. Almost always the latter.
+// One visual language, enforced here, built on the TBDDesign kit. If you find
+// yourself reaching outside these tokens / components while building a
+// settings screen, stop and ask whether what you're about to build needs its
+// own grammar or whether an existing primitive can carry the weight. Almost
+// always the latter.
 //
 // Principles:
-//   1. The warm paper background IS the surface. No cards on top.
-//   2. Hierarchy from typography + opacity, not borders + backgrounds.
-//   3. One accent color (ink brown) for everything that needs emphasis.
-//   4. Exactly three button treatments. No one-offs.
+//   1. The paper IS the surface. Sections are ruled, not boxed. Only content
+//      that is really an object (a provider card) uses .tbdCard().
+//   2. Hierarchy from type roles (title / control / hint), not from borders
+//      and backgrounds.
+//   3. One accent (teal-ink) for links, active marks and progress.
+//   4. Exactly three button treatments, all TBDButtonStyle. No one-offs.
 //   5. Rows always read label-left, control-right. Always.
 
 // MARK: - Tokens
 
 enum SettingsStyle {
   // Spacing
-  static let sectionSpacing: CGFloat = 44
-  static let rowVerticalPadding: CGFloat = 14
+  static let sectionSpacing: CGFloat = TBDKit.s8
+  static let rowVerticalPadding: CGFloat = TBDKit.s3
 
-  // Type colors (resolve per appearance; dark values mirror the timeline tokens)
-  static let text = Color.dayflowAdaptive(
-    light: NSColor.black.withAlphaComponent(0.9),
-    dark: NSColor.white.withAlphaComponent(0.92))
-  static let secondary = Color.dayflowAdaptive(
-    light: NSColor.black.withAlphaComponent(0.55),
-    dark: NSColor.white.withAlphaComponent(0.6))
-  static let meta = Color.dayflowAdaptive(
-    light: NSColor.black.withAlphaComponent(0.4),
-    dark: NSColor.white.withAlphaComponent(0.45))
+  // Type colors
+  static var text: Color { TBDColor.ink }
+  static var secondary: Color { TBDColor.muted }
+  static var meta: Color { TBDColor.muted }
 
   // Structure
-  static let divider = Color.dayflowAdaptive(
-    light: NSColor.black.withAlphaComponent(0.08),
-    dark: NSColor.white.withAlphaComponent(0.1))
+  static var divider: Color { TBDColor.line }
 
-  // Subtle fills (secondary buttons, active tab pill, neutral badges)
-  static let subtleFill = Color.dayflowAdaptive(
-    light: NSColor.black.withAlphaComponent(0.05),
-    dark: NSColor.white.withAlphaComponent(0.08))
+  // Subtle fills (hover, tracks, neutral badges)
+  static var subtleFill: Color { TBDColor.plate }
 
-  static let editorFill = Color.dayflowAdaptive(
-    light: NSColor.white.withAlphaComponent(0.7),
-    dark: NSColor.black.withAlphaComponent(0.18))
-  static let editorBorder = Color.dayflowAdaptive(
-    light: NSColor.black.withAlphaComponent(0.12),
-    dark: NSColor.white.withAlphaComponent(0.12))
+  static var editorFill: Color { TBDColor.fieldFill }
+  static var editorBorder: Color { TBDColor.fieldEdge }
 
-  // The one accent — used for primary buttons, active tab pill, progress
-  // fills, inline links, focused states. Deliberately the only branded
-  // color on this surface. Ink brown in light; the Figma peach in dark.
-  static var ink: Color {
-    Color.dayflowAdaptive(light: NSColor(Color(hex: TealbrickPalette.current.deepHex)),
-      dark: NSColor(Color(hex: "AEC3BC")))
-  }
-  static var primaryButtonFill: Color { Color(hex: TealbrickPalette.current.deepHex) }
+  // The one accent — links, active marks, progress fills, focused states.
+  static var ink: Color { TBDColor.tealInk }
+  static var primaryButtonFill: Color { TBDColor.primaryFill }
 
-  // Destructive — only for red-stroked confirm buttons and error copy.
-  static let destructive = Color(red: 0.76, green: 0.19, blue: 0.19)
+  // Destructive — only for destructive confirm buttons and error copy.
+  static var destructive: Color { TBDColor.brickInk }
 
-  // Status dots (paired with 13pt labels — the dot carries the color, the
-  // label carries the word).
-  static let statusGood = Color(red: 0.25, green: 0.62, blue: 0.32)
-  static let statusIdle = Color.black.opacity(0.3)
-  static let statusWarn = Color(red: 0.86, green: 0.6, blue: 0.1)
-  static let statusBad = Color(red: 0.76, green: 0.19, blue: 0.19)
+  // Status colours (text-safe twins; the label carries the word).
+  static var statusGood: Color { TBDColor.tealInk }
+  static var statusIdle: Color { TBDColor.muted }
+  static var statusWarn: Color { TBDColor.brickInk }
+  static var statusBad: Color { TBDColor.brickInk }
 }
 
 // MARK: - SettingsSection
 //
-// A section is a title (with optional subtitle) and content beneath. No
-// container chrome — the paper is the container. Optional right-rail
+// A section is a ruled block: a hairline on top (the first section of a page
+// takes the ink rule), a title (with optional subtitle) and content beneath.
+// No container chrome — the paper is the container. Optional right-rail
 // trailing view for metadata ("Last updated 3m ago", totals, badges).
 
 struct SettingsSection<Content: View, Trailing: View>: View {
   let title: String
   let subtitle: String?
+  let isFirst: Bool
   let trailing: () -> Trailing
   let content: () -> Content
 
   init(
     title: String,
     subtitle: String? = nil,
+    isFirst: Bool = false,
     @ViewBuilder trailing: @escaping () -> Trailing,
     @ViewBuilder content: @escaping () -> Content
   ) {
     self.title = title
     self.subtitle = subtitle
+    self.isFirst = isFirst
     self.trailing = trailing
     self.content = content
   }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
-      HStack(alignment: .firstTextBaseline, spacing: 16) {
-        VStack(alignment: .leading, spacing: 4) {
+      Rectangle()
+        .fill(isFirst ? TBDColor.ink : TBDColor.line)
+        .frame(height: TBDKit.hair)
+        .padding(.bottom, TBDKit.s5)
+
+      HStack(alignment: .firstTextBaseline, spacing: TBDKit.s4) {
+        VStack(alignment: .leading, spacing: TBDKit.s1) {
           Text(title)
-            .font(.custom("Switzer", size: 17))
-            .fontWeight(.semibold)
-            .foregroundColor(SettingsStyle.text)
+            .font(TBDTokens.Typography.title)
+            .foregroundStyle(TBDColor.ink)
           if let subtitle {
             Text(subtitle)
-              .font(.custom("Switzer", size: 12))
-              .foregroundColor(SettingsStyle.secondary)
+              .font(TBDTokens.Typography.hint)
+              .foregroundStyle(TBDColor.muted)
               .fixedSize(horizontal: false, vertical: true)
           }
         }
-        Spacer(minLength: 12)
+        Spacer(minLength: TBDKit.s3)
         trailing()
       }
-      .padding(.bottom, 14)
+      .padding(.bottom, TBDKit.s4)
 
       content()
     }
@@ -120,16 +111,22 @@ struct SettingsSection<Content: View, Trailing: View>: View {
 }
 
 extension SettingsSection where Trailing == EmptyView {
-  init(title: String, subtitle: String? = nil, @ViewBuilder content: @escaping () -> Content) {
-    self.init(title: title, subtitle: subtitle, trailing: { EmptyView() }, content: content)
+  init(
+    title: String, subtitle: String? = nil, isFirst: Bool = false,
+    @ViewBuilder content: @escaping () -> Content
+  ) {
+    self.init(
+      title: title, subtitle: subtitle, isFirst: isFirst, trailing: { EmptyView() },
+      content: content)
   }
 }
 
 // MARK: - SettingsRow
 //
-// Label left, control right, optional subtitle under the label. If the row
-// needs a full-width accessory (progress bar, expanded calendar), compose
-// it manually — we intentionally keep this component minimal so every row
+// Same look as TBDSettingsRow: label left (control weight), help under it
+// (hint, muted), control right, hairline below. If the row needs a
+// full-width accessory (progress bar, expanded calendar), compose it
+// manually — we intentionally keep this component minimal so every row
 // on every tab has identical rhythm.
 
 struct SettingsRow<Trailing: View>: View {
@@ -152,29 +149,28 @@ struct SettingsRow<Trailing: View>: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
-      HStack(alignment: .center, spacing: 16) {
+      HStack(alignment: .center, spacing: TBDKit.s5) {
         VStack(alignment: .leading, spacing: 3) {
           Text(label)
-            .font(.custom("Switzer", size: 14))
-            .fontWeight(.semibold)
-            .foregroundColor(SettingsStyle.text)
+            .font(TBDTokens.Typography.control)
+            .foregroundStyle(TBDColor.ink)
             .fixedSize(horizontal: false, vertical: true)
           if let subtitle {
             Text(subtitle)
-              .font(.custom("Switzer", size: 12))
-              .foregroundColor(SettingsStyle.secondary)
+              .font(TBDTokens.Typography.hint)
+              .foregroundStyle(TBDColor.muted)
               .fixedSize(horizontal: false, vertical: true)
           }
         }
-        Spacer(minLength: 12)
+        Spacer(minLength: TBDKit.s3)
         trailing()
       }
       .padding(.vertical, SettingsStyle.rowVerticalPadding)
 
       if showsDivider {
         Rectangle()
-          .fill(SettingsStyle.divider)
-          .frame(height: 1)
+          .fill(TBDColor.line)
+          .frame(height: TBDKit.hair)
       }
     }
   }
@@ -191,14 +187,14 @@ extension SettingsRow where Trailing == EmptyView {
 //
 // EXACTLY THREE BUTTON TREATMENTS. If you need a fourth, you're wrong.
 //
-//   SettingsPrimaryButton   — filled ink. One per section, for the action
-//                             that defines the section.
-//   SettingsSecondaryButton — subtle black.opacity(0.05) fill, ink text.
-//                             For alternative actions next to or beneath
-//                             a primary (Save/Reset, Open folder, Edit).
-//   SettingsLinkButton      — plain ink text + optional arrow glyph. For
-//                             navigation away from this surface (release
-//                             notes, external docs).
+//   SettingsPrimaryButton   — TBDButtonStyle(.primary). One per section, for
+//                             the action that defines the section.
+//   SettingsSecondaryButton — TBDButtonStyle(.secondary). For alternative
+//                             actions next to or beneath a primary
+//                             (Save/Reset, Open folder, Edit).
+//   SettingsLinkButton      — link-coloured control text + optional arrow
+//                             glyph. For navigation away from this surface
+//                             (release notes, external docs).
 
 struct SettingsPrimaryButton: View {
   let title: String
@@ -209,18 +205,16 @@ struct SettingsPrimaryButton: View {
 
   var body: some View {
     Button(action: action) {
-      HStack(spacing: 8) {
+      HStack(spacing: TBDKit.s2) {
         if isLoading {
           ProgressView()
             .controlSize(.small)
-            .tint(.white)
+            .tint(TBDColor.primaryOn)
         } else if let systemImage {
           Image(systemName: systemImage)
-            .font(.system(size: 12, weight: .semibold))
+            .font(TBDFonts.symbol(12))
         }
         Text(title)
-          .font(.custom("Switzer", size: 13))
-          .fontWeight(.semibold)
       }
     }
     .buttonStyle(TBDButtonStyle(.primary))
@@ -240,11 +234,9 @@ struct SettingsSecondaryButton: View {
       HStack(spacing: 6) {
         if let systemImage {
           Image(systemName: systemImage)
-            .font(.system(size: 11, weight: .semibold))
+            .font(TBDFonts.symbol(12))
         }
         Text(title)
-          .font(.custom("Switzer", size: 13))
-          .fontWeight(.semibold)
       }
     }
     .buttonStyle(TBDButtonStyle(.secondary))
@@ -262,34 +254,26 @@ struct SettingsLinkButton: View {
     Button(action: action) {
       HStack(spacing: 5) {
         Text(title)
-          .font(.custom("Switzer", size: 13))
-          .fontWeight(.semibold)
+          .font(TBDTokens.Typography.control)
         if let systemImage {
           Image(systemName: systemImage)
-            .font(.system(size: 11, weight: .semibold))
+            .font(TBDFonts.symbol(11))
         }
       }
-      .foregroundColor(SettingsStyle.ink)
+      .foregroundStyle(TBDColor.link)
     }
     .buttonStyle(.plain)
     .pointingHandCursor()
   }
 }
 
-private struct SettingsButtonPressStyle: ButtonStyle {
-  func makeBody(configuration: Configuration) -> some View {
-    configuration.label
-      .opacity(configuration.isPressed ? 0.85 : 1)
-      .scaleEffect(configuration.isPressed ? 0.98 : 1)
-      .animation(TBDMotion.instant, value: configuration.isPressed)
-  }
-}
-
 // MARK: - SettingsStatusDot
 //
-// A 6pt colored dot + 13pt label. Every status in settings reads through
-// this component. If something needs a status indicator and can't fit one
-// of these four states, the copy is wrong — not the component.
+// Every status in settings reads through this component (public name kept
+// for callers). A short label renders as a TBDTag; a long one (a test
+// result message) renders as a TBDNotice so it can wrap. The tone carries
+// the colour, the label carries the word: good = live, idle = idle,
+// warn / bad = needs-you.
 
 struct SettingsStatusDot: View {
   enum State {
@@ -299,77 +283,70 @@ struct SettingsStatusDot: View {
   let state: State
   let label: String
 
-  private var color: Color {
-    switch state {
-    case .good: return SettingsStyle.statusGood
-    case .idle: return SettingsStyle.secondary
-    case .warn: return SettingsStyle.statusWarn
-    case .bad: return SettingsStyle.statusBad
+  /// Longest label that still reads as a single-line tag.
+  private static let tagLimit = 28
+
+  var body: some View {
+    if label.count <= Self.tagLimit {
+      TBDTag(label, status: tagStatus)
+    } else {
+      TBDNotice(label, tone: noticeTone)
     }
   }
 
-  /// The dot color and the text color are the same. That redundancy is
-  /// the point — color is what your eye reads first on this surface,
-  /// not the word. Semibold weight ensures the colored text holds its
-  /// ground against the warm paper background without needing a pill.
-  var body: some View {
-    HStack(spacing: 7) {
-      Circle()
-        .fill(color)
-        .frame(width: 8, height: 8)
-      Text(label)
-        .font(.custom("Switzer", size: 13))
-        .fontWeight(.semibold)
-        .foregroundColor(color)
+  private var tagStatus: TBDStatus {
+    switch state {
+    case .good: return .live
+    case .idle: return .idle
+    case .warn, .bad: return .needsYou
+    }
+  }
+
+  private var noticeTone: TBDNoticeTone {
+    switch state {
+    case .good: return .live
+    case .idle: return .neutral
+    case .warn, .bad: return .needsYou
     }
   }
 }
 
 // MARK: - SettingsToggle
 //
-// The standard on/off control for a settings row. Rendered at ~70% of
-// native size so the switch reads as a control, not a billboard — on a
-// row with a tight label + subtitle, the full-size NSSwitch visually
-// outweighs its own label, which is backwards. Anchored to `.trailing`
-// so the scaled switch hugs the right edge of the row cleanly.
+// The standard on/off control for a settings row: the kit switch. It sizes
+// to its content so it hugs the right edge of the row.
 
 struct SettingsToggle: View {
   @Binding var isOn: Bool
 
   var body: some View {
-    Toggle("", isOn: $isOn)
-      .toggleStyle(.switch)
-      .labelsHidden()
-      .scaleEffect(0.72, anchor: .trailing)
+    Toggle(isOn: $isOn) { EmptyView() }
+      .toggleStyle(TBDSwitchStyle())
+      .fixedSize()
       .pointingHandCursor()
   }
 }
 
 // MARK: - SettingsBadge
 //
-// A flat, uppercase chip replacing the legacy `BadgeView` on settings
-// surfaces. Deliberately has only two tones: accent (ink-brown fill) for
-// the one-per-group "this is the active thing" signal, and neutral (gray
-// fill) for everything else. Multiple colored variants were a legacy
-// design choice that added noise without carrying semantic value — the
-// text already says what the status is; the chip just holds it.
+// A tag replacing the legacy `BadgeView` on settings surfaces. Deliberately
+// has only two tones: accent (live) for the one-per-group "this is the
+// active thing" signal, and neutral (idle) for everything else. Callers pass
+// all-caps copy; it is shown in sentence case (no uppercase labels).
 
 struct SettingsBadge: View {
   let text: String
   var isAccent: Bool = false
 
+  private var displayText: String {
+    guard text == text.uppercased(), text != text.lowercased() else { return text }
+    let lower = text.lowercased()
+    return lower.prefix(1).uppercased() + lower.dropFirst()
+  }
+
   var body: some View {
-    Text(text)
-      .font(.custom("Switzer", size: 10))
-      .fontWeight(.bold)
-      .kerning(0.6)
-      .foregroundColor(isAccent ? SettingsStyle.ink : SettingsStyle.secondary)
-      .padding(.horizontal, 7)
-      .padding(.vertical, 3)
-      .background(
-        RoundedRectangle(cornerRadius: TBDTokens.Radius.base, style: .continuous)
-          .fill(isAccent ? SettingsStyle.ink.opacity(0.1) : SettingsStyle.subtleFill)
-      )
+    TBDTag(displayText, status: isAccent ? .live : .idle)
+      .accessibilityLabel(Text(text))
   }
 }
 
@@ -383,7 +360,7 @@ struct SettingsMetadata: View {
   let text: String
   var body: some View {
     Text(text)
-      .font(.custom("Switzer", size: 13))
-      .foregroundColor(SettingsStyle.secondary)
+      .font(TBDTokens.Typography.hint)
+      .foregroundStyle(TBDColor.muted)
   }
 }

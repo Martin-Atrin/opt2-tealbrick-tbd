@@ -86,16 +86,13 @@ struct TBDTransformsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: TBDTokens.Space.md) {
             Text("Press a hotkey on any selected text to rewrite it through your “general” model route, in any app. The result is pasted over the selection.")
-                .foregroundStyle(TBDTokens.muted).fixedSize(horizontal: false, vertical: true)
+                .font(TBDTokens.Typography.body).foregroundStyle(TBDColor.inkSoft).fixedSize(horizontal: false, vertical: true)
             HStack {
-                Picker("", selection: $model.section) {
-                    ForEach(TBDTransformsModel.Section.allCases) { section in
-                        Text(section == .history ? "History (\(model.historyTotal))" : section.rawValue).tag(section)
-                    }
-                }
-                .pickerStyle(.segmented).labelsHidden().fixedSize()
+                TBDSegmented(selection: $model.section, options: TBDTransformsModel.Section.allCases.map { section in
+                    (section, section == .history ? "History (\(model.historyTotal))" : section.rawValue)
+                })
                 Spacer()
-                if let error = model.error { Text(error).font(.system(size: 12)).foregroundStyle(TBDTokens.alert).lineLimit(2) }
+                if let error = model.error { Text(error).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.brickInk).lineLimit(2) }
             }
             switch model.section {
             case .transforms: library
@@ -113,7 +110,7 @@ struct TBDTransformsView: View {
 
     private var library: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: TBDTokens.Space.sm) {
+            VStack(alignment: .leading, spacing: 0) {
                 HStack {
                     Button { editing = model.newTransform() } label: { Label("Create your own", systemImage: "plus") }
                         .buttonStyle(TBDButtonStyle(.secondary))
@@ -122,6 +119,7 @@ struct TBDTransformsView: View {
                         Button("Restore missing defaults") { model.restoreMissing() }.buttonStyle(TBDButtonStyle(.quiet))
                     }
                 }
+                .padding(.bottom, TBDTokens.Space.sm)
                 ForEach(model.transforms) { transform in card(transform) }
             }
         }
@@ -131,26 +129,30 @@ struct TBDTransformsView: View {
         HStack(alignment: .top, spacing: TBDTokens.Space.md) {
             VStack(alignment: .leading, spacing: TBDTokens.Space.xs) {
                 HStack(spacing: TBDTokens.Space.sm) {
-                    Text(transform.name).font(TBDTokens.Typography.control)
-                    if transform.isBuiltIn { TBDChip("Built-in", color: TBDTokens.muted) }
-                    if !transform.isVisible { TBDChip("Hidden from menu", color: TBDTokens.muted) }
+                    Text(transform.name).font(TBDTokens.Typography.control).foregroundStyle(TBDColor.ink)
+                    if transform.isBuiltIn { TBDTag("Built-in", status: .idle) }
+                    if !transform.isVisible { TBDTag("Hidden from menu", status: .idle) }
                 }
-                Text(transform.content).font(.system(size: 12)).foregroundStyle(TBDTokens.muted).lineLimit(2)
+                Text(transform.content).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted).lineLimit(2)
             }
             Spacer()
             if let hotkey = transform.hotkey.flatMap({ try? TBDHotkey.parse($0) }) {
-                TBDChip(hotkey.displayName)
+                Text(hotkey.displayName).font(TBDFonts.mono(13, .bold)).foregroundStyle(TBDColor.ink)
+                    .padding(.horizontal, TBDKit.s3).frame(minHeight: 28)
+                    .background(TBDColor.plate, in: Capsule())
+                    .tbdPillEdge(TBDColor.line)
                 Button { model.clearHotkey(transform) } label: { Image(systemName: "xmark.circle") }
                     .buttonStyle(TBDButtonStyle(.icon)).help("Clear shortcut")
             } else {
-                Text("No shortcut bound").font(.system(size: 12)).foregroundStyle(TBDTokens.muted)
+                Text("No shortcut bound").font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
             }
             Button { model.toggleMenu(transform) } label: { Image(systemName: transform.isVisible ? "menubar.rectangle" : "eye.slash") }
                 .buttonStyle(TBDButtonStyle(.icon)).help(transform.isVisible ? "Hide from the menu-bar Transform menu" : "Show in the menu-bar Transform menu")
             Button { editing = transform } label: { Image(systemName: "pencil") }.buttonStyle(TBDButtonStyle(.icon)).help("Edit")
             Button { model.delete(transform) } label: { Image(systemName: "trash") }.buttonStyle(TBDButtonStyle(.icon)).help("Delete this Transform")
         }
-        .tbdCard(padding: TBDTokens.Space.md)
+        .padding(.vertical, TBDTokens.Space.md)
+        .overlay(alignment: .bottom) { Rectangle().fill(TBDColor.line).frame(height: TBDKit.hair) }
     }
 
     private var historyList: some View {
@@ -161,13 +163,16 @@ struct TBDTransformsView: View {
                 Button("Clear history") { confirmClear = true }.buttonStyle(TBDButtonStyle(.destructive)).disabled(model.historyTotal == 0)
             }
             if model.historyTotal > model.history.count {
-                Text("Showing the most recent \(model.history.count) of \(model.historyTotal) saved runs.").font(.system(size: 12)).foregroundStyle(TBDTokens.muted)
+                Text("Showing the most recent \(model.history.count) of \(model.historyTotal) saved runs.").font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
             }
             if model.history.isEmpty {
-                Text("No saved Transform runs yet. Completed edits will appear here.").foregroundStyle(TBDTokens.muted)
+                VStack(alignment: .leading, spacing: TBDKit.s1) {
+                    Text("No saved Transform runs yet.").font(TBDTokens.Typography.title).foregroundStyle(TBDColor.ink)
+                    Text("Completed edits will appear here.").font(TBDTokens.Typography.body).foregroundStyle(TBDColor.inkSoft)
+                }
             }
             ScrollView {
-                VStack(alignment: .leading, spacing: TBDTokens.Space.sm) {
+                VStack(alignment: .leading, spacing: 0) {
                     ForEach(model.shownHistory) { run in historyRow(run) }
                 }
             }
@@ -177,21 +182,22 @@ struct TBDTransformsView: View {
     private func historyRow(_ run: TBDTransformRun) -> some View {
         VStack(alignment: .leading, spacing: TBDTokens.Space.xs) {
             HStack(spacing: TBDTokens.Space.sm) {
-                Text(run.transformName).font(TBDTokens.Typography.control)
-                Text("·").foregroundStyle(TBDTokens.muted)
-                Text(run.sourceAppDisplayName).foregroundStyle(TBDTokens.muted)
-                Text(run.createdAt.formatted(date: .abbreviated, time: .shortened)).foregroundStyle(TBDTokens.muted)
+                Text(run.transformName).font(TBDTokens.Typography.control).foregroundStyle(TBDColor.ink)
+                Text("·").font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
+                Text(run.sourceAppDisplayName).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
+                Text(run.createdAt.formatted(date: .abbreviated, time: .shortened)).font(TBDFonts.mono()).foregroundStyle(TBDColor.muted)
                 Spacer()
                 Button("Copy Original") { TBDPasteService.copy(run.inputText) }.buttonStyle(TBDButtonStyle(.quiet))
                 Button("Copy Transformed") { TBDPasteService.copy(run.outputText) }.buttonStyle(TBDButtonStyle(.quiet))
                 Button { model.deleteRun(run) } label: { Image(systemName: "trash") }.buttonStyle(TBDButtonStyle(.icon)).help("Delete")
             }
             TBDLabel("Original")
-            Text(run.inputText).font(TBDTokens.Typography.body).lineLimit(4).textSelection(.enabled)
+            Text(run.inputText).font(TBDTokens.Typography.body).foregroundStyle(TBDColor.ink).lineLimit(4).textSelection(.enabled)
             TBDLabel("Transformed")
-            Text(run.outputText).font(TBDTokens.Typography.body).lineLimit(6).textSelection(.enabled)
+            Text(run.outputText).font(TBDTokens.Typography.body).foregroundStyle(TBDColor.ink).lineLimit(6).textSelection(.enabled)
         }
-        .tbdCard(padding: TBDTokens.Space.md)
+        .padding(.vertical, TBDTokens.Space.md)
+        .overlay(alignment: .bottom) { Rectangle().fill(TBDColor.line).frame(height: TBDKit.hair) }
     }
 }
 
@@ -203,18 +209,18 @@ struct TBDTransformEditorSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: TBDTokens.Space.sm) {
-            Text(isNew ? "New Transform" : "Edit Transform").font(TBDTokens.Typography.title)
+            Text(isNew ? "New Transform" : "Edit Transform").font(TBDTokens.Typography.title).foregroundStyle(TBDColor.ink)
             if transform.isBuiltIn {
-                Text("Built-in Transform — you can edit it freely. Your changes survive app launches.").font(.system(size: 12)).foregroundStyle(TBDTokens.muted)
+                Text("Built-in Transform — you can edit it freely. Your changes survive app launches.").font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
             }
             TBDLabel("Name")
             TextField("Name", text: $transform.name).tbdField()
             TBDLabel("Prompt")
             TextEditor(text: $transform.content).font(TBDTokens.Typography.body).frame(height: 160).scrollContentBackground(.hidden)
-                .padding(6).background(TBDTokens.paper)
-                .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.base).strokeBorder(TBDTokens.border))
+                .padding(6).background(TBDColor.fieldFill, in: TBDBrickShape()).foregroundStyle(TBDColor.fieldOn)
+                .overlay(TBDBrickShape().strokeBorder(TBDColor.fieldEdge, lineWidth: TBDKit.hair))
             Text("Tell the model how to change the selected text. Be specific — the prompt runs verbatim on every press.")
-                .font(.system(size: 12)).foregroundStyle(TBDTokens.muted)
+                .font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
             TBDSettingsRow("Hotkey", help: "Optional — leave empty to keep this Transform dormant.") {
                 TBDHotkeyRecorderView(value: transform.hotkey.flatMap { try? TBDHotkey.parse($0) }, defaultHotkey: nil) { hotkey in
                     transform.hotkey = hotkey?.serialized
@@ -225,10 +231,10 @@ struct TBDTransformEditorSheet: View {
                     .tbdField().frame(width: 180)
             }
             TBDSettingsRow("Show in the menu-bar Transform menu") {
-                Toggle("", isOn: $transform.isVisible).labelsHidden().toggleStyle(.switch)
+                Toggle("", isOn: $transform.isVisible).labelsHidden().toggleStyle(TBDSwitchStyle()).fixedSize()
             }
             TBDInferenceFields(inference: $transform.inference, modelOverride: $transform.modelOverride)
-            if let error = model.error { Text(error).foregroundStyle(TBDTokens.alert) }
+            if let error = model.error { Text(error).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.brickInk) }
             HStack {
                 if transform.isBuiltIn, !isNew {
                     Button("Reset Transform") { model.reset(transform); dismiss() }.buttonStyle(TBDButtonStyle(.quiet))
@@ -239,6 +245,6 @@ struct TBDTransformEditorSheet: View {
                     .disabled(transform.name.trimmingCharacters(in: .whitespaces).isEmpty || transform.content.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }
-        .padding(TBDTokens.Space.xl).frame(width: 520)
+        .padding(TBDTokens.Space.xl).frame(width: 520).background(TBDColor.tile)
     }
 }

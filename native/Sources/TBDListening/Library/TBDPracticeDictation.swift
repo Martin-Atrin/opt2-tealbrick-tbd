@@ -45,21 +45,21 @@ struct TBDPracticeDictation: View {
 
     private var hotkeyStep: some View {
         VStack(alignment: .leading, spacing: TBDTokens.Space.sm) {
-            Text("Press your dictation key").font(TBDTokens.Typography.title).foregroundStyle(TBDTokens.ink)
+            Text("Press your dictation key").font(TBDTokens.Typography.title).foregroundStyle(TBDColor.ink)
             HStack(spacing: TBDTokens.Space.md) {
-                Text(key).font(.system(size: 13, weight: .semibold, design: .monospaced))
+                Text(key).font(TBDFonts.mono(13, .bold)).foregroundStyle(TBDColor.ink)
                     .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(keyWorked ? TBDTokens.accent.opacity(0.25) : TBDTokens.paper, in: RoundedRectangle(cornerRadius: TBDTokens.Radius.sm))
-                    .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.sm).strokeBorder(keyWorked ? TBDTokens.accent : TBDTokens.border))
+                    .background(keyWorked ? TBDColor.tealWash : TBDColor.tile, in: TBDBrickShape())
+                    .overlay(TBDBrickShape().strokeBorder(keyWorked ? TBDColor.tealInk : TBDColor.line, lineWidth: TBDKit.hair))
                 if context.hotkeyPermissionMissing {
-                    TBDChip("Needs hotkey access", color: TBDTokens.alert)
+                    TBDTag("Needs hotkey access", status: .needsYou)
                     Button("Allow…") { TBDPasteService.requestTrust(); TBDPasteService.openAccessibilitySettings() }
                         .buttonStyle(TBDButtonStyle(.secondary))
                 } else {
-                    TBDChip(keyWorked ? "Your key works" : "Waiting for a press", color: keyWorked ? TBDTokens.accent : TBDTokens.muted)
+                    TBDTag(keyWorked ? "Your key works" : "Waiting for a press", status: keyWorked ? .live : .idle)
                 }
             }
-            Text("Change the key in Settings → Listening → Dictation.").font(.system(size: 12)).foregroundStyle(TBDTokens.muted)
+            Text("Change the key in Settings → Listening → Dictation.").font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
             Button("Continue") { phase = .dictation; boxFocused = true }
                 .buttonStyle(TBDButtonStyle(.primary)).disabled(!keyWorked)
         }
@@ -67,30 +67,31 @@ struct TBDPracticeDictation: View {
 
     private var dictationStep: some View {
         VStack(alignment: .leading, spacing: TBDTokens.Space.sm) {
-            Text("Dictate into this box").font(TBDTokens.Typography.title).foregroundStyle(TBDTokens.ink)
+            Text("Dictate into this box").font(TBDTokens.Typography.title).foregroundStyle(TBDColor.ink)
             ZStack(alignment: .topLeading) {
-                TextEditor(text: $text).focused($boxFocused).font(TBDTokens.Typography.body)
+                TextEditor(text: $text).focused($boxFocused).font(TBDTokens.Typography.body).foregroundStyle(TBDColor.fieldOn)
                     .scrollContentBackground(.hidden).padding(TBDTokens.Space.xs).frame(height: 90)
                 if text.isEmpty {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(dictation.isRecording ? "Listening" : dictation.isProcessing ? "Transcribing" : "Hold \(key) and say something. Let go when you're done.")
-                        Text("Or tap \(key) to talk hands-free, then tap it again to finish.").font(.system(size: 11))
-                        Text("Try: “This is my first dictation, and it stays on my Mac.”").font(.system(size: 11))
+                        Text("Or tap \(key) to talk hands-free, then tap it again to finish.").font(TBDTokens.Typography.hint)
+                        Text("Try: “This is my first dictation, and it stays on my Mac.”").font(TBDTokens.Typography.hint)
                     }
-                    .foregroundStyle(TBDTokens.muted).padding(TBDTokens.Space.sm).allowsHitTesting(false)
+                    .font(TBDTokens.Typography.body).foregroundStyle(TBDColor.muted).padding(TBDTokens.Space.sm).allowsHitTesting(false)
                 }
             }
-            .background(TBDTokens.paper, in: RoundedRectangle(cornerRadius: TBDTokens.Radius.sm))
-            .overlay(RoundedRectangle(cornerRadius: TBDTokens.Radius.sm).strokeBorder(boxFocused ? TBDTokens.accent : TBDTokens.border))
+            .background(TBDColor.fieldFill, in: TBDBrickShape())
+            .overlay(TBDBrickShape().strokeBorder(TBDColor.fieldEdge, lineWidth: TBDKit.hair))
+            .tbdFocusRing(boxFocused, offset: TBDKit.focusOffsetTight)
             .onTapGesture { boxFocused = true }
             if hasResult {
                 HStack {
-                    Text("Those words came from your voice, on this Mac.").font(TBDTokens.Typography.control).foregroundStyle(TBDTokens.accent)
+                    Text("Those words came from your voice, on this Mac.").font(TBDTokens.Typography.control).foregroundStyle(TBDColor.tealInk)
                     Spacer()
                     Button("Try again") { text = ""; boxFocused = true }.buttonStyle(TBDButtonStyle(.quiet))
                 }
             } else {
-                Text("Your words land wherever the cursor is. Here, that's this box.").font(.system(size: 12)).foregroundStyle(TBDTokens.muted)
+                Text("Your words land wherever the cursor is. Here, that's this box.").font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
             }
         }
     }

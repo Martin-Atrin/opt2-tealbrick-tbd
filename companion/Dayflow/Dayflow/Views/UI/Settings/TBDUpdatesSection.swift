@@ -7,8 +7,12 @@ struct TBDUpdatesSection: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
-      Text("Updates").font(.headline)
+      Text("Updates")
+        .font(TBDFonts.nunito(TBDKit.textLabel, TBDKit.weightLabel))
+        .foregroundStyle(TBDColor.ink)
       Text("Version \(updater.currentVersion)")
+        .font(TBDTokens.Typography.body)
+        .foregroundStyle(TBDColor.ink)
       HStack(spacing: 12) {
         Button("Check for updates") { Task { await updater.check() } }
           .buttonStyle(TBDButtonStyle(.secondary))
@@ -21,17 +25,24 @@ struct TBDUpdatesSection: View {
       switch updater.state {
       case .downloading(let progress):
         ProgressView(value: progress)
-        Text("Downloading \(Int(progress * 100))%").font(.callout).foregroundStyle(.secondary)
+          .tint(TBDColor.tealInk)
+        Text("Downloading \(Int(progress * 100))%")
+          .font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
       case .readyToInstall:
         ProgressView()
-        Text("Installing. TBD restarts when done.").font(.callout).foregroundStyle(.secondary)
+        Text("Installing. TBD restarts when done.")
+          .font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
       default:
         if let text = statusText {
-          Text(text).font(.callout).foregroundStyle(isFailure ? .red : .secondary)
+          if isFailure {
+            TBDNotice(text, tone: .needsYou)
+          } else {
+            Text(text).font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
+          }
         }
       }
       Text("Updates are checked once a day against a signed list. Nothing else is sent.")
-        .font(.caption).foregroundStyle(.secondary)
+        .font(TBDTokens.Typography.hint).foregroundStyle(TBDColor.muted)
     }
   }
 
