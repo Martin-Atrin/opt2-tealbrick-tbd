@@ -17,6 +17,11 @@ public enum TBDDictationKind: String, Codable, Sendable, CaseIterable, DatabaseV
     }
 }
 
+/// How a dictation ended. `cancelled` rows exist only with "Preserve discarded dictations" (nothing was pasted).
+public enum TBDDictationStatus: String, Codable, Sendable, DatabaseValueConvertible {
+    case completed, cancelled
+}
+
 /// A dictation, voice note or chat dictation. Raw text is always kept.
 public struct TBDDictation: Codable, Sendable, Equatable, Identifiable, FetchableRecord, PersistableRecord {
     public static let databaseTableName = "dictation"
@@ -31,6 +36,7 @@ public struct TBDDictation: Codable, Sendable, Equatable, Identifiable, Fetchabl
     public var engine: String?
     public var wordCount: Int
     public var kind: TBDDictationKind
+    public var status: TBDDictationStatus = .completed
 
     public init(id: String = tbdNewID(), createdAt: Date = Date(), durationMs: Int, rawText: String, cleanText: String? = nil,
                 targetApp: String? = nil, audioPath: String? = nil, engine: String? = nil, kind: TBDDictationKind? = nil) {

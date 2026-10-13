@@ -24,7 +24,12 @@ public enum TBDListeningPaths {
     }
     public static var voiceNotes: URL { root.appendingPathComponent("VoiceNotes", isDirectory: true) }
     public static var dictations: URL { root.appendingPathComponent("Dictations", isDirectory: true) }
-    public static var meetings: URL { root.appendingPathComponent("Meetings", isDirectory: true) }
+    /// Meeting recordings. A chosen `meetingArtifactsFolder` replaces the default (v1 setting); a test root wins over it.
+    public static var meetings: URL {
+        let overridden = ProcessInfo.processInfo.environment[rootEnvironmentKey].map { !$0.isEmpty } ?? false
+        if !overridden, let path = TBDListeningPreferences().meetingArtifactsFolder { return URL(fileURLWithPath: path, isDirectory: true) }
+        return root.appendingPathComponent("Meetings", isDirectory: true)
+    }
     public static var downloads: URL { root.appendingPathComponent("Downloads", isDirectory: true) }
     public static var temporary: URL {
         FileManager.default.temporaryDirectory.appendingPathComponent("tbd-listening", isDirectory: true)

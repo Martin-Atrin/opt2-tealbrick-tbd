@@ -29,12 +29,14 @@ struct TBDDictationSettings: View {
                 prefs.transformHotkey = value
                 context.reloadHotkeys()
             }
+            TBDDictationPillSettings(context: context)
             TBDSettingsRow("Undo window", help: "How long cancel waits before discarding a dictation. Undo in the pill transcribes and pastes it.") {
                 Picker("", selection: tbdBinding({ prefs.dictationUndoWindow }, { prefs.dictationUndoWindow = $0 }, refresh: { tick += 1 })) {
                     ForEach(TBDCancelUndo.Window.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
                 .pickerStyle(.segmented).labelsHidden().frame(width: 160)
             }
+            TBDDictationBehaviorSettings(context: context)
             TBDSettingsRow("Remove filler words", help: "Drops “um”, “uh” and similar from dictation.") {
                 Toggle("", isOn: tbdBinding({ prefs.removeFillers }, { prefs.removeFillers = $0 }, refresh: { tick += 1 })).labelsHidden().toggleStyle(.switch)
             }
@@ -46,6 +48,7 @@ struct TBDDictationSettings: View {
                         .buttonStyle(TBDButtonStyle(.secondary))
                 }
             }
+            TBDDictationTextSettings()
             TBDLabel("Vocabulary").padding(.top, TBDTokens.Space.xl)
             Text("Fix words the engine gets wrong. Leave the replacement empty to fix capitalisation only.")
                 .foregroundStyle(TBDTokens.muted).padding(.vertical, TBDTokens.Space.xs)

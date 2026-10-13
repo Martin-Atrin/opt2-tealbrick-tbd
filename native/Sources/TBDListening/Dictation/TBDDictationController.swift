@@ -24,12 +24,35 @@ final class TBDDictationController: ObservableObject {
     private var undo = TBDCancelUndo()
     private var undoTimer: Timer?
     private var undoTarget: NSRunningApplication?
+    private let warm = TBDWarmCapture()
+    private let media = TBDDictationMedia()
+    private let streamer = TBDStreamingInserter()
+    private var silence: TBDSilenceAutoStop?
+    private var captureOpen = false
+    private var cueOwed = false
+    /// Set by the context: media is not paused while a meeting records.
+    var isMeetingRecording: () -> Bool = { false }
 
     init(env: TBDListeningEnvironment) {
         self.env = env
         env.overlay.model.onStop = { [weak self] in self?.finish() }
         env.overlay.model.onCancel = { [weak self] in self?.cancel() }
         env.overlay.model.onUndo = { [weak self] in self?.undoCancel() }
+        env.overlay.onIdleClick = { [weak self] in self?.toggle() }
+    }
+
+    /// Applies the dictation behaviour settings that act outside a take: idle pill, placement, warm microphone.
+    func settingsChanged() {
+        env.overlay.settingsChanged()
+        let prefs = env.preferences
+        Task { await warm.configure(enabled: prefs.instantDictationEnabled, preferredUID: prefs.microphoneUID) }
+    }
+
+    func shutdown() {
+        Task {
+            await media.resume()
+            await warm.release()
+        }
     }
 
     /// A cancelled take that Undo can still bring back.
@@ -60,7 +83,7 @@ final class TBDDictationController: ObservableObject {
             armWork?.cancel()
             perform(gesture.otherKey())
         case .escape:
-            perform(gesture.escape(keyHeld: hotkeyHeld))
+            perform(gesture.escape(keyHeld: hotkeyHeld, cancelsDictation: env.preferences.escapeCancelsDictation))
         }
     }
 
@@ -86,9 +109,16 @@ final class TBDDictationController: ObservableObject {
         guard recorder == nil, !isProcessing else { gesture.reset(keyHeld: hotkeyHeld); return }
         discardUndo()
         targetApp = NSWorkspace.shared.frontmostApplication
+        let prefs = env.preferences
         let recorder = TBDAudioRecorder(microphone: env.microphone)
         self.recorder = recorder
         isRecording = true
+        captureOpen = true
+        // Pausing runs beside capture start. When media was playing, the pre-roll holds its sound and is cut.
+        media.requestPause(enabled: prefs.pauseMediaDuringDictation, meetingActive: isMeetingRecording()) { [weak self] in
+            self?.recorder?.discardPreRoll()
+        }
+        let preRoll = prefs.instantDictationEnabled ? warm.takePreRoll() : []
         // The preview buffers samples from the first one while the live engine attaches.
         let preview = env.preferences.dictationLivePreview ? TBDLivePreview { [weak self] text in self?.showPartial(text) } : nil
         if let preview { recorder.sampleSink = { preview.append($0) } }
@@ -98,9 +128,11 @@ final class TBDDictationController: ObservableObject {
         starting = Task {
             defer { starting = nil }
             do {
-                try await recorder.start()
+                try await recorder.start(preRoll: preRoll)
                 // finish() and cancel() wait for this task, so only the live UI is started here.
                 if self.recorder === recorder {
+                    if prefs.playDictationCaptureSounds { cueOwed = true; TBDSounds.shared.play(.recordStart) }
+                    silence = prefs.silenceAutoStop ? TBDSilenceAutoStop(delay: prefs.silenceDelay, start: ProcessInfo.processInfo.systemUptime) : nil
                     startLevelTimer(recorder)
                     if let preview { await env.speech.startLivePreview(preview) }
                 }
@@ -109,6 +141,7 @@ final class TBDDictationController: ObservableObject {
                     self.recorder = nil; isRecording = false
                     await takePreview()?.stop()
                 }
+                captureEnded()
                 gesture.reset(keyHeld: hotkeyHeld)
                 show(error.localizedDescription)
             }
@@ -123,6 +156,12 @@ final class TBDDictationController: ObservableObject {
                 self.env.overlay.update(levels: recorder.recentLevels, elapsedMs: recorder.elapsedMs)
                 // Microphone lost or disk full: keep what was said.
                 if recorder.interrupted, self.recorder === recorder { self.finish() }
+                // Auto-stop after silence: the same path as pressing the stop button.
+                if var quiet = self.silence, self.recorder === recorder {
+                    let stop = quiet.feed(level: recorder.audioLevel, at: ProcessInfo.processInfo.systemUptime)
+                    self.silence = quiet
+                    if stop { self.finish() }
+                }
             }
         }
     }
@@ -142,6 +181,16 @@ final class TBDDictationController: ObservableObject {
         return preview
     }
 
+    /// The microphone is closed: stop cue, resume paused media, let the warm microphone collect again. Runs once per take.
+    private func captureEnded() {
+        silence = nil
+        guard captureOpen else { return }
+        captureOpen = false
+        if cueOwed { cueOwed = false; TBDSounds.shared.play(.recordStop) }
+        warm.resumeCollecting()
+        Task { await media.resume() }
+    }
+
     /// Cancels recording. With an undo window, the take is kept briefly and the pill offers Undo.
     func cancel() {
         levelTimer?.invalidate()
@@ -157,26 +206,36 @@ final class TBDDictationController: ObservableObject {
         isRecording = false
         let startup = starting
         let window = env.preferences.dictationUndoWindow
+        let target = targetApp
+        let keepDiscarded = TBDDiscardedDictation.shouldKeep(preserve: env.preferences.preserveDiscardedDictations, keepHistory: env.preferences.keepHistory)
         guard window != .off else {
             env.overlay.hide()
             Task {
                 await startup?.value
-                await recorder.cancel()
+                if keepDiscarded, let recording = try? await recorder.stop() {
+                    captureEnded()
+                    dispose(recording.url, durationMs: recording.durationMs, target: target)
+                } else {
+                    await recorder.cancel()
+                    captureEnded()
+                }
             }
             return
         }
         undoTarget = targetApp
         Task {
             await startup?.value
-            guard let recording = try? await recorder.stop() else { env.overlay.hide(); return }
+            guard let recording = try? await recorder.stop() else { captureEnded(); env.overlay.hide(); return }
+            captureEnded()
             // Too short to matter, or a new dictation already started: nothing to bring back.
             guard recording.durationMs >= 250, self.recorder == nil, !isProcessing else {
                 try? FileManager.default.removeItem(at: recording.url)
                 if self.recorder == nil, !isProcessing { env.overlay.hide() }
                 return
             }
+            let before = undo.pending
             let held = undo.hold(recording.url, durationMs: recording.durationMs, window: window)
-            if let old = held.discard { try? FileManager.default.removeItem(at: old) }
+            if let old = held.discard { dispose(old, durationMs: before?.durationMs ?? 0, target: undoTarget) }
             guard held.accepted, let pending = undo.pending else { try? FileManager.default.removeItem(at: recording.url); return }
             env.overlay.show(.undo(remaining: pending.remaining, total: pending.total))
             undoTimer?.invalidate()
@@ -186,7 +245,7 @@ final class TBDDictationController: ObservableObject {
                     guard let self else { timer.invalidate(); return }
                     if let expired = self.undo.tick(generation: generation) {
                         timer.invalidate()
-                        try? FileManager.default.removeItem(at: expired)
+                        self.dispose(expired, durationMs: pending.durationMs, target: self.undoTarget)
                         if case .undo = self.env.overlay.model.phase { self.env.overlay.hide() }
                     } else if let pending = self.undo.pending {
                         self.env.overlay.show(.undo(remaining: pending.remaining, total: pending.total))
@@ -218,7 +277,37 @@ final class TBDDictationController: ObservableObject {
     /// Ends the undo window now and deletes the held take.
     private func discardUndo() {
         undoTimer?.invalidate()
-        if let url = undo.discard() { try? FileManager.default.removeItem(at: url) }
+        let ms = undo.pending?.durationMs ?? 0
+        if let url = undo.discard() { dispose(url, durationMs: ms, target: undoTarget) }
+    }
+
+    /// A discarded take: deleted, or with "Preserve discarded dictations" transcribed into History (not pasted).
+    private func dispose(_ url: URL, durationMs: Int, target: NSRunningApplication?) {
+        let prefs = env.preferences
+        guard TBDDiscardedDictation.shouldKeep(preserve: prefs.preserveDiscardedDictations, keepHistory: prefs.keepHistory) else {
+            try? FileManager.default.removeItem(at: url)
+            return
+        }
+        Task { await preserveDiscarded(url, durationMs: durationMs, target: target) }
+    }
+
+    private func preserveDiscarded(_ url: URL, durationMs: Int, target: NSRunningApplication?) async {
+        let prefs = env.preferences
+        do {
+            let samples = try TBDAudioDecoder.samples(from: url)
+            let transcript = try await env.speech.transcribe(samples: samples, kind: .dictation)
+            let raw = transcript.trimmedText
+            guard !raw.isEmpty else { try? FileManager.default.removeItem(at: url); return }
+            let rendered = render(raw)
+            let id = tbdNewID()
+            let audio = prefs.keepsAudio(.dictations) ? try? env.keep(url, in: TBDListeningPaths.dictations, name: id + ".wav") : nil
+            if audio == nil { try? FileManager.default.removeItem(at: url) }
+            try env.database?.save(TBDDiscardedDictation.record(id: id, durationMs: durationMs, rawText: raw, cleanText: rendered.text == raw ? nil : rendered.text,
+                                                                engine: transcript.engine, audioPath: audio?.path, targetApp: target?.localizedName))
+            env.changed()
+        } catch {
+            try? FileManager.default.removeItem(at: url)
+        }
     }
 
     func finish() {
@@ -233,10 +322,11 @@ final class TBDDictationController: ObservableObject {
         let startup = starting
         let preview = takePreview()
         processing = Task {
-            defer { isProcessing = false; processing = nil }
+            defer { isProcessing = false; processing = nil; captureEnded() }
             do {
                 await startup?.value
                 let recording = try await recorder.stop()
+                captureEnded()
                 // Free the live engine's interactive lane before the final pass.
                 await preview?.stop()
                 guard recording.durationMs >= 250 else {
@@ -272,9 +362,7 @@ final class TBDDictationController: ObservableObject {
             show("No speech detected")
             return
         }
-        let words = (try? env.database?.customWords()) ?? []
-        let snippets = (try? env.database?.snippets()) ?? []
-        let processed = TBDTextPipeline().process(raw, customWords: words, snippets: snippets, removeFillers: prefs.removeFillers)
+        let (processed, protected) = runPipeline(raw)
         try? env.database?.incrementSnippetUse(ids: processed.expandedSnippetIDs)
         var text = processed.text
         if prefs.dictationCleanup {
@@ -283,9 +371,10 @@ final class TBDDictationController: ObservableObject {
             text = cleaned.text
             if !cleaned.warning.isEmpty { lastMessage = cleaned.warning }
         }
+        text = prefs.dictationInsertionStyle.apply(to: text, protectedLeadingTerms: protected)
         try Task.checkCancellation()
         var pasteError: Error?
-        do { try TBDPasteService.paste(text) } catch { pasteError = error }
+        do { try await insert(text, pressReturn: processed.pressReturn) } catch { pasteError = error }
         let id = tbdNewID()
         let audio = prefs.keepsAudio(.dictations) ? try? env.keep(url, in: TBDListeningPaths.dictations, name: id + ".wav") : nil
         if audio == nil { try? FileManager.default.removeItem(at: url) }
@@ -299,8 +388,55 @@ final class TBDDictationController: ObservableObject {
         else { env.overlay.hide() }
     }
 
+    /// Text pipeline with the voice-return phrases, plus the vocabulary terms whose capitals inline style must keep.
+    private func runPipeline(_ raw: String) -> (TBDTextPipeline.Result, [String]) {
+        let prefs = env.preferences
+        let words = (try? env.database?.customWords()) ?? []
+        let snippets = (try? env.database?.snippets()) ?? []
+        let result = TBDTextPipeline().process(raw, customWords: words, snippets: snippets, removeFillers: prefs.removeFillers,
+                                               voiceReturnTriggers: prefs.voiceReturnEnabled ? prefs.voiceReturnTriggers : [])
+        let protected = TBDInsertionStyle.protectedLeadingTerms(customWords: words, snippets: snippets, expandedSnippetIDs: result.expandedSnippetIDs)
+        return (result, protected)
+    }
+
+    /// Final text without cleanup or paste (a discarded take kept in History).
+    private func render(_ raw: String) -> (text: String, pressReturn: Bool) {
+        let (processed, protected) = runPipeline(raw)
+        return (env.preferences.dictationInsertionStyle.apply(to: processed.text, protectedLeadingTerms: protected), processed.pressReturn)
+    }
+
+    /// Types or pastes the finished text. Streaming cursor types it when allowed; everything else pastes.
+    /// Empty text with a voice-return phrase only presses Return.
+    private func insert(_ text: String, pressReturn: Bool) async throws {
+        let prefs = env.preferences
+        let insertion = prefs.dictationInsertionStyle.insertionText(text, hasAction: pressReturn)
+        let hasText = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if hasText, prefs.dictationStreamingCursorEnabled, TBDStreamingInserter.allowed(), TBDStreamingCursor.isStreamable(insertion) {
+            do {
+                try await streamer.insert(insertion)
+                if prefs.keepDictationOnClipboard { TBDPasteService.copy(insertion) }
+                if pressReturn {
+                    try? await Task.sleep(for: .milliseconds(200))
+                    do { try await TBDClipboardPaster.system.insert("", keepOnClipboard: true, pressReturn: true) } catch { throw TBDStreamingError.partialInsert }
+                }
+                return
+            } catch TBDStreamingError.unavailable {
+                // Typing is not possible here; paste instead.
+            } catch TBDStreamingError.partialInsert {
+                TBDPasteService.copy(insertion)
+                throw TBDStreamingPartialError()
+            }
+        }
+        try await TBDClipboardPaster.system.insert(hasText ? insertion : "", keepOnClipboard: prefs.keepDictationOnClipboard, pressReturn: pressReturn)
+    }
+
     private func show(_ message: String) {
         lastMessage = message
         env.overlay.show(.message(message))
     }
+}
+
+/// Streaming typed only part of the text; the whole text is on the clipboard.
+struct TBDStreamingPartialError: LocalizedError {
+    var errorDescription: String? { "Part of the text was typed, then typing stopped. The whole text is on the clipboard." }
 }

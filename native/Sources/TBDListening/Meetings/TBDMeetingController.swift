@@ -177,6 +177,7 @@ final class TBDMeetingController: ObservableObject {
             }
             if select { env.selectedTranscriptionID = item.id }
             onMessage?("Meeting transcript saved")
+            env.transcriptSaved.publish(item)
             summarizeAutomatically(item)
         } catch is CancellationError {
         } catch {

@@ -21,6 +21,8 @@ public final class TBDAudioRecorder: @unchecked Sendable {
     private var peak: Float = 0
     private var levelHistory: [Float] = []
     private var interruption: Error?
+    private var preRollCount = 0
+    private var dropPreRoll = false
     /// Receives each converted 16 kHz chunk (for example a live preview). Called on the tap thread.
     public var sampleSink: (@Sendable ([Float]) -> Void)?
 
@@ -38,10 +40,13 @@ public final class TBDAudioRecorder: @unchecked Sendable {
     /// Capture stopped on its own (microphone lost or disk write failed). Callers should finish.
     public var interrupted: Bool { lock.lock(); defer { lock.unlock() }; return interruption != nil || writer?.failure != nil }
 
-    public func start() async throws {
+    /// `preRoll` is audio from before the press (Instant dictation); it is written first.
+    public func start(preRoll: [Float] = []) async throws {
         guard await TBDSharedMicrophone.requestPermission() else { throw TBDSpeechError.microphoneDenied }
         try TBDListeningPaths.ensure(directory)
         let writer = try TBDWAVWriter(url: directory.appendingPathComponent(UUID().uuidString + ".wav"))
+        if !preRoll.isEmpty { writer.append(preRoll); sampleSink?(preRoll) }
+        lock.withLock { preRollCount = preRoll.count; dropPreRoll = false }
         let accepted = lock.withLock { () -> Bool in
             guard self.writer == nil else { return false }
             self.writer = writer; resampler = TBDMonoResampler(); level = 0; peak = 0; levelHistory = []; interruption = nil
@@ -83,16 +88,20 @@ public final class TBDAudioRecorder: @unchecked Sendable {
         if !samples.isEmpty { sink?(samples) }
     }
 
+    /// Media was playing when the dictation started: the pre-roll holds that sound, so `stop()` cuts it from the file.
+    public func discardPreRoll() { lock.withLock { dropPreRoll = true } }
+
     /// Stops capture and returns the finished WAV. Throws if the microphone died mid-recording
     /// and nothing was captured.
     public func stop() async throws -> Recording {
-        let (token, writer, peak, interruption) = lock.withLock {
-            defer { self.token = nil; self.writer = nil }
-            return (self.token, self.writer, self.peak, self.interruption)
+        let (token, writer, peak, interruption, cut) = lock.withLock {
+            defer { self.token = nil; self.writer = nil; self.preRollCount = 0; self.dropPreRoll = false }
+            return (self.token, self.writer, self.peak, self.interruption, self.dropPreRoll ? self.preRollCount : 0)
         }
         if let token { await microphone.unsubscribe(token) }
         guard let writer else { throw TBDSpeechError.audioUnreadable("not recording") }
         try writer.close()
+        let cutMs = ((try? TBDWAVWriter.dropLeadingSamples(at: writer.url, count: cut)) ?? 0) * 1000 / 16_000
         if writer.samplesWritten == 0, let interruption {
             try? FileManager.default.removeItem(at: writer.url)
             throw TBDSpeechError.microphoneUnavailable(interruption.localizedDescription)
@@ -104,7 +113,7 @@ public final class TBDAudioRecorder: @unchecked Sendable {
             return Recording(url: writer.url, durationMs: durationMs, peakLevel: peak, warning: warning)
         }
         if let interruption { warning = "The microphone stopped early: \(interruption.localizedDescription)" }
-        return Recording(url: writer.url, durationMs: writer.durationMs, peakLevel: peak, warning: warning)
+        return Recording(url: writer.url, durationMs: writer.durationMs - cutMs, peakLevel: peak, warning: warning)
     }
 
     /// Stops and deletes the recording.

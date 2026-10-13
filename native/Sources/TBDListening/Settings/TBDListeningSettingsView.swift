@@ -17,9 +17,11 @@ public enum TBDListeningSettingsSection: String, CaseIterable, Sendable {
 
 /// The workflow shown inside Capture (v1 `SettingsCaptureWorkflow`, without the file workflow, which has no settings yet).
 public enum TBDCaptureWorkflow: String, CaseIterable, Identifiable, Sendable {
-    case dictation, meetings
+    case dictation, transcription, meetings
     public var id: String { rawValue }
-    public var title: String { self == .dictation ? "Dictation" : "Meetings" }
+    public var title: String {
+        switch self { case .dictation: "Dictation"; case .transcription: "Transcription"; case .meetings: "Meetings" }
+    }
     /// Remembered across launches, as in v1.
     public static let defaultsKey = "tbd.listening.settingsCaptureWorkflow"
     public static func stored(_ defaults: UserDefaults = .standard) -> TBDCaptureWorkflow {
@@ -82,6 +84,7 @@ struct TBDCaptureSettings: View {
             .onChange(of: workflow) { _, value in UserDefaults.standard.set(value.rawValue, forKey: TBDCaptureWorkflow.defaultsKey) }
             switch workflow {
             case .dictation: TBDDictationSettings(context: context)
+            case .transcription: TBDTranscriptionSettings()
             case .meetings: TBDMeetingSettings(context: context)
             }
         }
@@ -376,6 +379,10 @@ struct TBDMeetingSettings: View {
                 Toggle("", isOn: tbdBinding({ prefs.autoSummarizeMeetings }, { prefs.autoSummarizeMeetings = $0 }, refresh: { tick += 1 }))
                     .labelsHidden().toggleStyle(.switch)
             }
+            TBDSettingsRow("Notify when transcript is ready", help: "Plays a chime and shows a notification when a meeting finishes transcribing in the background.") {
+                Toggle("", isOn: tbdBinding({ prefs.notifyOnMeetingEnd }, { prefs.notifyOnMeetingEnd = $0 }, refresh: { tick += 1 })).labelsHidden().toggleStyle(.switch)
+            }
+            TBDAutoSaveSettings(scope: .meeting)
             TBDSettingsRow("Other participants", help: "Recording system audio needs Screen & System Audio Recording permission for TBD. Without it, only your microphone is recorded.") {
                 Button("Open Privacy Settings") {
                     if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") { NSWorkspace.shared.open(url) }

@@ -73,6 +73,8 @@ final class TBDHotkeyMonitor {
             if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
             return Unmanaged.passUnretained(event)
         }
+        // Text typed by the streaming cursor must not look like a key press.
+        if event.getIntegerValueField(.eventSourceUserData) == TBDStreamingInserter.eventMarker { return Unmanaged.passUnretained(event) }
         let ms = event.timestamp / 1_000_000
         let flags = event.flags.rawValue & Self.relevantFlags
         let code = UInt16(event.getIntegerValueField(.keyboardEventKeycode))

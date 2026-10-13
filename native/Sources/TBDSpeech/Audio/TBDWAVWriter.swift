@@ -62,6 +62,24 @@ public final class TBDWAVWriter: @unchecked Sendable {
         lastPatch = Date()
     }
 
+    /// Removes the first `count` samples of a finished 16-bit mono WAV in place (header rewritten). Returns how many
+    /// were removed; a file shorter than that is emptied.
+    @discardableResult
+    public static func dropLeadingSamples(at url: URL, count: Int, sampleRate: Int = 16_000) throws -> Int {
+        guard count > 0 else { return 0 }
+        let data = try Data(contentsOf: url)
+        let headerSize = 44
+        guard data.count >= headerSize else { return 0 }
+        let available = (data.count - headerSize) / 2
+        let dropped = min(count, available)
+        let kept = data.subdata(in: (headerSize + dropped * 2)..<(headerSize + available * 2))
+        var out = header(dataBytes: UInt32(kept.count), sampleRate: sampleRate)
+        out.append(kept)
+        try out.write(to: url, options: .atomic)
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        return dropped
+    }
+
     static func header(dataBytes: UInt32, sampleRate: Int) -> Data {
         var data = Data()
         func u32(_ v: UInt32) { withUnsafeBytes(of: v.littleEndian) { data.append(contentsOf: $0) } }

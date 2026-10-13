@@ -9,6 +9,9 @@ final class TBDListeningEnvironment: ObservableObject {
     let speech = TBDSpeechService.shared
     let microphone = TBDSharedMicrophone.shared
     let overlay = TBDDictationOverlay()
+    /// Announces saved transcripts; auto-save and notices listen here.
+    let transcriptSaved = TBDTranscriptSavedHub()
+    let notifier = TBDNotifier()
     let database: TBDListeningDatabase?
     let databaseError: String?
     /// Bumped whenever library data changes so views reload.

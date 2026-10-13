@@ -22,6 +22,9 @@ final class TBDFileQueue: ObservableObject {
     private let env: TBDListeningEnvironment
     private var worker: Task<Void, Never>?
     private var current: (id: UUID, task: Task<Void, Never>)?
+    /// Results of the current run of the queue, for one notice when it drains.
+    private var runDone: [TBDTranscription] = []
+    private var runFailed = 0
 
     init(env: TBDListeningEnvironment) { self.env = env }
 
@@ -107,6 +110,7 @@ final class TBDFileQueue: ObservableObject {
                 current = nil
             }
             worker = nil
+            announceRun()
         }
     }
 
@@ -137,11 +141,29 @@ final class TBDFileQueue: ObservableObject {
             }
             update(id) { $0.state = .done(result.id) }
             env.selectedTranscriptionID = result.id
+            runDone.append(result)
+            env.transcriptSaved.publish(result)
         } catch is CancellationError {
             update(id) { $0.state = .cancelled }
         } catch {
             update(id) { $0.state = .failed(error.localizedDescription) }
+            runFailed += 1
         }
         env.changed()
+    }
+
+    /// One chime and banner when the queue empties: the file's own notice for a single result, a batch notice otherwise.
+    private func announceRun() {
+        defer { runDone = []; runFailed = 0 }
+        let enabled = env.preferences.notifyOnTranscriptionComplete
+        let notice: TBDCompletionNotice.Content?
+        if runDone.count == 1, runFailed == 0, let item = runDone.first {
+            notice = TBDCompletionNotice.single(enabled: enabled, name: item.title, wordCount: item.text.split(whereSeparator: \.isWhitespace).count)
+        } else if runDone.count + runFailed > 0 {
+            notice = TBDCompletionNotice.batch(enabled: enabled, completed: runDone.count, failed: runFailed)
+        } else {
+            notice = nil
+        }
+        if let notice { env.notifier.present(notice) }
     }
 }

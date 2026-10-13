@@ -11,6 +11,7 @@ final class TBDListeningContext {
     let files: TBDFileQueue
     let transforms: TBDTransformController
     let retention: TBDRetentionController
+    private var savedEffects: TBDTranscriptSavedEffects?
     private let hotkeys = TBDHotkeyMonitor()
     private weak var runtime: TBDListeningRuntime?
     private(set) var hotkeysActive = false
@@ -28,6 +29,8 @@ final class TBDListeningContext {
         files.onMessage = report
         transforms.onMessage = report
         retention.onMessage = report
+        savedEffects = TBDTranscriptSavedEffects(env: env, notifier: env.notifier, report: report)
+        dictation.isMeetingRecording = { [weak self] in self?.meetings.isRecording ?? false }
         hotkeys.onStatusChange = { [weak self] in self?.hotkeysActive = $0 }
     }
 
@@ -35,6 +38,7 @@ final class TBDListeningContext {
 
     func start() {
         reloadHotkeys()
+        dictation.settingsChanged()
         meetings.start()
         retention.start()
         if let database = env.database {
@@ -52,6 +56,7 @@ final class TBDListeningContext {
         hotkeys.stop()
         retention.stop()
         dictation.cancel()
+        dictation.shutdown()
         meetings.shutdown()
         files.cancelAll()
         Task { await env.speech.shutdown() }

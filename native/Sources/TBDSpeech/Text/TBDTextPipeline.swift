@@ -6,18 +6,23 @@ public struct TBDTextPipeline: Sendable {
     public struct Result: Sendable, Equatable {
         public let text: String
         public let expandedSnippetIDs: Set<String>
+        /// A voice-return phrase ended the dictation: press Return after the text is inserted.
+        public var pressReturn = false
     }
 
     public init() {}
 
     public func process(_ text: String, customWords: [TBDCustomWord] = [], snippets: [TBDSnippet] = [],
-                        removeFillers: Bool = true) -> Result {
+                        removeFillers: Bool = true, voiceReturnTriggers: [String] = []) -> Result {
         guard !text.isEmpty else { return Result(text: "", expandedSnippetIDs: []) }
         var result = removeFillers ? Self.removeFillers(text) : text
         result = Self.applyCustomWords(result, words: customWords)
+        // Before snippets, so a trigger is not mangled by an expansion (v1 order).
+        let voice = TBDVoiceReturn.extract(from: result, triggers: voiceReturnTriggers)
+        result = voice.text
         let expanded = Self.expandSnippets(result, snippets: snippets)
         result = Self.spokenPunctuation(expanded.text)
-        return Result(text: Self.cleanWhitespace(result), expandedSnippetIDs: expanded.ids)
+        return Result(text: Self.cleanWhitespace(result), expandedSnippetIDs: expanded.ids, pressReturn: voice.trigger != nil)
     }
 
     // MARK: Steps
