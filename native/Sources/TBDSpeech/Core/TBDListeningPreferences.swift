@@ -336,4 +336,121 @@ public struct TBDListeningPreferences: @unchecked Sendable {
         }
         nonmutating set { defaults.set(newValue, forKey: Key.spokenPunctuation) }
     }
+
+    // MARK: dictation-autosave
+
+    enum BehaviourKey {
+        static let pauseMediaDuringDictation = "tbd.listening.pauseMediaDuringDictation"
+        static let playDictationCaptureSounds = "tbd.listening.playDictationCaptureSounds"
+        static let escapeCancelsDictation = "tbd.listening.escapeCancelsDictation"
+        static let preserveDiscardedDictations = "tbd.listening.preserveDiscardedDictations"
+        static let instantDictationEnabled = "tbd.listening.instantDictationEnabled"
+        static let keepDictationOnClipboard = "tbd.listening.keepDictationOnClipboard"
+        static let dictationStreamingCursorEnabled = "tbd.listening.dictationStreamingCursorEnabled"
+        static let dictationPreviewTextSize = "tbd.listening.dictationPreviewTextSize"
+        static let showIdlePill = "tbd.listening.showIdlePill"
+        static let dictationOverlayPlacement = "tbd.listening.dictationOverlayPlacement"
+        static let silenceAutoStop = "tbd.listening.silenceAutoStop"
+        static let silenceDelay = "tbd.listening.silenceDelay"
+        static let dictationInsertionStyle = "tbd.listening.dictationInsertionStyle"
+        static let voiceReturnEnabled = "tbd.listening.voiceReturnEnabled"
+        static let voiceReturnTriggers = "tbd.listening.voiceReturnTriggers"
+        static let notifyOnTranscriptionComplete = "tbd.listening.notifyOnTranscriptionComplete"
+        static let notifyOnMeetingEnd = "tbd.listening.notifyOnMeetingEnd"
+        static let meetingArtifactsFolder = "tbd.listening.meetingArtifactsFolder"
+    }
+
+    /// Dictation behaviour switches (v1 defaults).
+    public var pauseMediaDuringDictation: Bool {
+        get { bool(BehaviourKey.pauseMediaDuringDictation, default: false) }
+        nonmutating set { defaults.set(newValue, forKey: BehaviourKey.pauseMediaDuringDictation) }
+    }
+    public var playDictationCaptureSounds: Bool {
+        get { bool(BehaviourKey.playDictationCaptureSounds, default: false) }
+        nonmutating set { defaults.set(newValue, forKey: BehaviourKey.playDictationCaptureSounds) }
+    }
+    public var escapeCancelsDictation: Bool {
+        get { bool(BehaviourKey.escapeCancelsDictation, default: true) }
+        nonmutating set { defaults.set(newValue, forKey: BehaviourKey.escapeCancelsDictation) }
+    }
+    /// Keep cancelled or expired dictations in History (needs `keepHistory`). Nothing is pasted.
+    public var preserveDiscardedDictations: Bool {
+        get { bool(BehaviourKey.preserveDiscardedDictations, default: false) }
+        nonmutating set { defaults.set(newValue, forKey: BehaviourKey.preserveDiscardedDictations) }
+    }
+    public var instantDictationEnabled: Bool {
+        get { bool(BehaviourKey.instantDictationEnabled, default: false) }
+        nonmutating set { defaults.set(newValue, forKey: BehaviourKey.instantDictationEnabled) }
+    }
+    public var keepDictationOnClipboard: Bool {
+        get { bool(BehaviourKey.keepDictationOnClipboard, default: false) }
+        nonmutating set { defaults.set(newValue, forKey: BehaviourKey.keepDictationOnClipboard) }
+    }
+    public var dictationStreamingCursorEnabled: Bool {
+        get { bool(BehaviourKey.dictationStreamingCursorEnabled, default: false) }
+        nonmutating set { defaults.set(newValue, forKey: BehaviourKey.dictationStreamingCursorEnabled) }
+    }
+    public var dictationPreviewTextSize: TBDPreviewTextSize {
+        get { defaults.string(forKey: BehaviourKey.dictationPreviewTextSize).flatMap(TBDPreviewTextSize.init(rawValue:)) ?? .medium }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: BehaviourKey.dictationPreviewTextSize) }
+    }
+    public var showIdlePill: Bool {
+        get { bool(BehaviourKey.showIdlePill, default: true) }
+        nonmutating set { defaults.set(newValue, forKey: BehaviourKey.showIdlePill) }
+    }
+    public var dictationOverlayPlacement: TBDOverlayPlacement {
+        get { defaults.string(forKey: BehaviourKey.dictationOverlayPlacement).flatMap(TBDOverlayPlacement.init(rawValue:)) ?? .bottom }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: BehaviourKey.dictationOverlayPlacement) }
+    }
+    public var silenceAutoStop: Bool {
+        get { bool(BehaviourKey.silenceAutoStop, default: false) }
+        nonmutating set { defaults.set(newValue, forKey: BehaviourKey.silenceAutoStop) }
+    }
+    /// Seconds of quiet before auto-stop; 0 or unset reads as the v1 default of 2.
+    public var silenceDelay: Double {
+        get { let value = defaults.double(forKey: BehaviourKey.silenceDelay); return value == 0 ? TBDSilenceAutoStop.defaultDelay : value }
+        nonmutating set { defaults.set(newValue, forKey: BehaviourKey.silenceDelay) }
+    }
+    public var dictationInsertionStyle: TBDInsertionStyle {
+        get { defaults.string(forKey: BehaviourKey.dictationInsertionStyle).flatMap(TBDInsertionStyle.init(rawValue:)) ?? .sentence }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: BehaviourKey.dictationInsertionStyle) }
+    }
+    public var voiceReturnEnabled: Bool {
+        get { bool(BehaviourKey.voiceReturnEnabled, default: false) }
+        nonmutating set { defaults.set(newValue, forKey: BehaviourKey.voiceReturnEnabled) }
+    }
+    /// Trigger phrases; never empty (the default phrase when none is stored).
+    public var voiceReturnTriggers: [String] {
+        get { TBDVoiceReturn.normalizedOrDefault(defaults.stringArray(forKey: BehaviourKey.voiceReturnTriggers) ?? []) }
+        nonmutating set { defaults.set(TBDVoiceReturn.normalizedOrDefault(newValue), forKey: BehaviourKey.voiceReturnTriggers) }
+    }
+    /// Chime and banner when a file or link transcription finishes (v1 default on).
+    public var notifyOnTranscriptionComplete: Bool {
+        get { bool(BehaviourKey.notifyOnTranscriptionComplete, default: true) }
+        nonmutating set { defaults.set(newValue, forKey: BehaviourKey.notifyOnTranscriptionComplete) }
+    }
+    /// Chime and banner when a meeting transcript is ready (v1 default on).
+    public var notifyOnMeetingEnd: Bool {
+        get { bool(BehaviourKey.notifyOnMeetingEnd, default: true) }
+        nonmutating set { defaults.set(newValue, forKey: BehaviourKey.notifyOnMeetingEnd) }
+    }
+    /// Absolute folder that holds meeting recordings instead of the default; nil follows the default.
+    public var meetingArtifactsFolder: String? {
+        get { defaults.string(forKey: BehaviourKey.meetingArtifactsFolder).flatMap(Self.normalizedFolder) }
+        nonmutating set {
+            if let path = newValue.flatMap(Self.normalizedFolder) { defaults.set(path, forKey: BehaviourKey.meetingArtifactsFolder) }
+            else { defaults.removeObject(forKey: BehaviourKey.meetingArtifactsFolder) }
+        }
+    }
+    /// Expands "~", requires an absolute path (v1 `normalizedMeetingArtifactsFolder`).
+    public static func normalizedFolder(_ value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let expanded = (trimmed as NSString).expandingTildeInPath
+        guard (expanded as NSString).isAbsolutePath else { return nil }
+        return URL(fileURLWithPath: expanded).standardizedFileURL.path
+    }
+
+    /// Auto-save settings per scope (see `TBDAutoSaveConfig`).
+    public func autoSave(_ scope: TBDAutoSaveScope) -> TBDAutoSaveConfig { TBDAutoSaveConfig(defaults: defaults, scope: scope) }
 }

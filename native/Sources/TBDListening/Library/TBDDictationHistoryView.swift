@@ -92,6 +92,7 @@ struct TBDDictationHistoryView: View {
                     if let app = item.targetApp { Text(app) }
                     Text("\(item.wordCount) words")
                     if item.cleanText != nil { Text("Cleaned") }
+                    if item.status == .cancelled { Text("Cancelled, not pasted") }
                 }
                 .font(.system(size: 11)).foregroundStyle(TBDTokens.muted)
             }

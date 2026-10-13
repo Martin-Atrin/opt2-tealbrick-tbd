@@ -23,12 +23,14 @@ struct TBDDictationSettings: View {
                 prefs.transformHotkey = value
                 context.reloadHotkeys()
             }
+            TBDDictationPillSettings(context: context)
             TBDSettingsRow("Undo window", help: "How long cancel waits before discarding a dictation. Undo in the pill transcribes and pastes it.") {
                 Picker("", selection: tbdBinding({ prefs.dictationUndoWindow }, { prefs.dictationUndoWindow = $0 }, refresh: { tick += 1 })) {
                     ForEach(TBDCancelUndo.Window.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
                 .pickerStyle(.segmented).labelsHidden().frame(width: 160)
             }
+            TBDDictationBehaviorSettings(context: context)
             TBDSettingsRow("Accessibility", help: "Needed for global hotkeys and pasting into other apps.") {
                 if TBDPasteService.isTrusted && !context.hotkeyPermissionMissing {
                     TBDChip("Allowed")
@@ -37,6 +39,7 @@ struct TBDDictationSettings: View {
                         .buttonStyle(TBDButtonStyle(.secondary))
                 }
             }
+            TBDDictationTextSettings()
             TBDSettingsRow("Vocabulary", help: "Processing mode, filler removal, custom words, snippets, spoken punctuation and backup are on the Vocabulary page.") {
                 Button("Open Vocabulary") { env.selectedTab = .vocabulary; context.bringToFront() }
                     .buttonStyle(TBDButtonStyle(.secondary))

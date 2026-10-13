@@ -6,6 +6,8 @@ public struct TBDTextPipeline: Sendable {
     public struct Result: Sendable, Equatable {
         public let text: String
         public let expandedSnippetIDs: Set<String>
+        /// A voice-return phrase ended the dictation: press Return after the text is inserted.
+        public var pressReturn = false
     }
 
     public init() {}
@@ -13,14 +15,30 @@ public struct TBDTextPipeline: Sendable {
     /// `mode == .raw` returns the input untouched (v1: Raw skips the whole pipeline). Spoken punctuation can be
     /// switched off on its own; it never runs in Raw.
     public func process(_ text: String, customWords: [TBDCustomWord] = [], snippets: [TBDSnippet] = [],
-                        removeFillers: Bool = true, mode: TBDProcessingMode = .clean, spokenPunctuation: Bool = true) -> Result {
-        guard mode == .clean else { return Result(text: text, expandedSnippetIDs: []) }
+                        removeFillers: Bool = true, mode: TBDProcessingMode = .clean, spokenPunctuation: Bool = true,
+                        voiceReturnTriggers: [String] = []) -> Result {
+        // Voice return is a spoken command, not cleanup: it is honoured in Raw too.
+        guard mode == .clean else {
+            let voice = TBDVoiceReturn.extract(from: text, triggers: voiceReturnTriggers)
+            return Result(text: voice.text, expandedSnippetIDs: [], pressReturn: voice.trigger != nil)
+        }
         guard !text.isEmpty else { return Result(text: "", expandedSnippetIDs: []) }
         var result = removeFillers ? Self.removeFillers(text) : text
         result = Self.applyCustomWords(result, words: customWords)
+        // Before snippets, so a trigger is not mangled by an expansion (v1 order).
+        let voice = TBDVoiceReturn.extract(from: result, triggers: voiceReturnTriggers)
+        result = voice.text
         let expanded = Self.expandSnippets(result, snippets: snippets)
         result = spokenPunctuation ? Self.spokenPunctuation(expanded.text) : expanded.text
-        return Result(text: Self.cleanWhitespace(result), expandedSnippetIDs: expanded.ids)
+        return Result(text: Self.cleanWhitespace(result), expandedSnippetIDs: expanded.ids, pressReturn: voice.trigger != nil)
+    }
+
+    /// Phrases that press Return: the voice-return phrases plus the triggers of enabled v1 key-action snippets
+    /// (action "return"), so one mechanism serves both (v1 keystroke snippets).
+    public static func returnTriggers(voiceReturn: [String], snippets: [TBDSnippet]) -> [String] {
+        let fromSnippets = snippets.filter { $0.isEnabled && $0.action == .returnKey && !$0.trigger.isEmpty }.map(\.trigger)
+        var seen = Set<String>()
+        return (voiceReturn + fromSnippets).filter { seen.insert($0.lowercased()).inserted }
     }
 
     // MARK: Steps

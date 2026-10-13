@@ -152,6 +152,12 @@ public final class TBDListeningDatabase: @unchecked Sendable {
         migrator.registerMigration("v6-transcribe-vocab") { db in
             try db.alter(table: "snippet") { t in t.add(column: "action", .text) }
         }
+        // Dictation end status, for "Preserve discarded dictations" (v1 stored `cancelled` rows in History).
+        migrator.registerMigration("v6-dictation-autosave") { db in
+            try db.alter(table: "dictation") { t in
+                t.add(column: "status", .text).notNull().defaults(to: TBDDictationStatus.completed.rawValue)
+            }
+        }
         return migrator
     }
 

@@ -31,7 +31,7 @@ final class HostWiringTests: XCTestCase {
         XCTAssertEqual(TBDCaptureWorkflow.stored(defaults), .meetings)
         defaults.set("bogus", forKey: TBDCaptureWorkflow.defaultsKey)
         XCTAssertEqual(TBDCaptureWorkflow.stored(defaults), .dictation)
-        XCTAssertEqual(TBDCaptureWorkflow.allCases.map(\.title), ["Dictation", "Meetings"])
+        XCTAssertEqual(TBDCaptureWorkflow.allCases.map(\.title), ["Dictation", "Transcription", "Meetings"])
     }
 
     func testEveryMenuActionHasItsV1Effect() {

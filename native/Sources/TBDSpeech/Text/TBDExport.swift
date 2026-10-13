@@ -20,11 +20,24 @@ public enum TBDExportFormat: String, CaseIterable, Sendable {
     public var isBinary: Bool { self == .docx || self == .pdf }
 }
 
+/// What the text and Markdown exports include (the v1 meeting auto-save checkboxes). Everything on by default.
+/// Plain text has no timestamps in TBD, so `includeTimestamps` only affects Markdown.
+public struct TBDExportOptions: Sendable, Equatable {
+    public var includeTimestamps = true
+    public var includeSpeakerLabels = true
+    public var includeMetadata = true
+    public init(includeTimestamps: Bool = true, includeSpeakerLabels: Bool = true, includeMetadata: Bool = true) {
+        self.includeTimestamps = includeTimestamps; self.includeSpeakerLabels = includeSpeakerLabels; self.includeMetadata = includeMetadata
+    }
+    public static let `default` = TBDExportOptions()
+}
+
 public enum TBDExport {
-    public static func render(_ item: TBDTranscription, as format: TBDExportFormat, summaries: [TBDSummary] = []) -> String {
+    public static func render(_ item: TBDTranscription, as format: TBDExportFormat, summaries: [TBDSummary] = [],
+                              options: TBDExportOptions = .default) -> String {
         switch format {
-        case .txt: text(item)
-        case .md: markdown(item, summaries: summaries)
+        case .txt: text(item, options: options)
+        case .md: markdown(item, summaries: summaries, options: options)
         case .srt: subtitles(item, vtt: false)
         case .vtt: subtitles(item, vtt: true)
         case .json: TBDListenJSON.encode(TBDListenJSON.Detail(item, summaries: summaries))
@@ -34,11 +47,12 @@ public enum TBDExport {
     }
 
     /// File contents for any format.
-    public static func data(_ item: TBDTranscription, as format: TBDExportFormat, summaries: [TBDSummary] = []) -> Data {
+    public static func data(_ item: TBDTranscription, as format: TBDExportFormat, summaries: [TBDSummary] = [],
+                            options: TBDExportOptions = .default) -> Data {
         switch format {
         case .docx: TBDDocxExport.render(TBDDocumentModel(item, summaries: summaries))
         case .pdf: TBDPDFExport.render(TBDDocumentModel(item, summaries: summaries))
-        default: Data(render(item, as: format, summaries: summaries).utf8)
+        default: Data(render(item, as: format, summaries: summaries, options: options).utf8)
         }
     }
 
@@ -46,16 +60,20 @@ public enum TBDExport {
         item.segments.isEmpty ? TBDTranscriptAssembler.segments(words: item.words, fallbackText: item.text, durationMs: item.durationMs) : item.segments
     }
 
-    static func text(_ item: TBDTranscription) -> String {
+    static func text(_ item: TBDTranscription, options: TBDExportOptions = .default) -> String {
         let segments = displaySegments(item)
-        guard segments.contains(where: { $0.speaker != nil }) else { return item.text + "\n" }
+        guard options.includeSpeakerLabels, segments.contains(where: { $0.speaker != nil }) else {
+            return (options.includeSpeakerLabels ? item.text : segments.map(\.text).joined(separator: "\n\n")) + "\n"
+        }
         return segments.map { "\(item.speakerLabel($0.speaker) ?? "Unknown"): \($0.text)" }.joined(separator: "\n\n") + "\n"
     }
 
-    static func markdown(_ item: TBDTranscription, summaries: [TBDSummary]) -> String {
+    static func markdown(_ item: TBDTranscription, summaries: [TBDSummary], options: TBDExportOptions = .default) -> String {
         var out = "# \(item.title)\n\n"
         let date = ISO8601DateFormatter.string(from: item.createdAt, timeZone: .current, formatOptions: [.withFullDate, .withTime, .withColonSeparatorInTime, .withDashSeparatorInDate])
-        out += "- Source: \(item.sourceKind.label)\(item.sourceURL.map { " (\($0))" } ?? "")\n- Date: \(date)\n- Duration: \(clock(item.durationMs))\n\n"
+        if options.includeMetadata {
+            out += "- Source: \(item.sourceKind.label)\(item.sourceURL.map { " (\($0))" } ?? "")\n- Date: \(date)\n- Duration: \(clock(item.durationMs))\n\n"
+        }
         for summary in summaries {
             out += summary.kind == .summary ? "## Summary\n\n\(summary.content)\n\n" : "## Q: \(summary.prompt)\n\n\(summary.content)\n\n"
         }
@@ -64,8 +82,9 @@ public enum TBDExport {
         }
         out += "## Transcript\n\n"
         for segment in displaySegments(item) {
-            let who = item.speakerLabel(segment.speaker).map { "**\($0)** " } ?? ""
-            out += "\(who)`\(clock(segment.start))` \(segment.text)\n\n"
+            let who = options.includeSpeakerLabels ? item.speakerLabel(segment.speaker).map { "**\($0)** " } ?? "" : ""
+            let stamp = options.includeTimestamps ? "`\(clock(segment.start))` " : ""
+            out += "\(who)\(stamp)\(segment.text)\n\n"
         }
         return out
     }
