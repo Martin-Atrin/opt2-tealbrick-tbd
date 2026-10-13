@@ -14,21 +14,12 @@ struct TBDDictationSettings: View {
     @State private var newTrigger = ""
     @State private var newExpansion = ""
 
-    private static let presets = ["fn", "right_option", "right_command", "ctrl+opt", "f13", "f14", "f15", "f16", "f17", "f18", "f19", "ctrl+opt+space"]
-
     var body: some View {
         let prefs = env.preferences
         VStack(alignment: .leading, spacing: 0) {
-            TBDHotkeyField(title: "Dictation hotkey", help: "Hold to talk, release to paste. Tap once for hands-free, tap again to stop. Esc cancels.",
-                           value: prefs.dictationHotkey, presets: Self.presets, allowEmpty: false) { value in
-                prefs.dictationHotkey = value
-                context.reloadHotkeys()
-            }
-            TBDHotkeyField(title: "Transform hotkey", help: "Rewrites the selected text with the current transform prompt. Empty disables it.",
-                           value: prefs.transformHotkey, presets: ["ctrl+opt+t", "f18", "f19"], allowEmpty: true) { value in
-                prefs.transformHotkey = value
-                context.reloadHotkeys()
-            }
+            TBDDictationHotkeyRows(context: context) { tick += 1 }
+            TBDHotkeyRow(title: "Transform hotkey", help: "Rewrites the selected text with the current transform prompt.",
+                         surface: .transform, context: context) { tick += 1 }
             TBDSettingsRow("Undo window", help: "How long cancel waits before discarding a dictation. Undo in the pill transcribes and pastes it.") {
                 Picker("", selection: tbdBinding({ prefs.dictationUndoWindow }, { prefs.dictationUndoWindow = $0 }, refresh: { tick += 1 })) {
                     ForEach(TBDCancelUndo.Window.allCases, id: \.self) { Text($0.title).tag($0) }
@@ -111,46 +102,66 @@ struct TBDDictationSettings: View {
     }
 }
 
-/// Text hotkey editor with validation and presets.
-struct TBDHotkeyField: View {
-    let title: String
-    let help: String
-    let presets: [String]
-    let allowEmpty: Bool
-    let onSave: (String) -> Void
-    @State private var draft: String
-    @State private var error: String?
-
-    init(title: String, help: String, value: String, presets: [String], allowEmpty: Bool, onSave: @escaping (String) -> Void) {
-        self.title = title; self.help = help; self.presets = presets; self.allowEmpty = allowEmpty; self.onSave = onSave
-        _draft = State(initialValue: value)
-    }
+/// v1 Capture > Dictation hotkey rows: push to talk, hands-free, clipboard-only, AI polish, and the mode guide.
+struct TBDDictationHotkeyRows: View {
+    let context: TBDListeningContext
+    let onChanged: () -> Void
 
     var body: some View {
-        TBDSettingsRow(title, help: error ?? help) {
-            HStack(spacing: TBDTokens.Space.sm) {
-                if let hotkey = try? TBDHotkey.parse(draft) { TBDChip(hotkey.displayName) }
-                TextField(allowEmpty ? "none" : "fn", text: $draft).tbdField().frame(width: 140).onSubmit(save)
-                Menu("Presets") {
-                    ForEach(presets, id: \.self) { preset in Button(preset) { draft = preset; save() } }
-                    if allowEmpty { Button("None") { draft = ""; save() } }
+        let prefs = context.env.preferences
+        let handsFree = prefs.hotkey(for: .handsFree)
+        let pushToTalk = prefs.hotkey(for: .pushToTalk)
+        let shared = TBDDictationHotkeyPlan.isSharedGesture(handsFree: handsFree, pushToTalk: pushToTalk)
+        VStack(alignment: .leading, spacing: 0) {
+            TBDHotkeyRow(title: "Push to talk", help: "Hold to dictate, release to stop.", surface: .pushToTalk, context: context,
+                         displayOverride: TBDDictationHotkeyPlan.pushToTalkLabelOverride(pushToTalk: pushToTalk, handsFree: handsFree),
+                         onChanged: onChanged)
+            TBDHotkeyRow(title: "Hands-free mode", help: shared ? "Double-tap to start; tap again to stop." : "Tap to start; tap again to stop.",
+                         surface: .handsFree, context: context,
+                         displayOverride: TBDDictationHotkeyPlan.handsFreeLabelOverride(handsFree: handsFree, pushToTalk: pushToTalk),
+                         defaultLabelOverride: TBDDictationHotkeyPlan.handsFreeLabelOverride(handsFree: .fn, pushToTalk: pushToTalk),
+                         onChanged: onChanged)
+            TBDHotkeyRow(title: "Clipboard-only dictation",
+                         help: "Optional extra shortcut. Tap to start or stop like hands-free. Copies the transcript instead of pasting into the focused field.",
+                         surface: .dictationClipboard, context: context, onChanged: onChanged)
+            TBDHotkeyRow(title: "AI polish this dictation",
+                         help: "Optional extra shortcut. Tap to start or stop like hands-free (no hold-to-talk). Always runs cleanup for that take, even when dictation cleanup is off. Needs a model on the Cleanup route.",
+                         surface: .dictationAIPolish, context: context, onChanged: onChanged)
+            let guide = Self.guide(handsFree: handsFree, pushToTalk: pushToTalk, clipboard: prefs.hotkey(for: .dictationClipboard),
+                                   aiPolish: prefs.hotkey(for: .dictationAIPolish))
+            if !guide.isEmpty {
+                VStack(alignment: .leading, spacing: TBDTokens.Space.xs) {
+                    ForEach(guide, id: \.action) { row in
+                        HStack(spacing: TBDTokens.Space.sm) {
+                            TBDChip(row.key)
+                            Text(row.verb).foregroundStyle(TBDTokens.muted).frame(width: 72, alignment: .leading)
+                            Text(row.action).foregroundStyle(TBDTokens.ink)
+                            Text(row.detail).foregroundStyle(TBDTokens.muted)
+                        }
+                    }
                 }
-                .menuStyle(.borderlessButton).fixedSize()
-                Button("Save", action: save).buttonStyle(TBDButtonStyle(.secondary))
+                .padding(.vertical, TBDTokens.Space.md)
             }
         }
     }
 
-    private func save() {
-        let value = draft.trimmingCharacters(in: .whitespaces)
-        if value.isEmpty && allowEmpty { error = nil; onSave(""); return }
-        do {
-            let hotkey = try TBDHotkey.parse(value)
-            draft = hotkey.serialized
-            error = nil
-            onSave(hotkey.serialized)
-        } catch {
-            self.error = error.localizedDescription
+    struct GuideRow: Equatable {
+        let key: String
+        let verb: String
+        let action: String
+        let detail: String
+    }
+
+    /// v1 `dictationModeGuide`: one line per enabled dictation key.
+    static func guide(handsFree: TBDHotkey?, pushToTalk: TBDHotkey?, clipboard: TBDHotkey?, aiPolish: TBDHotkey?) -> [GuideRow] {
+        var rows: [GuideRow] = []
+        if let pushToTalk { rows.append(GuideRow(key: pushToTalk.shortSymbol, verb: "Hold", action: "Push to talk", detail: "Release to stop")) }
+        if let handsFree {
+            let verb = TBDDictationHotkeyPlan.isSharedGesture(handsFree: handsFree, pushToTalk: pushToTalk) ? "Double-tap" : "Tap"
+            rows.append(GuideRow(key: handsFree.shortSymbol, verb: verb, action: "Hands-free mode", detail: "Tap again to stop"))
         }
+        if let clipboard { rows.append(GuideRow(key: clipboard.shortSymbol, verb: "Tap", action: "Clipboard-only", detail: "Copies; does not paste")) }
+        if let aiPolish { rows.append(GuideRow(key: aiPolish.shortSymbol, verb: "Tap", action: "AI polish", detail: "Cleans this dictation")) }
+        return rows
     }
 }

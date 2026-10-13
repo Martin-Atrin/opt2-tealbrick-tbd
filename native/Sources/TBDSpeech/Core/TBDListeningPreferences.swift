@@ -284,4 +284,76 @@ public struct TBDListeningPreferences: @unchecked Sendable {
     Correct punctuation and obvious recognition mistakes. Preserve language, meaning and all factual details. \
     Return only the corrected transcript.
     """
+
+    // MARK: hotkeys
+
+    /// v1 hotkey keys (PARITY 3.2), stored as TBDHotkey text; "" means the hotkey is off.
+    enum HotkeyKey {
+        static let handsFree = "tbd.listening.hotkeyTrigger"
+        static let pushToTalk = "tbd.listening.pushToTalkHotkeyTrigger"
+        static let meeting = "tbd.listening.meetingHotkeyTrigger"
+        static let fileTranscription = "tbd.listening.fileTranscriptionHotkeyTrigger"
+        static let urlTranscription = "tbd.listening.youtubeTranscriptionHotkeyTrigger"
+        static let dictationAIPolish = "tbd.listening.dictationAIPolishHotkeyTrigger"
+        static let dictationClipboard = "tbd.listening.dictationClipboardHotkeyTrigger"
+
+        static func key(for surface: TBDHotkeySurface) -> String? {
+            switch surface {
+            case .handsFree: handsFree
+            case .pushToTalk: pushToTalk
+            case .meeting: meeting
+            case .fileTranscription: fileTranscription
+            case .urlTranscription: urlTranscription
+            case .dictationAIPolish: dictationAIPolish
+            case .dictationClipboard: dictationClipboard
+            case .transform: nil
+            }
+        }
+    }
+
+    /// The hotkey for a surface, or nil when it is off. Unset keys use v1's defaults.
+    public func hotkey(for surface: TBDHotkeySurface) -> TBDHotkey? {
+        guard let key = HotkeyKey.key(for: surface) else { return TBDHotkey.stored(transformHotkey) }
+        guard let text = defaults.string(forKey: key) else { return surface.defaultHotkey }
+        return TBDHotkey.stored(text)
+    }
+
+    public func setHotkey(_ hotkey: TBDHotkey?, for surface: TBDHotkeySurface) {
+        guard let key = HotkeyKey.key(for: surface) else { transformHotkey = hotkey?.serialized ?? ""; return }
+        defaults.set(hotkey?.serialized ?? "", forKey: key)
+    }
+
+    /// Every Listening hotkey, for conflict checks. The transform hotkey is named after the current prompt.
+    public var hotkeySnapshot: TBDHotkeyConflictPolicy.Snapshot {
+        let prompt = transformPrompts.first { $0.id == transformPromptID } ?? transformPrompts.first
+        return TBDHotkeyConflictPolicy.Snapshot(
+            handsFree: hotkey(for: .handsFree), pushToTalk: hotkey(for: .pushToTalk), meeting: hotkey(for: .meeting),
+            fileTranscription: hotkey(for: .fileTranscription), urlTranscription: hotkey(for: .urlTranscription),
+            dictationAIPolish: hotkey(for: .dictationAIPolish), dictationClipboard: hotkey(for: .dictationClipboard),
+            transforms: [.init(name: "Transform \(prompt?.name ?? "")".trimmingCharacters(in: .whitespaces), hotkey: hotkey(for: .transform))])
+    }
+
+    /// Short hint for empty states, for example "fn" or "R⌥".
+    public var pushToTalkHotkeyLabel: String {
+        (hotkey(for: .pushToTalk) ?? hotkey(for: .handsFree))?.shortSymbol ?? "none"
+    }
+
+    /// One-time move of the single `dictationHotkey` (hold to talk, tap for hands-free) into v1's two keys.
+    /// Both get the same key, which is v1's shared gesture: hold to talk, double-tap for hands-free.
+    /// An unparsable old value had disabled dictation, so both stay off. Then v1's stored-value repair runs.
+    public func migrateDictationHotkeys() {
+        let hasHandsFree = defaults.object(forKey: HotkeyKey.handsFree) != nil
+        let hasPushToTalk = defaults.object(forKey: HotkeyKey.pushToTalk) != nil
+        if !hasHandsFree, !hasPushToTalk, let legacy = defaults.string(forKey: Key.dictationHotkey) {
+            let value = TBDHotkey.stored(legacy)?.serialized ?? ""
+            defaults.set(value, forKey: HotkeyKey.handsFree)
+            defaults.set(value, forKey: HotkeyKey.pushToTalk)
+        }
+        func stored(_ key: String) -> TBDHotkey?? {
+            defaults.string(forKey: key).map { TBDHotkey.stored($0) }
+        }
+        let resolved = TBDDictationHotkeyPlan.resolveStored(handsFree: stored(HotkeyKey.handsFree), pushToTalk: stored(HotkeyKey.pushToTalk))
+        if resolved.persistHandsFree { setHotkey(resolved.handsFree, for: .handsFree) }
+        if resolved.persistPushToTalk { setHotkey(resolved.pushToTalk, for: .pushToTalk) }
+    }
 }

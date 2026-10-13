@@ -12,23 +12,33 @@ final class TBDDictationController: ObservableObject {
     @Published private(set) var livePartial = ""
 
     private let env: TBDListeningEnvironment
-    private var gesture = TBDHotkeyGesture()
     private var recorder: TBDAudioRecorder?
-    private var armWork: DispatchWorkItem?
     private var levelTimer: Timer?
     private var targetApp: NSRunningApplication?
     private var processing: Task<Void, Never>?
     private var starting: Task<Void, Never>?
-    private var hotkeyHeld = false
     private var preview: TBDLivePreview?
     private var undo = TBDCancelUndo()
     private var undoTimer: Timer?
     private var undoTarget: NSRunningApplication?
+    /// Set by the hotkey that started the take (clipboard-only, AI polish).
+    private var takeOptions = TBDDictationTakeOptions()
+    private var takeMode: TBDFnKeyStateMachine.RecordingMode?
+    /// Final step seam (paste or copy, optional cleanup); tests replace it.
+    var delivery: TBDDictationDelivery?
+
+    // Hotkey coordinator hooks (v1 AppHotkeyCoordinator / DictationFlowCoordinator wiring).
+    /// The take is over: every dictation hotkey returns to idle.
+    var onHotkeysReset: (() -> Void)?
+    /// Cancel came from the pill: dictation hotkeys stay blocked until the undo window ends.
+    var onCancelledByUI: (() -> Void)?
+    /// A take started from the menu: hotkeys that can stop it take it over.
+    var onStartedOutsideHotkey: ((TBDFnKeyStateMachine.RecordingMode) -> Void)?
 
     init(env: TBDListeningEnvironment) {
         self.env = env
         env.overlay.model.onStop = { [weak self] in self?.finish() }
-        env.overlay.model.onCancel = { [weak self] in self?.cancel() }
+        env.overlay.model.onCancel = { [weak self] in self?.onCancelledByUI?(); self?.cancel() }
         env.overlay.model.onUndo = { [weak self] in self?.undoCancel() }
     }
 
@@ -39,52 +49,56 @@ final class TBDDictationController: ObservableObject {
 
     // MARK: Hotkey
 
-    func handle(_ event: TBDHotkeyMonitor.Event, at ms: UInt64) {
-        switch event {
-        case .down:
-            hotkeyHeld = true
-            perform(gesture.press(at: ms))
-            if gesture.state == .pending {
-                let work = DispatchWorkItem { [weak self] in
-                    guard let self else { return }
-                    self.perform(self.gesture.armed())
-                }
-                armWork = work
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: work)
-            }
-        case .up:
-            hotkeyHeld = false
-            armWork?.cancel()
-            perform(gesture.release(at: ms))
-        case .otherKey:
-            armWork?.cancel()
-            perform(gesture.otherKey())
-        case .escape:
-            perform(gesture.escape(keyHeld: hotkeyHeld))
-        }
+    /// Recording mode of the live take, for hotkey reloads (v1 `dictationRecordingModeProvider`).
+    var recordingMode: TBDFnKeyStateMachine.RecordingMode? { isRecording ? takeMode : nil }
+
+    /// A dictation hotkey asks to start. Refused while a take is recording or being processed.
+    func hotkeyStart(mode: TBDFnKeyStateMachine.RecordingMode, options: TBDDictationTakeOptions) -> Bool {
+        guard recorder == nil, !isProcessing else { return false }
+        begin(mode: mode, options: options)
+        return true
     }
 
-    private func perform(_ action: TBDHotkeyGesture.Action) {
-        switch action {
-        case .none: break
-        case .start: begin(handsFree: false)
-        case .startHandsFree: begin(handsFree: true)
-        case .handsFree: env.overlay.show(.recording(handsFree: true))
-        case .stop: finish()
-        case .cancel: cancel()
+    /// A provisional push-to-talk take ended as a quick tap: drop it without a trace.
+    func hotkeyDiscard(showReadyPill: Bool) {
+        levelTimer?.invalidate()
+        let preview = takePreview()
+        Task { await preview?.stop() }
+        guard let recorder else { if showReadyPill { showReadyForSecondTap() }; return }
+        self.recorder = nil
+        isRecording = false
+        takeMode = nil
+        let startup = starting
+        Task {
+            await startup?.value
+            await recorder.cancel()
         }
+        if showReadyPill { showReadyForSecondTap() } else { env.overlay.hide() }
+    }
+
+    /// v1 "ready" pill after the first tap of a double-tap.
+    func showReadyForSecondTap() {
+        guard recorder == nil, !isProcessing else { return }
+        env.overlay.show(.message("Tap again for hands-free"))
+        env.overlay.hide(after: Double(TBDFnKeyStateMachine.defaultTapThresholdMs) / 1000)
     }
 
     /// Menu action: start hands-free, or stop and paste.
     func toggle() {
-        if isRecording { finish() } else if !isProcessing { gesture.reset(); _ = gesture.press(at: 0); _ = gesture.release(at: 0); begin(handsFree: true) }
+        if isRecording { finish() } else if !isProcessing && recorder == nil {
+            begin(mode: .persistent, options: TBDDictationTakeOptions())
+            onStartedOutsideHotkey?(.persistent)
+        }
     }
 
     // MARK: Recording
 
-    private func begin(handsFree: Bool) {
-        guard recorder == nil, !isProcessing else { gesture.reset(keyHeld: hotkeyHeld); return }
-        discardUndo()
+    private func begin(mode: TBDFnKeyStateMachine.RecordingMode, options: TBDDictationTakeOptions) {
+        guard recorder == nil, !isProcessing else { onHotkeysReset?(); return }
+        let handsFree = mode == .persistent
+        takeMode = mode
+        takeOptions = options
+        discardUndo(resetHotkeys: false)
         targetApp = NSWorkspace.shared.frontmostApplication
         let recorder = TBDAudioRecorder(microphone: env.microphone)
         self.recorder = recorder
@@ -109,7 +123,7 @@ final class TBDDictationController: ObservableObject {
                     self.recorder = nil; isRecording = false
                     await takePreview()?.stop()
                 }
-                gesture.reset(keyHeld: hotkeyHeld)
+                onHotkeysReset?()
                 show(error.localizedDescription)
             }
         }
@@ -145,19 +159,21 @@ final class TBDDictationController: ObservableObject {
     /// Cancels recording. With an undo window, the take is kept briefly and the pill offers Undo.
     func cancel() {
         levelTimer?.invalidate()
-        gesture.reset(keyHeld: hotkeyHeld)
         processing?.cancel()
         let preview = takePreview()
         Task { await preview?.stop() }
         guard let recorder else {
             if undoPending { discardUndo(); env.overlay.hide() } else if isProcessing { env.overlay.hide() }
+            onHotkeysReset?()
             return
         }
         self.recorder = nil
         isRecording = false
+        takeMode = nil
         let startup = starting
         let window = env.preferences.dictationUndoWindow
         guard window != .off else {
+            onHotkeysReset?()
             env.overlay.hide()
             Task {
                 await startup?.value
@@ -168,16 +184,16 @@ final class TBDDictationController: ObservableObject {
         undoTarget = targetApp
         Task {
             await startup?.value
-            guard let recording = try? await recorder.stop() else { env.overlay.hide(); return }
+            guard let recording = try? await recorder.stop() else { env.overlay.hide(); onHotkeysReset?(); return }
             // Too short to matter, or a new dictation already started: nothing to bring back.
             guard recording.durationMs >= 250, self.recorder == nil, !isProcessing else {
                 try? FileManager.default.removeItem(at: recording.url)
-                if self.recorder == nil, !isProcessing { env.overlay.hide() }
+                if self.recorder == nil, !isProcessing { env.overlay.hide(); onHotkeysReset?() }
                 return
             }
             let held = undo.hold(recording.url, durationMs: recording.durationMs, window: window)
             if let old = held.discard { try? FileManager.default.removeItem(at: old) }
-            guard held.accepted, let pending = undo.pending else { try? FileManager.default.removeItem(at: recording.url); return }
+            guard held.accepted, let pending = undo.pending else { try? FileManager.default.removeItem(at: recording.url); onHotkeysReset?(); return }
             env.overlay.show(.undo(remaining: pending.remaining, total: pending.total))
             undoTimer?.invalidate()
             let generation = pending.generation
@@ -187,6 +203,7 @@ final class TBDDictationController: ObservableObject {
                     if let expired = self.undo.tick(generation: generation) {
                         timer.invalidate()
                         try? FileManager.default.removeItem(at: expired)
+                        self.onHotkeysReset?()
                         if case .undo = self.env.overlay.model.phase { self.env.overlay.hide() }
                     } else if let pending = self.undo.pending {
                         self.env.overlay.show(.undo(remaining: pending.remaining, total: pending.total))
@@ -200,6 +217,7 @@ final class TBDDictationController: ObservableObject {
     func undoCancel() {
         undoTimer?.invalidate()
         guard let pending = undo.undo(), !isProcessing, recorder == nil else { discardUndo(); return }
+        onHotkeysReset?()
         isProcessing = true
         env.overlay.show(.processing("Transcribing…"))
         let target = undoTarget
@@ -216,22 +234,27 @@ final class TBDDictationController: ObservableObject {
     }
 
     /// Ends the undo window now and deletes the held take.
-    private func discardUndo() {
+    private func discardUndo(resetHotkeys: Bool = true) {
         undoTimer?.invalidate()
-        if let url = undo.discard() { try? FileManager.default.removeItem(at: url) }
+        if let url = undo.discard() {
+            try? FileManager.default.removeItem(at: url)
+            if resetHotkeys { onHotkeysReset?() }
+        }
     }
 
     func finish() {
         levelTimer?.invalidate()
-        gesture.reset(keyHeld: hotkeyHeld)
+        onHotkeysReset?()
         guard let recorder else { return }
         self.recorder = nil
         isRecording = false
+        takeMode = nil
         isProcessing = true
         env.overlay.show(.processing("Transcribing…"))
         let target = targetApp
         let startup = starting
         let preview = takePreview()
+        let options = takeOptions
         processing = Task {
             defer { isProcessing = false; processing = nil }
             do {
@@ -244,7 +267,7 @@ final class TBDDictationController: ObservableObject {
                     env.overlay.hide()
                     return
                 }
-                try await transcribeAndPaste(url: recording.url, durationMs: recording.durationMs, warning: recording.warning, target: target)
+                try await transcribeAndPaste(url: recording.url, durationMs: recording.durationMs, warning: recording.warning, target: target, options: options)
             } catch is CancellationError {
                 env.overlay.hide()
             } catch TBDSpeechError.audioUnreadable("not recording") {
@@ -255,7 +278,8 @@ final class TBDDictationController: ObservableObject {
         }
     }
 
-    private func transcribeAndPaste(url: URL, durationMs: Int, warning: String?, target: NSRunningApplication?) async throws {
+    private func transcribeAndPaste(url: URL, durationMs: Int, warning: String?, target: NSRunningApplication?,
+                                    options: TBDDictationTakeOptions = TBDDictationTakeOptions()) async throws {
         let prefs = env.preferences
         let transcript: TBDTranscript
         do {
@@ -276,16 +300,13 @@ final class TBDDictationController: ObservableObject {
         let snippets = (try? env.database?.snippets()) ?? []
         let processed = TBDTextPipeline().process(raw, customWords: words, snippets: snippets, removeFillers: prefs.removeFillers)
         try? env.database?.incrementSnippetUse(ids: processed.expandedSnippetIDs)
-        var text = processed.text
-        if prefs.dictationCleanup {
+        if TBDDictationDelivery.usesCleanup(options, cleanupSetting: prefs.dictationCleanup) {
             env.overlay.show(.processing("Cleaning up…"))
-            let cleaned = try await TBDCleanup.apply(raw: text, enabled: true, formatter: TBDCleanup.modelFormatter(prompt: prefs.cleanupPrompt))
-            text = cleaned.text
-            if !cleaned.warning.isEmpty { lastMessage = cleaned.warning }
         }
-        try Task.checkCancellation()
-        var pasteError: Error?
-        do { try TBDPasteService.paste(text) } catch { pasteError = error }
+        let outcome = try await (delivery ?? .live(prompt: prefs.cleanupPrompt))
+            .deliver(processed.text, options: options, cleanupSetting: prefs.dictationCleanup)
+        let text = outcome.text
+        if !outcome.cleanupWarning.isEmpty { lastMessage = outcome.cleanupWarning }
         let id = tbdNewID()
         let audio = prefs.keepsAudio(.dictations) ? try? env.keep(url, in: TBDListeningPaths.dictations, name: id + ".wav") : nil
         if audio == nil { try? FileManager.default.removeItem(at: url) }
@@ -294,8 +315,9 @@ final class TBDDictationController: ObservableObject {
                                                  targetApp: target?.localizedName, audioPath: audio?.path, engine: transcript.engine))
             env.changed()
         }
-        if let pasteError { show(pasteError.localizedDescription) }
+        if let pasteError = outcome.error { show(pasteError) }
         else if let warning { show(warning) }
+        else if outcome.destination == .copied { show("Copied to the clipboard") }
         else { env.overlay.hide() }
     }
 

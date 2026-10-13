@@ -12,6 +12,7 @@ final class TBDListeningContext {
     let transforms: TBDTransformController
     let retention: TBDRetentionController
     private let hotkeys = TBDHotkeyMonitor()
+    let hotkeyCoordinator: TBDHotkeyCoordinator
     private weak var runtime: TBDListeningRuntime?
     private(set) var hotkeysActive = false
 
@@ -23,12 +24,15 @@ final class TBDListeningContext {
         files = TBDFileQueue(env: env)
         transforms = TBDTransformController(env: env)
         retention = TBDRetentionController(env: env)
+        hotkeyCoordinator = TBDHotkeyCoordinator(preferences: env.preferences, currentFlags: { TBDHotkeyMonitor.currentFlags },
+                                                 physicalKeyState: TBDHotkeyMonitor.keyIsDown)
         let report: (String) -> Void = { [weak runtime] in runtime?.report($0) }
         meetings.onMessage = report
         files.onMessage = report
         transforms.onMessage = report
         retention.onMessage = report
         hotkeys.onStatusChange = { [weak self] in self?.hotkeysActive = $0 }
+        wireHotkeys()
     }
 
     var isCapturing: Bool { dictation.isRecording || voice.chatActive || voice.noteRecording || meetings.isRecording }
@@ -57,17 +61,21 @@ final class TBDListeningContext {
         Task { await env.speech.shutdown() }
     }
 
-    /// Re-reads hotkey preferences. Invalid strings disable that hotkey.
-    func reloadHotkeys() {
-        var bindings: [TBDHotkeyMonitor.Binding] = []
-        if let hotkey = try? TBDHotkey.parse(env.preferences.dictationHotkey) {
-            bindings.append(.init(hotkey: hotkey) { [weak self] event, ms in self?.dictation.handle(event, at: ms) })
+    /// Re-reads hotkey preferences (TBDHotkeyCoordinator). Invalid strings disable that hotkey.
+    func reloadHotkeys() { hotkeyCoordinator.refreshAll() }
+
+    private func wireHotkeys() {
+        hotkeyCoordinator.targets = self
+        hotkeyCoordinator.onChange = { [weak self] hasHotkeys, activeTap in
+            guard let self else { return }
+            self.hotkeys.set(activeTap: activeTap, handler: hasHotkeys ? { [weak self] in self?.hotkeyCoordinator.handle($0) ?? false } : nil)
         }
-        if !env.preferences.transformHotkey.isEmpty, let hotkey = try? TBDHotkey.parse(env.preferences.transformHotkey) {
-            bindings.append(.init(hotkey: hotkey) { [weak self] event, _ in if event == .down { self?.transforms.run() } })
-        }
-        hotkeys.set(bindings)
+        dictation.onHotkeysReset = { [weak self] in self?.hotkeyCoordinator.resetDictationGestures() }
+        dictation.onCancelledByUI = { [weak self] in self?.hotkeyCoordinator.notifyCancelledByUI() }
+        dictation.onStartedOutsideHotkey = { [weak self] in self?.hotkeyCoordinator.syncRecordingMode($0) }
     }
+
+    func report(_ message: String) { runtime?.report(message) }
 
     var hotkeyPermissionMissing: Bool { !hotkeys.isActive }
 

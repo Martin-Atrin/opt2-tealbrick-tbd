@@ -39,7 +39,7 @@ struct TBDDictationHistoryView: View {
                     Text("History is off. Turn it on in Settings → Listening → System.").foregroundStyle(TBDTokens.muted)
                 }
                 if items.isEmpty {
-                    Text(env.dictationQuery.isEmpty ? "Your voice, captured. Hold your dictation hotkey (\(env.preferences.dictationHotkey)) to dictate into any app."
+                    Text(env.dictationQuery.isEmpty ? "Your voice, captured. Hold your dictation hotkey (\(env.preferences.pushToTalkHotkeyLabel)) to dictate into any app."
                          : "No matching records. Try different words or clear your search.")
                         .foregroundStyle(TBDTokens.muted).font(TBDTokens.Typography.body)
                     Spacer()
