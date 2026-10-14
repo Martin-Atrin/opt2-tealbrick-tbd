@@ -95,15 +95,15 @@ sup { color: var(--tb-muted); font-weight: var(--tb-weight-label); }
 @media (max-width: 960px) { .grid { grid-template-columns: minmax(0, 1fr); } }
 `;
 
-export function page(opts: { results: ComponentResult[]; total: Counts; findings: Finding[]; imgDir: string; generated: string; notes: string[] }): string {
-  const { results, total, findings, imgDir, generated, notes } = opts;
+export function page(opts: { results: ComponentResult[]; total: Counts; findings: Finding[]; imgDir: string; tokensHref: string; generated: string; notes: string[] }): string {
+  const { results, total, findings, imgDir, tokensHref, generated, notes } = opts;
   const comps = results.map((r) => `<section class="comp" id="c-${r.cell.id}"><h2>${esc(r.cell.title)}</h2><p class="muted">${esc(r.cell.what)}</p><p><span class="badge pass">PASS ${r.counts.pass}</span> <span class="badge documented">DOCUMENTED ${r.counts.documented}</span> <span class="badge fail">FAIL ${r.counts.fail}</span> <span class="badge">N/A cells ${r.counts.na}</span></p>${shots(r.cell, imgDir)}${metricsTable(r)}</section>`).join("");
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TBD sameness proof</title>
-<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="${tokensHref}">
 <style>${CSS}</style>
 </head>
 <body>

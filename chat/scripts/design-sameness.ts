@@ -9,13 +9,14 @@
      checkout), DPR 2. Every [data-m] element is measured with getComputedStyle + getBoundingClientRect.
    - NATIVE: pass --native to run the binary, or run `tbd-design-shots --sameness <out>` first (it writes
      <out>/native-metrics.json and the native PNGs). Build: swift build --package-path native --product tbd-design-shots
-   - Output: <out>/<cell>-<web|native|chat>-<light|dark>.png, <out>/sameness.json and the page (default <kit>/TBD-SAMENESS.html).
+   - Output: <out>/<cell>-<web|native|chat>-<light|dark>.png, <out>/sameness.json and the page (default <kit>/../leads/tbd-design/TBD-SAMENESS.html: evidence lives outside the design folder, whose
+     check-system guard would flag the raw values the page prints on purpose).
    Product CSS and Swift are never changed to make a row pass: a mismatch is a finding. Exit 1 on a FAIL only with --strict. */
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { homedir } from "node:os";
-import { extname, join, normalize, resolve } from "node:path";
+import { dirname, extname, join, normalize, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import { CELLS, type CellDef, type Col, PROBES, type Prop, type Theme, WEB_CANVAS_CSS } from "./design-sameness/cells.ts";
 import { type Cell, type Metrics, type Row, add, compareProbe, emptyCounts } from "./design-sameness/compare.ts";
@@ -26,7 +27,7 @@ const args = process.argv.slice(2);
 const flag = (name: string): string | undefined => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
 const kit = resolve(flag("--kit") ?? process.env.TB_KIT ?? "/Users/puma/work/active/tealbrick-opt2/coordination/design");
 const outDir = resolve(flag("--out") ?? join(kit, "screens", "tbd-sameness"));
-const pagePath = resolve(flag("--page") ?? join(kit, "TBD-SAMENESS.html"));
+const pagePath = resolve(flag("--page") ?? join(kit, "..", "leads", "tbd-design", "TBD-SAMENESS.html"));
 const nativeBin = flag("--native");
 const strict = args.includes("--strict");
 const repo = join(import.meta.dirname, "..", "..");
@@ -306,7 +307,9 @@ async function main(): Promise<void> {
     "Documented deviations (TBD-MAPPING.md): macOS controls are 36pt, web 44px (§5, §8, §11.3); Control.paddingX 14 is the kit .sm padding (§5). Every other difference is a FAIL. The 44pt StepFlow rule in §8 is not followed by TBDStepFlow or by Chat, so those rows are FAIL.",
     "The two dark columns use the proposed dark tokens. Hover, pressed and focus states are not part of this proof.",
   ];
-  writeFileSync(pagePath, page({ results, total, findings, imgDir: "screens/tbd-sameness", generated, notes }));
+  // Links from the page to the images and the kit tokens.css are relative to wherever the page is written.
+  const rel = (to: string): string => relative(dirname(pagePath), to).split(sep).join("/");
+  writeFileSync(pagePath, page({ results, total, findings, imgDir: rel(outDir), tokensHref: rel(join(kit, "tokens.css")), generated, notes }));
 
   console.log(`design-sameness: ${CELLS.length} components, ${total.pass} PASS, ${total.documented} DOCUMENTED, ${total.fail} FAIL, ${total.na} N/A cells`);
   for (const r of results) console.log(`  ${r.cell.id.padEnd(10)} pass ${r.counts.pass}  documented ${r.counts.documented}  fail ${r.counts.fail}  n/a cells ${r.counts.na}`);
