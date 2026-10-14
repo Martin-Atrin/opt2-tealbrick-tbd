@@ -38,7 +38,7 @@ final class TBDChatRuntime: NSObject, ObservableObject, WKScriptMessageHandler, 
     applyAppearance()
   }
   private func applyAppearance() {
-    webView.evaluateJavaScript("document.documentElement.dataset.appearance='\(appearanceName)';document.documentElement.style.colorScheme='\(appearanceName)';", completionHandler: nil)
+    webView.evaluateJavaScript("document.documentElement.dataset.theme='\(appearanceName)';document.documentElement.style.colorScheme='\(appearanceName)';", completionHandler: nil)
   }
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { applyAppearance() }
 

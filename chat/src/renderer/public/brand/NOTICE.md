@@ -1,6 +1,8 @@
-# Teal Brick assets
+# Tealbrick assets
 
-Original Teal Brick brick mark.
-Nunito Variable is an unmodified upstream font binary (Nunito-VariableFont_wght.ttf).
-Nunito: Vernon Adams and The Nunito Project Authors, SIL Open Font License 1.1 (Nunito-OFL.txt), https://github.com/googlefonts/nunito.
+Original Tealbrick brick mark.
+Nunito (variable woff2) comes from @opt2-tealbrick/ui (dist/fonts), unmodified upstream binaries; the build copies its
+licence to brand/Nunito-OFL.txt. Nunito: Vernon Adams and The Nunito Project Authors, SIL Open Font License 1.1,
+https://github.com/googlefonts/nunito.
+The mini-app stills in brand/apps are byte copies of @opt2-tealbrick/ui assets/apps (production art).
 Upstream application notices and package identities are retained in the source repository.

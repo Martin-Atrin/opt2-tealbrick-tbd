@@ -2,7 +2,7 @@
    Run (from chat/): node scripts/design-proof.ts <outDir> [--prefix tbd-chat] [--no-fail]
    - Starts a Vite dev server on scripts/design-proof/ (the real App on a fake window.studio).
    - Headless Chrome via playwright-core (PW_CORE, default: the read-only website checkout; CHROME_PATH optional).
-   - For light and dark (data-appearance + color-scheme on <html>, as the native host does) writes
+   - For light and dark (data-theme + color-scheme on <html>, as the native host does) writes
        <prefix>-<theme>.png, <prefix>-composer-focus-<theme>.png, <prefix>-agents-hover-<theme>.png (the rail's agent card),
      <prefix>-panel-tbd-<theme>.png and <prefix>-panel-agent-<theme>.png (the open agent panel),
      <prefix>-connect-step1|2-<theme>.png ("Connect TBD's agent" StepFlow), <prefix>-firstrun-step1|2|3-<theme>.png
@@ -156,7 +156,7 @@ try {
 
   for (const theme of ["light", "dark"]) {
     // Exactly what the native host does to switch appearance.
-    await page.evaluate((t) => { document.documentElement.dataset.appearance = t; document.documentElement.style.colorScheme = t; }, theme);
+    await page.evaluate((t) => { document.documentElement.dataset.theme = t; document.documentElement.style.colorScheme = t; }, theme);
     await page.mouse.move(0, 0);
     await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
     await settle();
@@ -242,7 +242,7 @@ try {
   await sheet.goto(`${url}?sample=apps`, { waitUntil: "networkidle" });
   await sheet.waitForSelector(".tbd-app-chip");
   for (const theme of ["light", "dark"]) {
-    await sheet.evaluate((t) => { document.documentElement.dataset.appearance = t; document.documentElement.style.colorScheme = t; }, theme);
+    await sheet.evaluate((t) => { document.documentElement.dataset.theme = t; document.documentElement.style.colorScheme = t; }, theme);
     await sheet.evaluate(() => document.fonts.ready.then(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 200))))));
     await sheet.screenshot({ path: join(outDir, `${prefix}-app-chips-${theme}.png`), clip: { x: 0, y: 0, width: 1280, height: 420 } });
     const r: Audit = await sheet.evaluate(audit, theme === "dark");

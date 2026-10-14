@@ -10,7 +10,7 @@ import { useStore } from "@/lib/store";
 export function AppIcon({ app, size = 16 }: { app: TbdApp; size?: 16 | 24 | 32 | 48 }): ReactNode {
   const still = `./brand/apps/${app.slug}`;
   const style: CSSProperties = { backgroundImage: `image-set(url(${still}@1x.webp) 1x, url(${still}@2x.webp) 2x)` };
-  return <span className={`tbd-app-icon s${size}`} style={style} aria-hidden="true" />;
+  return <span className={`tb-app-icon s${size}`} style={style} aria-hidden="true" />;
 }
 
 /** One connected app: AppIcon 16 and its name in white on the app's own colour (AA, tools/app-colors.ts). */

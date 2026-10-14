@@ -119,7 +119,7 @@ export const CELLS: CellDef[] = [
     id: "appchip", title: "App chip", w: 296, h: 120,
     what: "Web has no app chip: its reference is the app header band of a canvas app card (.g-node.is-app .band) plus the kit's AppIcon 16. Chat: .tbd-app-chip. Native: TBDAppChip. Below each: AppIcon 16.",
     web: `<div style="display:grid;justify-items:start;gap:8px"><div class="g-node is-app" style="position:relative;--app:var(--tb-app-knowledge)"><div class="band" data-m="appchip appchip-name"><i class="tb-app-icon s32" style="background-image:${APP_STILL_WEB}" aria-hidden="true"></i><span><h3>Knowledge</h3><small>Memory</small></span></div></div><i class="tb-app-icon s16" data-m="appchip-icon" style="background-image:${APP_STILL_WEB}" aria-hidden="true"></i></div>`,
-    chat: `<div style="display:grid;justify-items:start;gap:8px"><span class="tbd-app-chip" data-m="appchip appchip-name" style="background:var(--tb-app-knowledge)"><span class="tbd-app-icon s16" style="background-image:${APP_STILL_CHAT}" aria-hidden="true"></span>Knowledge</span><span class="tbd-app-icon s16" data-m="appchip-icon" style="background-image:${APP_STILL_CHAT}" aria-hidden="true"></span></div>`,
+    chat: `<div style="display:grid;justify-items:start;gap:8px"><span class="tbd-app-chip" data-m="appchip appchip-name" style="background:var(--tb-app-knowledge)"><span class="tb-app-icon s16" style="background-image:${APP_STILL_CHAT}" aria-hidden="true"></span>Knowledge</span><span class="tb-app-icon s16" data-m="appchip-icon" style="background-image:${APP_STILL_CHAT}" aria-hidden="true"></span></div>`,
   },
 ];
 

@@ -8,6 +8,9 @@ mkdirSync('out/tbd', { recursive: true });
 await buildHelper();
 await viteBuild({ configFile: false, root: 'src/renderer', base: './', plugins: [react()], resolve: { alias: { '@': resolve('src/renderer/src'), '@shared': resolve('src/shared') } }, build: { outDir: resolve('out/tbd/renderer'), emptyOutDir: true, rollupOptions: { output: { format: 'iife', inlineDynamicImports: true } } } });
 await build({ entryPoints: ['src/preload/index.ts'], outfile: 'out/tbd/renderer/bridge.js', bundle: true, platform: 'browser', format: 'iife' });
+// Nunito comes from @opt2-tealbrick/ui (bundled by Vite from its tokens.css); its OFL licence ships beside the app.
+mkdirSync('out/tbd/renderer/brand', { recursive: true });
+copyFileSync('node_modules/@opt2-tealbrick/ui/dist/fonts/OFL.txt', 'out/tbd/renderer/brand/Nunito-OFL.txt');
 const index = 'out/tbd/renderer/index.html'; writeFileSync(index, readFileSync(index, 'utf8').replace('<head>', '<head><script src="./bridge.js"></script>').replace('type="module" crossorigin', 'defer').replace('rel="stylesheet" crossorigin', 'rel="stylesheet"'));
 
 // TBD's default agent (Claude Agent SDK) as one ESM bundle, plus the SDK's

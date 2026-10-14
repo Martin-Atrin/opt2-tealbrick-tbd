@@ -376,10 +376,10 @@ input, textarea { font: inherit; color: inherit; }
   /* Slides from the edge it belongs to. Appearing instantly reads as a jump
      cut: the eye has to re-find where it was, because nothing showed it that
      the layout moved rather than changed. */
-  animation: panel-in var(--tbd-motion-spring);
+  animation: panel-in var(--tb-dur-slow) var(--tb-ease);
 }
 .panel--closing {
-  animation: panel-out var(--tbd-motion-quick) forwards;
+  animation: panel-out var(--tb-dur-fast) var(--tb-ease) forwards;
   /* Out of the flow on the way out, so the conversation reclaims the width in
      one movement instead of snapping wide after the drawer has gone. */
   pointer-events: none;
@@ -432,12 +432,12 @@ input, textarea { font: inherit; color: inherit; }
 
 .toggle {
   width: 40px; height: 24px; border-radius: var(--tb-radius-pill); background: var(--stroke-strong);
-  position: relative; transition: background var(--tbd-motion-instant); flex: none;
+  position: relative; transition: background var(--tb-dur-exit) var(--tb-ease); flex: none;
 }
 .toggle--on { background: var(--ink); }
 .toggle__knob {
   position: absolute; top: 2.5px; left: 2.5px; width: 19px; height: 19px;
-  border-radius: var(--tb-radius-pill); background: var(--tb-tile); transition: transform var(--tbd-motion-instant);
+  border-radius: var(--tb-radius-pill); background: var(--tb-tile); transition: transform var(--tb-dur-exit) var(--tb-ease);
   box-shadow: none;
 }
 .toggle--on .toggle__knob { transform: translateX(16px); }

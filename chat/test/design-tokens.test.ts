@@ -4,36 +4,46 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { resolved, resolvedDark } from "../../design/tokens.ts";
+import { resolved, resolvedDark } from "@opt2-tealbrick/ui/tokens";
 
-/** C139 / C128: TBD's tokens come from the toolkit tokens.ts, stay generated, and every state pair TBD draws is AA. */
+/** C139 / C150: ONE source — Chat imports @opt2-tealbrick/ui (tokens.css, components.css, fonts); the Swift tokens and
+    the app registry are generated from the same package version; every state pair TBD draws is AA. */
 
 const repo = join(import.meta.dirname, "..", "..");
 type T = keyof typeof resolved;
+const pkg = join(repo, "chat/node_modules/@opt2-tealbrick/ui");
 
-test("the generated TBDTokens.swift and tbd-tokens.css match design/tokens.ts", () => {
+test("Chat imports the kit package and the Swift tokens are generated from the same version", () => {
   execFileSync(process.execPath, ["scripts/design-tokens.ts", "--check"], { cwd: join(repo, "chat"), stdio: "pipe" });
+  const version = JSON.parse(readFileSync(join(pkg, "package.json"), "utf8")).version as string;
+  const dependency = JSON.parse(readFileSync(join(repo, "chat/package.json"), "utf8")).dependencies["@opt2-tealbrick/ui"] as string;
+  assert.match(dependency, new RegExp(`ui-v${version.replace(/\./g, "\\.")}/opt2-tealbrick-ui-${version.replace(/\./g, "\\.")}\\.tgz$`));
   const swift = readFileSync(join(repo, "native/Sources/TBDDesign/TBDTokens.swift"), "utf8");
-  const css = readFileSync(join(repo, "chat/src/renderer/src/tbd-tokens.css"), "utf8");
-  const sha = createHash("sha256").update(readFileSync(join(repo, "design/tokens.ts"))).digest("hex");
+  const sha = createHash("sha256").update(readFileSync(join(pkg, "dist/tokens.js"))).digest("hex");
+  assert.match(swift, new RegExp(`@opt2-tealbrick/ui ${version.replace(/\./g, "\\.")}`));
   assert.match(swift, new RegExp(sha));
-  assert.match(css, new RegExp(sha));
-  // One brick radius, one face, the web names in Chat.
   assert.match(swift, /public static let radiusBrick: CGFloat = 6\n/);
-  assert.match(css, /--tb-radius-brick: 6px;/);
-  assert.match(css, /--tb-font: "Nunito"/);
-  assert.match(css, /:root\[data-appearance="dark"\] \{\n {2}--tb-paper: #1a1814;/);
+  // Chat reads the package's CSS directly; no token copy is left in the renderer.
+  const css = readFileSync(join(repo, "chat/src/renderer/src/teal-brick.css"), "utf8");
+  assert.match(css, /@import '@opt2-tealbrick\/ui\/tokens\.css';/);
+  assert.match(css, /@import '@opt2-tealbrick\/ui\/components\.css';/);
+  assert.throws(() => readFileSync(join(repo, "chat/src/renderer/src/tbd-tokens.css")));
+  // Dark is the package's data-theme switch, which the native host sets.
+  assert.match(readFileSync(join(pkg, "dist/tokens.css"), "utf8"), /\[data-theme="dark"\] \{/);
+  assert.match(readFileSync(join(repo, "companion/Dayflow/Dayflow/App/TBDChatView.swift"), "utf8"), /dataset\.theme=/);
 });
 
-test("Nunito ships with its OFL licence, the same file for SwiftUI and Chat", () => {
-  const files = ["native/Sources/TBDDesign/Fonts/Nunito-VariableFont_wght.ttf", "chat/src/renderer/public/brand/Nunito-VariableFont_wght.ttf"];
-  const [a, b] = files.map((f) => createHash("sha256").update(readFileSync(join(repo, f))).digest("hex"));
-  assert.equal(a, b);
-  for (const f of ["native/Sources/TBDDesign/Fonts/Nunito-OFL.txt", "chat/src/renderer/public/brand/Nunito-OFL.txt"]) {
-    const ofl = readFileSync(join(repo, f), "utf8");
-    assert.match(ofl, /^Copyright 2014 The Nunito Project Authors/);
+test("Nunito ships with its OFL licence: the package's woff2 for Chat, the same family as TTF for SwiftUI", () => {
+  for (const f of [join(pkg, "dist/fonts/OFL.txt"), join(repo, "native/Sources/TBDDesign/Fonts/Nunito-OFL.txt")]) {
+    const ofl = readFileSync(f, "utf8");
     assert.match(ofl, /SIL OPEN FONT LICENSE Version 1\.1/);
+    assert.match(ofl, /Nunito Project Authors/);
   }
+  assert.match(readFileSync(join(pkg, "dist/tokens.css"), "utf8"), /@font-face \{[^}]*font-family: "Nunito"/);
+  assert.match(readFileSync(join(repo, "chat/scripts/build-tbd.ts"), "utf8"), /dist\/fonts\/OFL\.txt/);
+  const native = createHash("sha256").update(readFileSync(join(repo, "native/Sources/TBDDesign/Fonts/Nunito-VariableFont_wght.ttf"))).digest("hex");
+  const companion = createHash("sha256").update(readFileSync(join(repo, "companion/Dayflow/Dayflow/Fonts/Nunito-VariableFont_wght.ttf"))).digest("hex");
+  assert.equal(native, companion);
 });
 
 type RGB = [number, number, number];

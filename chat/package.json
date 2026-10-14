@@ -22,6 +22,7 @@
     "@opt2-tealbrick/harness-claude": "https://github.com/Martin-Atrin/opt2-tealbrick-bridge/releases/download/harness-claude-v0.1.0/opt2-tealbrick-harness-claude-0.1.0.tgz",
     "@opt2-tealbrick/manifest": "https://github.com/Martin-Atrin/opt2-tealbrick-sdk/releases/download/manifest-v0.1.1/opt2-tealbrick-manifest-0.1.1.tgz",
     "@opt2-tealbrick/spec": "https://github.com/Martin-Atrin/opt2-tealbrick-specs/releases/download/spec-v0.1.2/opt2-tealbrick-spec-0.1.2.tgz",
+    "@opt2-tealbrick/ui": "https://github.com/Martin-Atrin/opt2-tealbrick-packages/releases/download/ui-v0.2.0/opt2-tealbrick-ui-0.2.0.tgz",
     "zod": "4.6.5",
     "zustand": "^5.0.2"
   },

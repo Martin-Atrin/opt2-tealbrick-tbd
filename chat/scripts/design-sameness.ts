@@ -1,8 +1,8 @@
 /* design-sameness.ts: the TBD "sameness proof". The same ten components rendered three ways, light and dark,
    measured and compared:
-     WEB         the toolkit's tokens.css + components.css, kit markup (copied from mockups/components.html)
+     WEB         the released kit @opt2-tealbrick/ui (tokens.css + components.css + fonts), kit markup (from mockups/components.html)
      TBD NATIVE  SwiftUI TBDDesign, rendered by `tbd-design-shots --sameness` (native/Sources/TBDDesignShots/Sameness.swift)
-     TBD CHAT    the Chat renderer's own CSS (tbd-tokens.css + styles.css + teal-brick.css) with the markup its components render
+     TBD CHAT    the Chat renderer's own CSS (styles.css + teal-brick.css, which imports the same package) with the markup its components render
    Run (from chat/, Node 24+):
      node scripts/design-sameness.ts [--native <path to tbd-design-shots>] [--out <dir>] [--page <html>] [--kit <design dir>] [--strict]
    - WEB and CHAT: two tiny static pages on a local server, headless Chromium (playwright-core, PW_CORE or the default
@@ -32,6 +32,8 @@ const strict = args.includes("--strict");
 const repo = join(import.meta.dirname, "..", "..");
 const rendererSrc = join(repo, "chat", "src", "renderer", "src");
 const publicBrand = join(repo, "chat", "src", "renderer", "public", "brand");
+/** The released kit (@opt2-tealbrick/ui): the web reference AND what Chat imports (one source). */
+const pkgDist = join(repo, "chat", "node_modules", "@opt2-tealbrick", "ui", "dist");
 mkdirSync(outDir, { recursive: true });
 
 // ───────────────────────────── the two pages
@@ -40,13 +42,12 @@ const cellBox = (c: CellDef, markup: string): string => `<div class="sx-cell" id
 const SHELL_CSS = `.sx-cell { box-sizing: border-box; padding: 16px; background: var(--tb-paper); position: relative; overflow: hidden; margin: 0 0 24px; }
 .sx-refs { position: absolute; left: -9999px; top: 0; display: flex; gap: 12px; }
 *, *::before, *::after { animation: none !important; transition: none !important; }`;
-const FONT_FACE = `@font-face { font-family: "Nunito"; src: url(/brand/Nunito-VariableFont_wght.ttf) format("truetype"); font-weight: 200 1000; font-style: normal; }`;
 
 function webPage(): string {
   const refs = CELLS.map((c) => c.refs ?? "").join("");
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>sameness web</title>
-<link rel="stylesheet" href="/kit/tokens.css"><link rel="stylesheet" href="/kit/components.css">
-<style>${FONT_FACE}\n${WEB_CANVAS_CSS}\n${SHELL_CSS}</style></head>
+<link rel="stylesheet" href="/pkg/tokens.css"><link rel="stylesheet" href="/pkg/components.css">
+<style>${WEB_CANVAS_CSS}\n${SHELL_CSS}</style></head>
 <body class="tb-root">${CELLS.map((c) => cellBox(c, c.web)).join("\n")}<div class="sx-refs">${refs}</div></body></html>`;
 }
 function chatPage(): string {
@@ -58,12 +59,13 @@ function chatPage(): string {
 
 // ───────────────────────────── server
 
-const TYPES: Record<string, string> = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".ttf": "font/ttf", ".webp": "image/webp", ".png": "image/png", ".svg": "image/svg+xml" };
+const TYPES: Record<string, string> = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".ttf": "font/ttf", ".woff2": "font/woff2", ".webp": "image/webp", ".png": "image/png", ".svg": "image/svg+xml" };
 function route(url: string): { body: string | Buffer; type: string } | null {
   const path = decodeURIComponent(url.split("?")[0]);
   if (path === "/web.html") return { body: webPage(), type: TYPES[".html"] };
   if (path === "/chat.html") return { body: chatPage(), type: TYPES[".html"] };
-  const maps: [string, string][] = [["/kit/", kit], ["/chat-css/brand/", publicBrand], ["/chat-css/", rendererSrc], ["/brand/", publicBrand]];
+  // teal-brick.css imports '@opt2-tealbrick/ui/tokens.css' (Vite resolves it in the app; here the bare path maps to the package).
+  const maps: [string, string][] = [["/pkg/", pkgDist], ["/chat-css/@opt2-tealbrick/ui/", pkgDist], ["/kit/", kit], ["/chat-css/brand/", publicBrand], ["/chat-css/", rendererSrc], ["/brand/", publicBrand]];
   for (const [prefix, root] of maps) {
     if (!path.startsWith(prefix)) continue;
     const file = normalize(join(root, path.slice(prefix.length)));
@@ -190,7 +192,7 @@ async function shootColumn(browser: PwBrowser, base: string, col: "web" | "chat"
     await pg.evaluate(`(async () => {
       const root = document.documentElement;
       root.removeAttribute("data-theme"); root.removeAttribute("data-appearance");
-      ${theme === "dark" ? `root.setAttribute("${col === "web" ? "data-theme" : "data-appearance"}", "dark");` : ""}
+      ${theme === "dark" ? `root.setAttribute("data-theme", "dark");` : ""}
       await document.fonts.load("400 14px Nunito"); await document.fonts.load("900 14px Nunito"); await document.fonts.ready;
     })()`);
     fontOk = fontOk && (await pg.evaluate<boolean>(`document.fonts.check("800 14px Nunito")`));
@@ -295,8 +297,8 @@ async function main(): Promise<void> {
   }, null, 2)}\n`);
 
   const notes = [
-    "WEB: <code>tokens.css</code> + <code>components.css</code> of the toolkit, kit markup copied from <code>mockups/components.html</code>. The canvas cards use the rules of <code>mockups/build-workspace.ts</code>. The harness adds one <code>@font-face</code> for Nunito (the same file TBD ships), because <code>tokens.css</code> names the face but does not load it.",
-    "TBD CHAT: <code>styles.css</code> + <code>teal-brick.css</code> (which imports the generated <code>tbd-tokens.css</code>), with the markup the Chat components render (<code>StepFlow.tsx</code>, <code>AgentCard.tsx</code>, <code>FirstRun.tsx</code>, <code>SignIn.tsx</code>, <code>Palette.tsx</code>). The StepFlow cell has no portal and no scrim.",
+    "WEB: the released kit <code>@opt2-tealbrick/ui</code> (<code>tokens.css</code> with its self-hosted Nunito, <code>components.css</code>), kit markup copied from <code>mockups/components.html</code>. The canvas cards use the rules of <code>mockups/build-workspace.ts</code>.",
+    "TBD CHAT: <code>styles.css</code> + <code>teal-brick.css</code> (which imports the same package: one source), with the markup the Chat components render (<code>StepFlow.tsx</code>, <code>AgentCard.tsx</code>, <code>FirstRun.tsx</code>, <code>SignIn.tsx</code>, <code>Palette.tsx</code>). The StepFlow cell has no portal and no scrim.",
     "TBD NATIVE: the real TBDDesign views in an offscreen window at 2x, from <code>tbd-design-shots --sameness</code>. Frames come from the rendered SwiftUI layout or from the rendered pixels of the cell. A value marked <sup>d</sup> is declared: the token constant the component is built from, resolved under the appearance through NSColor. A value without a mark is measured.",
     "Web and Chat values are measured with getComputedStyle and getBoundingClientRect. Line height is measured for both and kept in <code>sameness.json</code>; SwiftUI sets no line height, so it is not compared.",
     "Tabs: the kit .tb-tabs is compared with TBDNavItem, the native brick nav item. TBDSegmented is the pill, the kit .tb-segmented, and is not part of this proof.",
