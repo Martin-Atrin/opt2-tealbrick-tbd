@@ -62,11 +62,12 @@ private struct TBDNavItemBody: View {
         let fill = current ? (hover ? TBDColor.tabCurrentHoverFill : TBDColor.tabCurrentFill) : (hover ? TBDColor.tabHoverFill : TBDColor.tabFill)
         let on = current ? (hover ? TBDColor.tabCurrentHoverOn : TBDColor.tabCurrentOn) : (hover ? TBDColor.tabHoverOn : TBDColor.tabOn)
         configuration.label
-            .font(TBDFonts.nunito(TBDKit.textControl, current ? TBDKit.weightLabel : TBDKit.weightNav))
+            .font(TBDFonts.nunito(TBDKit.textControl, TBDMetrics.navWeight))   // kit .tb-tab / .tb-shell-nav: 700 in every state
             .foregroundStyle(on)
-            .padding(.horizontal, TBDKit.s3)
+            .padding(.horizontal, TBDMetrics.navPaddingH)
             .frame(maxWidth: .infinity, minHeight: TBDTokens.Control.minHeight, alignment: .leading)
             .background(fill, in: TBDBrickShape())
+            .overlay { if !current { TBDBrickShape().strokeBorder(TBDColor.tabEdge, lineWidth: TBDMetrics.navIdleRing) } }
             .contentShape(TBDBrickShape())
             .tbdFocusRing(focused || forced == .focus, offset: TBDKit.focusOffsetTight)
             .onHover { hovered = $0 }

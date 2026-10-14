@@ -28,6 +28,13 @@ public enum TBDFonts {
         return .custom(family, size: size, relativeTo: .body).weight(weight)
     }
 
+    /// The natural line height of Nunito at `size` (ascent + descent + leading), to build kit line boxes.
+    public static func lineHeight(_ size: CGFloat) -> CGFloat {
+        register()
+        guard let font = NSFont(name: family, size: size) else { return size * 1.364 }
+        return NSLayoutManager().defaultLineHeight(for: font)
+    }
+
     /// SF Symbols beside text: the system symbol font at a kit size (icons are not text; Nunito has no symbols).
     public static func symbol(_ size: CGFloat, _ weight: Font.Weight = TBDKit.weightNav) -> Font {
         .system(size: size, weight: weight)

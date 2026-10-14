@@ -110,9 +110,9 @@ public struct TBDSelect<Value: Hashable>: View {
         return HStack(spacing: TBDKit.s3) {
             Text(title).lineLimit(1).truncationMode(.tail)
             Spacer(minLength: 0)
-            Image(systemName: "chevron.down").font(.system(size: 11, weight: .heavy)).accessibilityHidden(true)
+            Image(systemName: "chevron.down").font(TBDFonts.symbol(11, TBDKit.weightLabel)).accessibilityHidden(true)
         }
-        .font(TBDTokens.Typography.control)
+        .font(TBDFonts.nunito(TBDKit.textControl, TBDMetrics.selectValueWeight))   // the value reads like field text (kit .tb-select-value)
         .foregroundStyle(enabled ? TBDColor.fieldOn : TBDColor.disabledOn)
         .padding(.horizontal, TBDTokens.Control.paddingX)
         .frame(minHeight: TBDTokens.Control.minHeight)
@@ -327,19 +327,22 @@ public enum TBDNoticeTone: Sendable { case neutral, live, needsYou }
 public struct TBDNotice: View {
     let text: String
     let tone: TBDNoticeTone
+    /// Extra space so each line box is the kit's 26pt body line (SwiftUI has no line-height).
+    private var extraLine: CGFloat { max(0, TBDMetrics.noticeLineHeight - TBDFonts.lineHeight(TBDKit.textLabel)) }
     public init(_ text: String, tone: TBDNoticeTone = .neutral) { self.text = text; self.tone = tone }
     public var body: some View {
         let (fill, on, edge): (Color, Color, Color) = switch tone {
-        case .neutral: (TBDColor.tile, TBDColor.ink, TBDColor.line)
+        case .neutral: (TBDColor.tile, TBDColor.inkSoft, TBDColor.line)
         case .live: (TBDColor.statusLiveFill, TBDColor.statusLiveOn, TBDColor.statusLiveEdge)
         case .needsYou: (TBDColor.statusNeedsYouFill, TBDColor.statusNeedsYouOn, TBDColor.statusNeedsYouEdge)
         }
         Text(text)
-            .font(TBDFonts.nunito(TBDKit.textLabel, TBDKit.weightNav))
+            .font(TBDFonts.nunito(TBDKit.textLabel, TBDMetrics.noticeWeight))   // kit .tb-notice: 15/400, padding 14 16
             .foregroundStyle(on)
+            .lineSpacing(extraLine)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, TBDKit.s4).padding(.vertical, TBDKit.s3)
+            .padding(.horizontal, TBDMetrics.noticePaddingH).padding(.vertical, TBDMetrics.noticePaddingV + extraLine / 2)
             .background(fill, in: TBDBrickShape())
             .overlay(TBDBrickShape().strokeBorder(edge, lineWidth: TBDKit.hair))
             .textSelection(.enabled)
@@ -390,11 +393,12 @@ public struct TBDStepFlow: View {
             .opacity(visible ? 1 : 0)
             .frame(maxHeight: .infinity)
             HStack(spacing: TBDKit.s3) {
-                if shown > 0 { Button("Previous") { go(shown - 1) }.buttonStyle(TBDButtonStyle(.secondary)) }
+                // A flow's actions are its main actions: 44pt (--tb-target), TBD-MAPPING §5.
+                if shown > 0 { Button("Previous") { go(shown - 1) }.buttonStyle(TBDButtonStyle(.secondary, size: .large)) }
                 Spacer(minLength: 0)
-                if step.optional { Button(step.skipLabel) { advance() }.buttonStyle(TBDButtonStyle(.quiet)) }
+                if step.optional { Button(step.skipLabel) { advance() }.buttonStyle(TBDButtonStyle(.quiet, size: .large)) }
                 Button(step.nextLabel) { advance() }
-                    .buttonStyle(TBDButtonStyle(.primary))
+                    .buttonStyle(TBDButtonStyle(.primary, size: .large))
                     .disabled(!step.canAdvance)
                     .keyboardShortcut(.defaultAction)
             }

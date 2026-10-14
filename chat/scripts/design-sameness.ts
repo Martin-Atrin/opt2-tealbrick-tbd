@@ -82,19 +82,26 @@ const measureInPage = (): Raw => {
   cv.width = cv.height = 1;
   const cx = cv.getContext("2d", { willReadFrequently: true }) as CanvasRenderingContext2D;
   const hex2 = (v: number): string => Math.round(v).toString(16).padStart(2, "0");
+  const holder = document.createElement("span");
+  document.body.append(holder);
+  /** Any CSS colour (rgb, color-mix, keyword) as "#rrggbb", "#rrggbb@alpha" or "transparent", resolved by the browser. */
   const colour = (input: string): string => {
     const s = input.trim();
     if (!s || s === "transparent") return "transparent";
+    holder.style.color = "";
+    holder.style.color = s;
+    const resolved = getComputedStyle(holder).color;
     let r = 0, g = 0, b = 0, a = 1;
-    let m = /^rgba?\(([^)]+)\)$/.exec(s);
-    if (m) {
-      const p = m[1].split(/[\s,/]+/).filter(Boolean).map(Number);
+    const rgbM = /^rgba?\(([^)]+)\)$/.exec(resolved);
+    const srgbM = /^color\(srgb ([^)]+)\)$/.exec(resolved);
+    if (rgbM) {
+      const p = rgbM[1].split(/[\s,/]+/).filter(Boolean).map(Number);
       [r, g, b] = p; a = p.length > 3 ? p[3] : 1;
-    } else if ((m = /^color\(srgb ([^)]+)\)$/.exec(s))) {
-      const p = m[1].split(/[\s/]+/).filter(Boolean).map(Number);
+    } else if (srgbM) {
+      const p = srgbM[1].split(/[\s/]+/).filter(Boolean).map(Number);
       r = p[0] * 255; g = p[1] * 255; b = p[2] * 255; a = p.length > 3 ? p[3] : 1;
     } else {
-      cx.clearRect(0, 0, 1, 1); cx.fillStyle = "#000"; cx.fillStyle = s; cx.fillRect(0, 0, 1, 1);
+      cx.clearRect(0, 0, 1, 1); cx.fillStyle = "#000"; cx.fillStyle = resolved; cx.fillRect(0, 0, 1, 1);
       const d = cx.getImageData(0, 0, 1, 1).data;
       r = d[0]; g = d[1]; b = d[2]; a = d[3] / 255;
     }
@@ -102,13 +109,14 @@ const measureInPage = (): Raw => {
     const base = `#${hex2(r)}${hex2(g)}${hex2(b)}`;
     return a >= 0.995 ? base : `${base}@${a.toFixed(2)}`;
   };
-  const splitTop = (s: string): string[] => {
+  /** Splits at top-level separators only (not inside parentheses). */
+  const splitTop = (s: string, sep: RegExp): string[] => {
     const parts: string[] = [];
     let depth = 0, cur = "";
     for (const ch of s) {
       if (ch === "(") depth++;
       if (ch === ")") depth--;
-      if (ch === "," && depth === 0) { parts.push(cur.trim()); cur = ""; } else cur += ch;
+      if (depth === 0 && sep.test(ch)) { if (cur.trim()) parts.push(cur.trim()); cur = ""; } else cur += ch;
     }
     if (cur.trim()) parts.push(cur.trim());
     return parts;
@@ -116,12 +124,14 @@ const measureInPage = (): Raw => {
   /** The first inset, unblurred shadow is the edge: a ring (spread) or a one-sided rule (offset). */
   const edgeOf = (shadow: string): [string, number] => {
     if (shadow === "none") return ["none", 0];
-    for (const sh of splitTop(shadow)) {
-      const col = /(rgba?\([^)]*\)|color\([^)]*\))/.exec(sh);
-      if (!col || !/\binset\b/.test(sh)) continue;
-      const n = sh.replace(col[0], "").replace("inset", "").trim().split(/\s+/).map(Number.parseFloat);
+    for (const sh of splitTop(shadow, /,/)) {
+      const tokens = splitTop(sh, /\s/);
+      if (!tokens.includes("inset")) continue;
+      const col = tokens.find((t) => t.includes("(")) ?? tokens.find((t) => /^[a-z#]/i.test(t) && t !== "inset");
+      if (!col) continue;
+      const n = tokens.filter((t) => /^-?[\d.]+(px)?$/.test(t)).map(Number.parseFloat);
       const [x = 0, y = 0, blur = 0, spread = 0] = n;
-      if (blur === 0) return [colour(col[0]), spread || Math.max(Math.abs(x), Math.abs(y))];
+      if (blur === 0) return [colour(col), spread || Math.max(Math.abs(x), Math.abs(y))];
     }
     return ["none", 0];
   };
@@ -143,6 +153,7 @@ const measureInPage = (): Raw => {
     };
     for (const id of (el.dataset.m ?? "").split(" ").filter(Boolean)) out[id] = rec;
   }
+  holder.remove();
   return out;
 };
 
@@ -186,7 +197,6 @@ async function shootColumn(browser: PwBrowser, base: string, col: "web" | "chat"
     metrics[theme] = await pg.evaluate<Raw>(measureInPage);
     for (const c of CELLS) await pg.locator(`#cell-${c.id}`).screenshot({ path: join(outDir, `${c.id}-${col}-${theme}.png`) });
   }
-  await ctx.newPage().then((p) => p.evaluate("0")).catch(() => undefined);
   return { metrics, fontOk };
 }
 
@@ -296,8 +306,8 @@ async function main(): Promise<void> {
   ];
   writeFileSync(pagePath, page({ results, total, findings, imgDir: "screens/tbd-sameness", generated, notes }));
 
-  console.log(`design-sameness: ${CELLS.length} components, ${total.pass} PASS, ${total.documented} DOCUMENTED, ${total.fail} FAIL, ${total.na} N/A`);
-  for (const r of results) console.log(`  ${r.cell.id.padEnd(10)} pass ${r.counts.pass}  documented ${r.counts.documented}  fail ${r.counts.fail}  n/a ${r.counts.na}`);
+  console.log(`design-sameness: ${CELLS.length} components, ${total.pass} PASS, ${total.documented} DOCUMENTED, ${total.fail} FAIL, ${total.na} N/A cells`);
+  for (const r of results) console.log(`  ${r.cell.id.padEnd(10)} pass ${r.counts.pass}  documented ${r.counts.documented}  fail ${r.counts.fail}  n/a cells ${r.counts.na}`);
   console.log(`  ${outDir}\n  ${pagePath}`);
   if (strict && total.fail > 0) process.exit(1);
 }

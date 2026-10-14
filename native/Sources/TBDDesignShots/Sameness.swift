@@ -270,7 +270,7 @@ private func edge(_ p: inout Probe, _ color: String?, width: CGFloat = TBDKit.ha
         out["select-label"] = label
         var p = Probe()
         let ring = bbox(rep, region: CGRect(x: 0, y: 0, width: 320, height: 112), near: rgb(TBDColor.fieldEdge, dark: dark))
-        p.declared("fontFamily", family); p.declared("fontSize", Double(TBDKit.textControl)); p.declared("fontWeight", weightNumber(TBDKit.weightLabel))
+        p.declared("fontFamily", family); p.declared("fontSize", Double(TBDKit.textControl)); p.declared("fontWeight", weightNumber(TBDMetrics.selectValueWeight))
         p.declared("padL", Double(TBDTokens.Control.paddingX)); p.declared("padR", Double(TBDTokens.Control.paddingX))
         if let ring { p.measured("height", rounded(ring.height)); p.measured("width", rounded(ring.width)) }
         p.declared("radius", Double(TBDKit.radiusBrick))
@@ -304,12 +304,12 @@ private func edge(_ p: inout Probe, _ color: String?, width: CGFloat = TBDKit.ha
             guard let box = f[name] else { continue }
             var p = Probe()
             p.declared("fontFamily", family); p.declared("fontSize", Double(TBDKit.textControl))
-            p.declared("fontWeight", weightNumber(current ? TBDKit.weightLabel : TBDKit.weightNav))
-            p.declared("padL", Double(TBDKit.s3)); p.declared("padR", Double(TBDKit.s3))
+            p.declared("fontWeight", weightNumber(TBDMetrics.navWeight))
+            p.declared("padL", Double(TBDMetrics.navPaddingH)); p.declared("padR", Double(TBDMetrics.navPaddingH))
             p.measured("height", rounded(box.height))
             p.declared("radius", Double(TBDKit.radiusBrick))
             p.declared("bg", h(current ? TBDColor.tabCurrentFill : TBDColor.tabFill)); p.declared("color", h(current ? TBDColor.tabCurrentOn : TBDColor.tabOn))
-            edge(&p, nil)   // TBDNavItemBody draws no ring in any state
+            if current { edge(&p, nil) } else { p.declared("edgeColor", h(TBDColor.tabEdge)); p.declared("edgeWidth", Double(TBDMetrics.navIdleRing)) }
             out[name] = p
         }
     case "stepflow":
@@ -351,8 +351,8 @@ private func edge(_ p: inout Probe, _ color: String?, width: CGFloat = TBDKit.ha
                 ? (TBDColor.statusLiveFill, TBDColor.statusLiveOn, TBDColor.statusLiveEdge)
                 : (TBDColor.statusNeedsYouFill, TBDColor.statusNeedsYouOn, TBDColor.statusNeedsYouEdge)
             var p = Probe()
-            p.declared("fontFamily", family); p.declared("fontSize", Double(TBDKit.textLabel)); p.declared("fontWeight", weightNumber(TBDKit.weightNav))
-            p.declared("padL", Double(TBDKit.s4)); p.declared("padR", Double(TBDKit.s4)); p.declared("padT", Double(TBDKit.s3)); p.declared("padB", Double(TBDKit.s3))
+            p.declared("fontFamily", family); p.declared("fontSize", Double(TBDKit.textLabel)); p.declared("fontWeight", weightNumber(TBDMetrics.noticeWeight))
+            p.declared("padL", Double(TBDMetrics.noticePaddingH)); p.declared("padR", Double(TBDMetrics.noticePaddingH)); p.declared("padT", Double(TBDMetrics.noticePaddingV)); p.declared("padB", Double(TBDMetrics.noticePaddingV))
             p.measured("height", rounded(box.height))
             p.declared("radius", Double(TBDKit.radiusBrick))
             p.declared("bg", h(fill)); p.declared("color", h(on)); edge(&p, h(line))
@@ -382,7 +382,7 @@ private func edge(_ p: inout Probe, _ color: String?, width: CGFloat = TBDKit.ha
         guard let box = f["appchip"] else { break }
         let app = TBDApps.app("knowledge")!
         var c = Probe()
-        c.declared("padL", 6.0); c.declared("padR", 10.0)   // literals in TBDAppChip
+        c.declared("padL", Double(TBDMetrics.appChipPaddingLeading)); c.declared("padR", Double(TBDMetrics.appChipPaddingTrailing))
         c.measured("height", rounded(box.height))
         c.declared("radius", Double(TBDKit.radiusBrick)); c.declared("bg", h(app.color)); c.declared("color", h(TBDColor.appOn)); edge(&c, nil)
         out["appchip"] = c
@@ -391,7 +391,8 @@ private func edge(_ p: inout Probe, _ color: String?, width: CGFloat = TBDKit.ha
         out["appchip-name"] = nm
         var ic = Probe()
         if let i = f["appchip-icon"] { ic.measured("width", rounded(i.width)); ic.measured("height", rounded(i.height)) }
-        ic.declared("radius", Double(TBDKit.radiusSwatch)); ic.declared("bg", h(TBDColor.spotPaper)); edge(&ic, nil)   // TBDAppIcon clips; it draws no ring
+        ic.declared("radius", Double(TBDKit.radiusSwatch)); ic.declared("bg", h(TBDColor.spotPaper))
+        if dark { edge(&ic, nil) } else { ic.declared("edgeColor", h(TBDColor.line)); ic.declared("edgeWidth", Double(TBDMetrics.appIconRingLight)) }
         out["appchip-icon"] = ic
     default: break
     }

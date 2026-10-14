@@ -9,6 +9,7 @@ import SwiftUI
 public struct TBDAppIcon: View {
     let app: TBDApp?
     let size: CGFloat
+    @Environment(\.colorScheme) private var scheme
     public init(_ id: String, size: CGFloat = 48) { self.app = TBDApps.app(id); self.size = size }
     public init(app: TBDApp, size: CGFloat = 48) { self.app = app; self.size = size }
 
@@ -31,6 +32,8 @@ public struct TBDAppIcon: View {
         }
         .frame(width: size, height: size)
         .clipShape(shape)
+        // Kit: a 1.5pt line ring in light (the still's paper meets the page); none in dark.
+        .overlay { if scheme == .light { shape.strokeBorder(TBDColor.line, lineWidth: TBDMetrics.appIconRingLight) } }
         .accessibilityLabel(app?.name ?? "App")
     }
 }
@@ -59,7 +62,7 @@ public struct TBDAppChip: View {
             TBDAppIcon(app: app, size: 16).accessibilityHidden(true)
             Text(app.name).font(TBDFonts.nunito(TBDKit.textHint, TBDKit.weightNav)).foregroundStyle(TBDColor.appOn).lineLimit(1)
         }
-        .padding(.leading, 6).padding(.trailing, 10)
+        .padding(.leading, TBDMetrics.appChipPaddingLeading).padding(.trailing, TBDMetrics.appChipPaddingTrailing)
         .frame(minHeight: 28)
         .background(app.color, in: TBDBrickShape())
         .accessibilityElement(children: .combine)
