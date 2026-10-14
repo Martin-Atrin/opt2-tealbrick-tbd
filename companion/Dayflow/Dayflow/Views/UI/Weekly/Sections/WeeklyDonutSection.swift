@@ -155,12 +155,10 @@ private struct WeeklyDonutChart: View {
           .frame(width: chartSize, height: chartSize)
       }
 
-      // In dark mode ("After") the hole is punched out so the panel background
-      // shows through; otherwise it's filled with the weekly card solid.
-      let punchOutHole = stylePreviewAfter && colorScheme == .dark
+      // The hole is the card's own tile in both appearances (kit; the earlier dark "punch-out" blend left a light
+      // disc under light text when the card was not composited).
       Circle()
-        .fill(punchOutHole ? TBDColor.ink : WeeklyPalette.solid)
-        .blendMode(punchOutHole ? .destinationOut : .normal)
+        .fill(WeeklyPalette.solid)
         .frame(
           width: chartSize * innerRadiusRatio - innerGap,
           height: chartSize * innerRadiusRatio - innerGap

@@ -178,6 +178,17 @@ try {
     await record(theme, "agents-hover");
     await page.mouse.move(0, 0);
 
+    // The open account menu: identity, workspace, rows and the Sign out danger row.
+    await page.locator(".account-rail-button").click();
+    await page.waitForSelector(".account-menu");
+    await page.mouse.move(0, 0);
+    await settle();
+    await page.screenshot({ path: join(outDir, `${prefix}-account-menu-${theme}.png`), clip: await clipOf(".sidebar", 0, 340) });
+    await record(theme, "account-menu");
+    await page.locator(".account-rail-button").click();
+    await page.waitForSelector(".account-menu", { state: "detached" });
+    await page.mouse.move(0, 0);
+
     // The open agent panel: TBD's own agent (Overview) and a workspace agent (profile, read only).
     const proof = (fn: string, ...a: unknown[]): Promise<unknown> => page.evaluate(([f, rest]) => (window as unknown as { __proof: Record<string, (...x: unknown[]) => unknown> }).__proof[f as string](...(rest as unknown[])), [fn, a]);
     const shoot = async (name: string, state: string): Promise<void> => {

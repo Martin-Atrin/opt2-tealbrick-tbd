@@ -1,4 +1,5 @@
 import SwiftUI
+import TBDDesign
 
 // Figma: 20pt circle, 0.75pt border, soft inner glow, 12pt pencil.
 struct CategoryEditCircleButton: View {
@@ -13,16 +14,18 @@ struct CategoryEditCircleButton: View {
     let resolvedIconSize = iconSize ?? diameter * 0.6
 
     Button(action: action) {
+      // Kit: an action is a brick (C125); ink glyph on the tile with a line-strong edge (the earlier white glyph on
+      // a light fill was invisible). The visual stays 20pt so fixed layouts keep their places; the hit area is 36pt.
       Image("CategoryEditButton")
         .resizable()
         .renderingMode(.template)
         .scaledToFit()
-        .foregroundColor(theme.isDark ? theme.controlText : .white)
+        .foregroundColor(TBDColor.ink)
         .frame(width: resolvedIconSize, height: resolvedIconSize)
         .frame(width: diameter, height: diameter)
-        .background(Circle().fill(theme.editButtonFill))
-        .overlay(InnerGlow(shape: Circle(), color: theme.editButtonInnerGlow, radius: 3))
-        .overlay(Circle().strokeBorder(theme.editButtonBorder, lineWidth: 0.75))
+        .background(TBDColor.tile, in: TBDBrickShape())
+        .overlay(TBDBrickShape().strokeBorder(TBDColor.lineStrong, lineWidth: TBDKit.hair))
+        .padding(8).contentShape(Rectangle()).padding(-8)
     }
     .buttonStyle(DayflowPressScaleButtonStyle(pressedScale: 0.97))
     .hoverScaleEffect(scale: 1.02)

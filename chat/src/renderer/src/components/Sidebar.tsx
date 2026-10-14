@@ -20,6 +20,13 @@ function useRailTooltip(card: ReactNode): { events: { onMouseEnter: (event: Reac
   };
 }
 
+/** Initials for the account brick: first letters of the first two name parts of the email's local part ("alex.rivera@" -> "AR"), else its first letter. */
+function accountInitials(email: string | null | undefined): string {
+  const parts = (email ?? "").split("@")[0].split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  const letters = parts.length > 1 ? `${parts[0][0]}${parts[1][0]}` : (parts[0] ?? "").slice(0, 1);
+  return letters.toUpperCase() || "?";
+}
+
 /** The right-click menu is about one agent row. */
 type MenuState = { x: number; y: number; agent: Agent };
 
@@ -223,7 +230,7 @@ export function Sidebar(): ReactNode {
       <div className="sidebar__foot">
         <PendingHolds />
         <button className="foot-row account-rail-button" title="Account and workspace" aria-label="Account and workspace" onClick={() => setAccountMenu((v) => !v)}>
-          <Avatar name={account?.email ?? "?"} accent="var(--tb-teal-deep)" size={28} />
+          <span className="account-avatar" aria-hidden="true">{accountInitials(account?.email)}</span>
         </button>
 
         {accountMenu ? (

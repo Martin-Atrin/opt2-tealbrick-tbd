@@ -164,11 +164,19 @@ input::placeholder, textarea::placeholder { color: var(--tb-field-placeholder); 
 .foot-row > .icon:last-child { display: none; }
 .foot-row--accent { color: var(--tb-teal-ink); font-weight: var(--tb-weight-label); }
 .foot-row__note { color: var(--tb-muted); font-family: var(--tb-font); font-size: var(--tb-text-hint); }
-.account-rail-button .avatar { background: var(--tb-tile); color: var(--tb-ink); }
+/* Account: the kit avatar (square ink brick, initials, primary pair) and the account menu (tile, brick, one lift; identity block, ruled 700 rows, Sign out as the danger row). */
+.account-avatar { box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; width: var(--tb-target); height: var(--tb-target); border-radius: var(--tb-radius-brick); background: var(--tb-primary-fill); color: var(--tb-primary-on); font-size: var(--tb-text-control); font-weight: var(--tb-weight-label); line-height: 1; transition: background var(--tb-dur-fast) var(--tb-ease), color var(--tb-dur-fast) var(--tb-ease); }
+.account-rail-button:hover .account-avatar { background: var(--tb-primary-hover-fill); color: var(--tb-primary-hover-on); }
 .sidebar .account-menu { position: fixed; z-index: 100; left: 80px; right: auto; bottom: 16px; width: 300px; max-height: calc(100vh - 40px); overflow: auto; margin: 0; padding: var(--tb-s2); }
 .account-menu__identity { padding: var(--tb-s3) 14px; font-size: var(--tb-text-control); font-weight: var(--tb-weight-label); overflow-wrap: anywhere; }
 .account-menu__identity small { display: block; margin-top: 4px; font-size: var(--tb-text-hint); font-weight: var(--tb-weight-nav); color: var(--tb-muted); }
-.account-menu__issuer { color: var(--tb-muted); font-family: var(--tb-font-mono); font-size: var(--tb-text-hint); }
+.account-menu__issuer { padding: var(--tb-s3) 14px var(--tb-s2); border-top: var(--tb-hair) solid var(--tb-line); color: var(--tb-muted); font-family: var(--tb-font-mono); font-size: var(--tb-text-hint); overflow-wrap: anywhere; }
+.account-menu .workspace-switcher { display: grid; gap: var(--tb-s2); padding: var(--tb-s3) 14px; border-top: var(--tb-hair) solid var(--tb-line); }
+.account-menu .menu__sep { display: none; }
+.account-menu .menu__item { padding: 0 14px; border-radius: 0; border-top: var(--tb-hair) solid var(--tb-line); color: var(--tb-option-on); font-weight: var(--tb-weight-nav); }
+.account-menu .menu__item:hover { background: var(--tb-option-hover-fill); color: var(--tb-option-hover-on); }
+.account-menu .menu__item--danger { margin-top: var(--tb-s2); border: 0; border-radius: var(--tb-radius-brick); background: var(--tb-danger-fill); color: var(--tb-danger-on); box-shadow: inset 0 0 0 var(--tb-hair) var(--tb-danger-edge); font-weight: var(--tb-weight-label); }
+.account-menu .menu__item--danger:hover { background: var(--tb-danger-hover-fill); color: var(--tb-danger-hover-on); }
 .rail-name-rollout { position: fixed; left: 78px; z-index: 1000; max-width: min(420px, calc(100vw - 100px)); padding: var(--tb-s2) var(--tb-s4); border-radius: var(--tb-radius-brick); background: var(--tb-tile); color: var(--tb-ink); box-shadow: var(--tb-shadow-float); font-size: var(--tb-text-control); font-weight: var(--tb-weight-nav); line-height: var(--tb-leading-body); pointer-events: none; overflow-wrap: anywhere; animation: rail-reveal var(--tb-dur-exit) var(--tb-ease); }
 @keyframes rail-reveal { from { opacity: 0; transform: translateX(-5px); } to { opacity: 1; transform: translateX(0); } }
 @media (prefers-reduced-motion: reduce) { .rail-name-rollout { animation: none; } }

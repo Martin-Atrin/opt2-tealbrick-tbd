@@ -116,16 +116,53 @@ struct SettingsAccountSection: View {
     return account.error.isEmpty ? .idle : .warn
   }
 
+  private var workspaceName: String {
+    account.workspaces.first(where: { $0.id == account.activeWorkspace })?.name ?? ""
+  }
+
+  /// "alex.rivera@…" gives "AR"; one name part gives its first letter.
+  private var initials: String {
+    let local = account.email.split(separator: "@").first.map(String.init) ?? ""
+    let parts = local.split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+    let letters = parts.count > 1 ? [parts[0], parts[1]].compactMap(\.first) : parts.first.flatMap(\.first).map { [$0] } ?? []
+    return letters.isEmpty ? "?" : String(letters).uppercased()
+  }
+
+  /// Profile block: the ink brick avatar (44pt, primary pair) beside the email and the workspace.
+  private var profileBlock: some View {
+    HStack(spacing: TBDKit.s4) {
+      Text(initials)
+        .font(TBDFonts.nunito(TBDKit.textControl, TBDKit.weightLabel))
+        .foregroundStyle(TBDColor.primaryOn)
+        .frame(width: TBDKit.target, height: TBDKit.target)
+        .background(TBDColor.primaryFill, in: TBDBrickShape())
+        .accessibilityHidden(true)
+      VStack(alignment: .leading, spacing: 2) {
+        Text(account.email)
+          .font(TBDTokens.Typography.control)
+          .foregroundStyle(TBDColor.ink)
+          .textSelection(.enabled)
+        if account.signedIn, !workspaceName.isEmpty {
+          Text(workspaceName)
+            .font(TBDTokens.Typography.hint)
+            .foregroundStyle(TBDColor.muted)
+        }
+      }
+    }
+  }
+
+  private var ruled: some View {
+    Rectangle().fill(TBDColor.line).frame(height: TBDKit.hair)
+  }
+
   var body: some View {
     SettingsSection(title: String(localized: "Account & Workspace"), isFirst: true) {
       VStack(alignment: .leading, spacing: TBDKit.s4) {
         SettingsStatusDot(state: statusState, label: account.status)
         if !account.email.isEmpty {
-          Text(account.email)
-            .font(TBDTokens.Typography.body)
-            .foregroundStyle(TBDColor.ink)
-            .textSelection(.enabled)
+          profileBlock
         }
+        ruled
         SettingsRow(label: String(localized: "Portal"), showsDivider: false) {
           Picker("Portal", selection: Binding(get: { account.activeProfile }, set: { id in
             Task { await account.perform("activateControlPlane", args: [id]) }
@@ -143,6 +180,7 @@ struct SettingsAccountSection: View {
             .textSelection(.enabled)
         }
         if account.signedIn {
+          ruled
           SettingsRow(label: String(localized: "Workspace"), showsDivider: false) {
             Picker("Workspace", selection: Binding(get: { account.activeWorkspace }, set: { id in
               guard !id.isEmpty else { return }
@@ -155,8 +193,9 @@ struct SettingsAccountSection: View {
             .frame(maxWidth: 260)
             .disabled(account.busy)
           }
+          ruled
           Button("Sign out") { Task { await account.perform("signOut") } }
-            .buttonStyle(TBDButtonStyle(.secondary))
+            .buttonStyle(TBDButtonStyle(.destructive))
             .disabled(account.busy)
           Text("Sign out before changing Portal.")
             .font(TBDTokens.Typography.hint)
