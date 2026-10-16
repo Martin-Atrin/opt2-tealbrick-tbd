@@ -12,8 +12,9 @@ import { keySetFrom, verifyReleaseIndex, type ReleaseIndexBody } from "@opt2-tea
  * 0.1.0 for every 0.1.0 pre-release and must not be used here (C68a).
  */
 
-export const INDEX_URL = "https://github.com/Martin-Atrin/opt2-tealbrick-platform/releases/download/registry/index.json";
-export const ENVELOPE_URL = "https://github.com/Martin-Atrin/opt2-tealbrick-platform/releases/download/registry/index.jws";
+// C206: org repo; builds before this keep working through GitHub's transfer redirect.
+export const INDEX_URL = "https://github.com/Tealbrick/opt2-tealbrick-platform/releases/download/registry/index.json";
+export const ENVELOPE_URL = "https://github.com/Tealbrick/opt2-tealbrick-platform/releases/download/registry/index.jws";
 /** Platform release key (public, registry/keys.json). Rotation ships in a TBD update. */
 export const RELEASE_JWKS = { keys: [{ kty: "OKP", crv: "Ed25519", x: "H7nxFrNugQLVOqEXVIB4aOg83Jn19UCosd27fqnoPPI" }] } as const;
 
