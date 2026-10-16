@@ -6,8 +6,8 @@ This file is the short version. The full engineering practice is in the Tealbric
 
 1. **No secrets, ever.** No keys, tokens, passwords, `.env` files with values, connection strings, webhook URLs or customer data in code, tests, fixtures, logs, issues or commit messages. Use `.env.example` with placeholders. The CI `secret-scan` step (gitleaks) fails the build. If you commit a secret, rotate it before anything else.
 2. **TypeScript only.** New code is `.ts` or `.tsx`. Node 24 runs `.ts` directly (type stripping): no enums, no parameter properties, `.ts` import extensions. Do not add `.js`, `.mjs` or `.cjs` source files, scripts or tests. Allowed JavaScript: generated build output (`dist/`), files a tool requires as JS, vendored third-party code.
-3. **The CI file is generated.** `.woodpecker/ci.yaml` and `.github/workflows/opt2-release.yml` are byte-identical copies of the platform template. The `setup` step fails on drift. Change `tealbrick-ci.json`, or change the template in the platform repo. Never edit the copies. Adopt or upgrade with `node ci/tb-ci.ts adopt <repo dir> --kind <kind>` from the platform repo.
-3a. **Supply chain.** Install with `--frozen-lockfile --ignore-scripts`. Every GitHub-release tarball dependency carries `integrity` in the lockfile (`node ci/tb-ci.ts pin-tarballs <repo dir>` from the platform repo, after each dependency change). Package manager versions are hash-pinned (`packageManager`). A Dockerfile never uses `VOLUME` (Railway refuses it).
+3. **The CI file is generated.** `.woodpecker/ci.yaml` is a byte-identical copy of the platform template (a releasing repo also carries `.github/workflows/opt2-release.yml`; this repo has none, because releases are made on the release Mac). The `setup` step fails on drift. Change `tealbrick-ci.json`, or change the template in the platform repo. Never edit the copies. Adopt or upgrade with `node ci/tb-ci.ts adopt <repo dir> --kind <kind>` from the platform repo.
+3a. **Supply chain.** Install with `--frozen-lockfile --ignore-scripts` (pnpm repos) or `npm ci --ignore-scripts` (this repo, which uses npm). Every GitHub-release tarball dependency carries `integrity` in the lockfile (`node ci/tb-ci.ts pin-tarballs <repo dir>` from the platform repo, after each dependency change). In pnpm repos the package manager version is hash-pinned (`packageManager`); this npm repo has no `packageManager` field. A Dockerfile never uses `VOLUME` (Railway refuses it).
 4. **Changes go through a pull request.** `main` is the only long-lived branch. Work on short branches named `<type>/<id>-<slug>` (types: feat, fix, chore, docs, ci, sec, hotfix). PR title `<area>: <summary>`, body with a `Refs:` line, green required checks, no unrelated changes. Squash merge only; linear history; delete the branch after merge. CODEOWNERS routes reviews; while there is one human maintainer the review is an agent review recorded in the PR. Branch protection and CODEOWNERS are not set yet (GitHub Team, decision D1): until then the rule holds by convention. No force push, no history rewrite (C39).
 5. **Traceability.** Every commit carries an id in a `Refs:` trailer or the subject: a decision (`C202`), an item (`BRG-13`, `SEC-01`, `QA R-1`) or an incident. Every release has notes (a `CHANGELOG.md` section per version is the target, enforced later).
 6. **Tags are immutable and CI-only.** Tag only on a green pipeline. Never move or delete a tag. If a tag is wrong, cut the next version (L38). Release assets are uploaded only by the CI release Action, never by hand (L10, C76). Build before pack: a package whose `exports` target is missing fails the pack (C75).
@@ -32,11 +32,11 @@ cd chat
 npm run typecheck && npm test && npm run lint
 ```
 
-Swift tests are run by hand on a Mac (command not documented in the repo: UNVERIFIED). Recorded: native 495 run (490 pass, 5 skipped), chat 148 to 150.
+Swift tests (`native/Tests`, `tests/`, `companion/Dayflow/DayflowTests`) are run by hand on a Mac (command not documented in the repo: UNVERIFIED). They are not in CI.
 
 ## Releasing
 
 1. Run on the release Mac, from a clean tree at a pushed commit.
 2. `TBD_RELEASE_TAG=v<x.y.z[-pre.N]> TBD_NOTARY_PROFILE=<profile> TBD_PUBLISH=1 scripts/release.sh`. Every pre-release bumps `CFBundleVersion`.
-3. Add the index entry: `node ci/tb-ci.ts registry-add-desktop --product tbd --version <semver> --url <asset url> --repo <repo> --sha256 <hex> [--min-os 14.0]` from the platform repo. It downloads and checks the sha256. Then `registry-sync`.
+3. Add the index entry: `node ci/tb-ci.ts registry-add-desktop --product tbd --version <semver> --url <asset url> [--repo <repo>] --sha256 <hex> [--min-os 14.0]` from the platform repo. It downloads and checks the sha256. `--repo` is needed only with a dist host URL. Then `registry-sync`.
 4. A stable release needs QA evidence and the owner's go. Delete DerivedData and build output after the build.
